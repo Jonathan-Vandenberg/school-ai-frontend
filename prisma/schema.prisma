@@ -1,0 +1,545 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model with custom roles
+model User {
+  id                    String            @id @default(cuid())
+  username              String            @unique
+  email                 String            @unique
+  provider              String?
+  password              String?
+  resetPasswordToken    String?
+  confirmationToken     String?
+  confirmed             Boolean           @default(false)
+  blocked               Boolean           @default(false)
+  customRole            UserRole
+  address               String?
+  customImage           String?
+  phone                 String?
+  isPlayGame            Boolean?          @default(false)
+  theme                 String?           @default("system")
+  
+  // Statistics fields
+  averageScoreOfCompleted       Float?
+  totalAssignments              Int?      @default(0)
+  totalAssignmentsCompleted     Int?      @default(0)
+  averageCompletionPercentage   Float?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  role              Role?                        @relation(fields: [roleId], references: [id])
+  roleId            String?
+  classes           UserClass[]
+  progresses        StudentAssignmentProgress[]
+  activityLogs      ActivityLog[]
+  assignmentsCreated Assignment[]                @relation("TeacherAssignments")
+  assignmentsAssigned UserAssignment[]
+  studentSprites    StudentSprite[]
+
+  @@map("users")
+}
+
+// Enum for user roles
+enum UserRole {
+  TEACHER
+  ADMIN
+  STUDENT
+  PARENT
+}
+
+// Role model for permissions
+model Role {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  type        String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+// Permission model
+model Permission {
+  id     String @id @default(cuid())
+  action String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+// Junction table for Role-Permission relationship
+model RolePermission {
+  roleId       String
+  permissionId String
+  
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// Class model
+model Class {
+  id   String @id @default(cuid())
+  name String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  users        UserClass[]
+  assignments  ClassAssignment[]
+  activityLogs ActivityLog[]
+  statsClasses StatsClass[]
+
+  @@map("classes")
+}
+
+// Junction table for User-Class relationship
+model UserClass {
+  userId  String
+  classId String
+  
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@id([userId, classId])
+  @@map("user_classes")
+}
+
+// Language model
+model Language {
+  id       String           @id @default(cuid())
+  language LanguageType
+  code     String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  assignments Assignment[]
+
+  @@map("languages")
+}
+
+enum LanguageType {
+  ENGLISH
+  VIETNAMESE
+  JAPANESE
+  SPANISH
+  ITALIAN
+  FRENCH
+  GERMAN
+  PORTUGESE
+}
+
+// Assignment model
+model Assignment {
+  id                      String                   @id @default(cuid())
+  topic                   String?
+  color                   String?
+  vocabularyItems         Json?
+  scheduledPublishAt      DateTime?
+  isActive                Boolean?                 @default(true)
+  type                    AssignmentType?
+  videoUrl                String?
+  videoTranscript         String?
+  languageAssessmentType  LanguageAssessmentType?
+  isIELTS                 Boolean?                 @default(false)
+  context                 String?
+  
+  // Statistics fields
+  totalStudentsInScope    Int?    @default(0)
+  completedStudentsCount  Int?    @default(0)
+  completionRate          Float?
+  averageScoreOfCompleted Float?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  teacher             User?                         @relation("TeacherAssignments", fields: [teacherId], references: [id])
+  teacherId           String?
+  language            Language?                     @relation(fields: [languageId], references: [id])
+  languageId          String?
+  evaluationSettings  EvaluationSettings?
+  questions           Question[]
+  progresses          StudentAssignmentProgress[]
+  activityLogs        ActivityLog[]
+  classes             ClassAssignment[]
+  students            UserAssignment[]
+
+  @@map("assignments")
+}
+
+enum AssignmentType {
+  CLASS
+  INDIVIDUAL
+}
+
+enum LanguageAssessmentType {
+  SCRIPTED_US
+  SCRIPTED_UK
+  UNSCRIPTED_US
+  UNSCRIPTED_UK
+  PRONUNCIATION_US
+  PRONUNCIATION_UK
+}
+
+// Junction table for Class-Assignment relationship
+model ClassAssignment {
+  classId      String
+  assignmentId String
+  
+  class      Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@id([classId, assignmentId])
+  @@map("class_assignments")
+}
+
+// Junction table for User-Assignment relationship
+model UserAssignment {
+  userId       String
+  assignmentId String
+  
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, assignmentId])
+  @@map("user_assignments")
+}
+
+// Evaluation Settings component
+model EvaluationSettings {
+  id                 String                @id @default(cuid())
+  type               EvaluationType
+  customPrompt       String?
+  rules              Json?
+  acceptableResponses Json?
+  feedbackSettings   Json                  @default("{}")
+
+  // Relations
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String     @unique
+
+  @@map("evaluation_settings")
+}
+
+enum EvaluationType {
+  CUSTOM
+  IMAGE
+  VIDEO
+  Q_AND_A
+  READING
+  PRONUNCIATION
+}
+
+// Question model
+model Question {
+  id           String  @id @default(cuid())
+  image        String?
+  textQuestion String?
+  videoUrl     String?
+  textAnswer   String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  assignment Assignment                   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String
+  progresses StudentAssignmentProgress[]
+
+  @@map("questions")
+}
+
+// Student Assignment Progress model
+model StudentAssignmentProgress {
+  id                        String  @id @default(cuid())
+  isComplete                Boolean @default(false)
+  isCorrect                 Boolean @default(false)
+  languageConfidenceResponse Json?
+  grammarCorrected          Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String
+  question     Question?  @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  questionId   String?
+
+  @@map("student_assignment_progress")
+}
+
+// Activity Log model
+model ActivityLog {
+  id   String          @id @default(cuid())
+  type ActivityLogType
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId       String?
+  class        Class?      @relation(fields: [classId], references: [id], onDelete: SetNull)
+  classId      String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  assignmentId String?
+
+  @@map("activity_logs")
+}
+
+enum ActivityLogType {
+  STUDENT_CREATED
+  TEACHER_CREATED
+  CLASS_CREATED
+  ASSIGNMENT_CREATED
+  INDIVIDUAL_ASSIGNMENT_CREATED
+}
+
+// Assignment Category model
+model AssignmentCategory {
+  id                      String                   @id @default(cuid())
+  name                    String
+  type                    AssignmentCategoryType?
+  description             String?
+  defaultPrompt           String?
+  defaultRules            Json?
+  defaultFeedbackSettings Json?
+  isEnabled               Boolean                  @default(true)
+  isIELTS                 Boolean?                 @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  assignmentGroup   AssignmentGroup? @relation(fields: [assignmentGroupId], references: [id])
+  assignmentGroupId String?
+
+  @@map("assignment_categories")
+}
+
+enum AssignmentCategoryType {
+  IMAGE
+  VIDEO
+  Q_AND_A
+  CUSTOM
+  READING
+  PRONUNCIATION
+  Q_AND_A_IMAGE
+}
+
+// Assignment Group model
+model AssignmentGroup {
+  id          String  @id @default(cuid())
+  name        String
+  description String
+  color       String
+  isEnabled   Boolean @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  assignmentCategories AssignmentCategory[]
+
+  @@map("assignment_groups")
+}
+
+// Tool model
+model Tool {
+  id          String   @id @default(cuid())
+  type        ToolType
+  name        String?
+  description String?
+  enabled     Boolean  @default(true)
+  imageId     String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  @@map("tools")
+}
+
+enum ToolType {
+  PLANNING
+  ASSESSMENT
+  RESOURCES
+  ADMIN
+  PUPIL_REPORTS
+  LEADERSHIP
+  WELLBEING
+}
+
+// Sprite Set model for gamification
+model SpriteSet {
+  id          String @id @default(cuid())
+  name        String
+  description String?
+  difficulty  Int?
+  order       Int
+  stages      Json   @default("[]")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  studentSprites StudentSprite[]
+
+  @@map("sprite_sets")
+}
+
+// Student Sprite model for gamification
+model StudentSprite {
+  id                       String @id @default(cuid())
+  currentEvolutionStage    Int    @default(0)
+  completedAssignmentsCount Int    @default(0)
+  currentSpriteSetIndex    Int    @default(0)
+  completedSpriteSets      Json   @default("[]")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  student      User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    String      @unique
+  spriteSet    SpriteSet?  @relation(fields: [spriteSetId], references: [id])
+  spriteSetId  String?
+
+  @@map("student_sprites")
+}
+
+// Stats Class model
+model StatsClass {
+  id                String @id @default(cuid())
+  averageCompletion Float?
+  averageScore      Float?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  // Relations
+  class   Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId String @unique
+
+  @@map("stats_classes")
+}
+
+// Dashboard Snapshot model
+model DashboardSnapshot {
+  id                       String               @id @default(cuid())
+  timestamp                DateTime
+  snapshotType             DashboardSnapshotType
+  totalClasses             Int?
+  totalTeachers            Int?
+  totalStudents            Int?
+  totalAssignments         Int?
+  classAssignments         Int?
+  individualAssignments    Int?
+  averageCompletionRate    Int?
+  averageSuccessRate       Int?
+  studentsNeedingAttention Int?
+  recentActivities         Int?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publishedAt DateTime?
+
+  @@map("dashboard_snapshots")
+}
+
+enum DashboardSnapshotType {
+  daily
+  weekly
+  monthly
+}
+
+// Upload File model (to replace Strapi uploads)
+model UploadFile {
+  id              String  @id @default(cuid())
+  name            String
+  alternativeText String?
+  caption         String?
+  width           Int?
+  height          Int?
+  formats         Json?
+  hash            String
+  ext             String?
+  mime            String
+  size            Float
+  url             String
+  previewUrl      String?
+  provider        String
+  providerMetadata Json?
+  folderPath      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  folder   UploadFolder? @relation(fields: [folderId], references: [id])
+  folderId String?
+
+  @@map("upload_files")
+}
+
+// Upload Folder model
+model UploadFolder {
+  id     String @id @default(cuid())
+  name   String
+  pathId Int
+  path   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  parent   UploadFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id])
+  parentId String?
+  children UploadFolder[] @relation("FolderHierarchy")
+  files    UploadFile[]
+
+  @@map("upload_folders")
+} 
