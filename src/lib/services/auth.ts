@@ -1,4 +1,5 @@
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 
 export interface AuthenticatedUser {
   id: string
@@ -22,45 +23,27 @@ class AuthorizationError extends Error {
   }
 }
 
-// For now, we'll use a simple auth configuration
-// This will be replaced with proper NextAuth configuration later
-const authOptions = {
-  // Basic NextAuth configuration placeholder
-}
-
 export class AuthService {
   /**
    * Get the currently authenticated user
    * Throws AuthenticationError if not authenticated
-   * 
-   * Note: This is a simplified version for demo purposes
-   * In production, this would integrate with proper NextAuth configuration
    */
   static async getAuthenticatedUser(): Promise<AuthenticatedUser> {
     try {
       const session = await getServerSession(authOptions)
       
       if (!session?.user?.email) {
-        throw new AuthenticationError()
+        throw new AuthenticationError('No valid session found')
       }
 
-      // For now, return a mock admin user for demo purposes
-      // In production, this would come from the actual session
       return {
-        id: 'demo-user-id',
-        username: session.user.username || 'Demo User',
+        id: session.user.id,
+        username: session.user.username,
         email: session.user.email,
-        customRole: 'ADMIN', // For demo purposes
+        customRole: session.user.role,
       }
     } catch (error) {
-      // For demo purposes, return a mock admin user
-      // In production, this would throw an authentication error
-      return {
-        id: 'demo-admin',
-        username: 'Demo Admin',
-        email: 'admin@demo.com',
-        customRole: 'ADMIN',
-      }
+      throw new AuthenticationError('No valid session found')
     }
   }
 

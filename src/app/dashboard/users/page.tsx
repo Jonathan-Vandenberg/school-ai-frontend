@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Input } from '@/components/ui/input'
 import { 
   Pagination,
   PaginationContent,
@@ -34,7 +34,6 @@ import {
 } from '@/components/ui/select'
 import { 
   Users, 
-  Search, 
   Filter, 
   Plus, 
   MoreHorizontal, 
@@ -42,7 +41,8 @@ import {
   Trash2, 
   UserCheck, 
   UserX,
-  Download
+  Download,
+  Loader2
 } from 'lucide-react'
 
 // Import global utility functions
@@ -85,8 +85,10 @@ export default function UsersPage() {
   const { data: session } = useSession()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchLoading, setSearchLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -108,9 +110,36 @@ export default function UsersPage() {
     parent: 0
   })
 
-  const loadUsers = async (page = currentPage) => {
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Debounce search input to prevent focus loss
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setSearchTerm(searchInput)
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchInput])
+
+  // Maintain focus after search updates
+  useEffect(() => {
+    if (searchInputRef.current && document.activeElement !== searchInputRef.current) {
+      // Only refocus if we were searching and lost focus unexpectedly
+      if (searchInput && !searchLoading) {
+        searchInputRef.current.focus()
+      }
+    }
+  }, [users, searchInput, searchLoading])
+
+  const loadUsers = async (page = currentPage, isSearch = false) => {
     try {
-      setLoading(true)
+      // Use different loading states
+      if (isSearch) {
+        setSearchLoading(true)
+      } else {
+        setLoading(true)
+      }
+      
       const params = new URLSearchParams({
         page: page.toString(),
         limit: pageSize.toString(),
@@ -140,6 +169,7 @@ export default function UsersPage() {
           student: 0,
           parent: 0
         })
+        setError(null)
       } else {
         setError('Failed to load users')
       }
@@ -147,29 +177,36 @@ export default function UsersPage() {
       setError('Failed to load users')
       console.error('Error loading users:', err)
     } finally {
-      setLoading(false)
+      if (isSearch) {
+        setSearchLoading(false)
+      } else {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
     if (session?.user?.role === 'ADMIN') {
-      loadUsers(1)
+      // Determine if this is a search operation
+      const isSearch = searchTerm.length > 0
+      loadUsers(1, isSearch)
       setCurrentPage(1)
     }
   }, [session, searchTerm, roleFilter, pageSize])
 
   useEffect(() => {
     if (session?.user?.role === 'ADMIN') {
-      loadUsers(currentPage)
+      // Load users for any page change (including going back to page 1)
+      loadUsers(currentPage, false)
     }
   }, [currentPage])
 
   const handleUserCreated = () => {
-    loadUsers(currentPage) // Refresh the current page
+    loadUsers(currentPage, false) // Refresh without search loading
   }
 
   const handleUserUpdated = () => {
-    loadUsers(currentPage) // Refresh the current page
+    loadUsers(currentPage, false) // Refresh without search loading
   }
 
   const handleUserAction = async (action: string, userId: string) => {
@@ -243,7 +280,9 @@ export default function UsersPage() {
   }
 
   const handlePageChange = (page: number) => {
-    setCurrentPage(page)
+    if (page >= 1 && page <= pagination.totalPages && page !== currentPage) {
+      setCurrentPage(page)
+    }
   }
 
   const handlePageSizeChange = (newPageSize: string) => {
@@ -255,7 +294,7 @@ export default function UsersPage() {
   const generatePaginationItems = () => {
     const items = []
     const totalPages = pagination.totalPages
-    const current = pagination.page
+    const current = currentPage
 
     if (totalPages <= 7) {
       // Show all pages if 7 or fewer
@@ -344,16 +383,19 @@ export default function UsersPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by username or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+            <div className="flex-1 relative">
+              <Input 
+                placeholder="Search by username or email..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="h-9"
+                ref={searchInputRef}
+              />
+              {searchLoading && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
             </div>
             <div className="w-full sm:w-48">
               <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -407,8 +449,10 @@ export default function UsersPage() {
                 )}
               </CardDescription>
             </div>
-            {loading && (
-              <div className="text-sm text-muted-foreground">Loading...</div>
+            {(loading || searchLoading) && (
+              <div className="text-sm text-muted-foreground">
+                {searchLoading ? 'Searching...' : 'Loading...'}
+              </div>
             )}
           </div>
         </CardHeader>
@@ -510,8 +554,15 @@ export default function UsersPage() {
                     <PaginationContent>
                       <PaginationItem>
                         <PaginationPrevious 
-                          onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
-                          className={pagination.page === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            if (currentPage > 1) {
+                              handlePageChange(currentPage - 1)
+                            }
+                          }}
+                          className={currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                          aria-disabled={currentPage === 1}
                         />
                       </PaginationItem>
                       
@@ -519,8 +570,14 @@ export default function UsersPage() {
                         <PaginationItem key={index}>
                           {typeof item === 'number' ? (
                             <PaginationLink 
-                              onClick={() => handlePageChange(item)}
-                              isActive={pagination.page === item}
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                if (item !== currentPage) {
+                                  handlePageChange(item)
+                                }
+                              }}
+                              isActive={currentPage === item}
                               className="cursor-pointer"
                             >
                               {item}
@@ -533,8 +590,15 @@ export default function UsersPage() {
                       
                       <PaginationItem>
                         <PaginationNext 
-                          onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
-                          className={pagination.page === pagination.totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            if (currentPage < pagination.totalPages) {
+                              handlePageChange(currentPage + 1)
+                            }
+                          }}
+                          className={currentPage === pagination.totalPages ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                          aria-disabled={currentPage === pagination.totalPages}
                         />
                       </PaginationItem>
                     </PaginationContent>

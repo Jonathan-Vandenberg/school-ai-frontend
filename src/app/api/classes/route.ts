@@ -109,7 +109,7 @@ export async function PUT(request: NextRequest) {
     
     // Parse request body
     const body = await request.json()
-    const { classId, name, description } = body
+    const { classId, name, description, teacherIds, studentIds } = body
 
     // Validate required fields
     if (!classId) {
@@ -126,6 +126,8 @@ export async function PUT(request: NextRequest) {
     const updateData: any = {}
     if (name !== undefined) updateData.name = name
     if (description !== undefined) updateData.description = description
+    if (teacherIds !== undefined) updateData.teacherIds = teacherIds
+    if (studentIds !== undefined) updateData.studentIds = studentIds
 
     // Use service to update class
     const updatedClass = await ClassesService.updateClass(currentUser, classId, updateData)

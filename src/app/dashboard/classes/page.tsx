@@ -157,10 +157,6 @@ export default function ClassesPage() {
         setSelectedClass(classItem)
         setConfirmationDialogOpen(true)
         break
-      case 'manage-users':
-        // Navigate to class users management page
-        window.location.href = `/dashboard/classes/${classId}/users`
-        break
       case 'view-assignments':
         // Navigate to class assignments page
         window.location.href = `/dashboard/classes/${classId}/assignments`
@@ -410,10 +406,6 @@ export default function ClassesPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleClassAction('manage-users', classItem.id)}>
-                                <Users className="mr-2 h-4 w-4" />
-                                Manage Users
-                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleClassAction('view-assignments', classItem.id)}>
                                 <BookOpen className="mr-2 h-4 w-4" />
                                 View Assignments

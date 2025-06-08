@@ -14,6 +14,8 @@ export interface CreateClassData {
 export interface UpdateClassData {
   name?: string
   description?: string
+  teacherIds?: string[]
+  studentIds?: string[]
 }
 
 export interface ClassWithDetails {
@@ -279,25 +281,113 @@ export class ClassesService {
       }
     }
 
-    const updatedClass = await prisma.class.update({
-      where: { id: classId },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        createdAt: true,
-        updatedAt: true,
-        publishedAt: true,
-        _count: {
-          select: {
-            users: true,
-            assignments: true,
+    // Validate teacher and student assignments if provided
+    if (updateData.teacherIds !== undefined) {
+      // Require at least one teacher
+      if (updateData.teacherIds.length === 0) {
+        throw new ValidationError('At least one teacher is required for a class')
+      }
+
+      // Validate teachers exist and have correct role
+      const teachers = await prisma.user.findMany({
+        where: { 
+          id: { in: updateData.teacherIds },
+          customRole: 'TEACHER'
+        }
+      })
+      if (teachers.length !== updateData.teacherIds.length) {
+        throw new ValidationError('One or more selected teachers not found or invalid')
+      }
+    }
+
+    if (updateData.studentIds !== undefined) {
+      // Validate students exist and have correct role
+      if (updateData.studentIds.length > 0) {
+        const students = await prisma.user.findMany({
+          where: { 
+            id: { in: updateData.studentIds },
+            customRole: 'STUDENT'
+          }
+        })
+        if (students.length !== updateData.studentIds.length) {
+          throw new ValidationError('One or more selected students not found or invalid')
+        }
+
+        // Check if students are already in other classes (excluding current class)
+        const studentsInOtherClasses = await prisma.userClass.findMany({
+          where: {
+            userId: { in: updateData.studentIds },
+            classId: { not: classId },
+            user: { customRole: 'STUDENT' }
+          },
+          include: {
+            user: { select: { username: true } },
+            class: { select: { name: true } }
+          }
+        })
+
+        if (studentsInOtherClasses.length > 0) {
+          const conflictNames = studentsInOtherClasses.map(sc => 
+            `${sc.user.username} (already in ${sc.class.name})`
+          ).join(', ')
+          throw new ValidationError(`Students already in other classes: ${conflictNames}`)
+        }
+      }
+    }
+
+    return withTransaction(async (tx) => {
+      // Update basic class information
+      const updatedClass = await tx.class.update({
+        where: { id: classId },
+        data: {
+          name: updateData.name,
+          // Note: description field doesn't exist in the schema
+        },
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          updatedAt: true,
+          publishedAt: true,
+          _count: {
+            select: {
+              users: true,
+              assignments: true,
+            },
           },
         },
-      },
-    })
+      })
 
-    return updatedClass as ClassWithDetails
+      // Update user assignments if provided
+      if (updateData.teacherIds !== undefined || updateData.studentIds !== undefined) {
+        // Remove all existing user assignments
+        await tx.userClass.deleteMany({
+          where: { classId }
+        })
+
+        // Add teachers
+        if (updateData.teacherIds && updateData.teacherIds.length > 0) {
+          await tx.userClass.createMany({
+            data: updateData.teacherIds.map(userId => ({
+              userId,
+              classId,
+            }))
+          })
+        }
+
+        // Add students
+        if (updateData.studentIds && updateData.studentIds.length > 0) {
+          await tx.userClass.createMany({
+            data: updateData.studentIds.map(userId => ({
+              userId,
+              classId,
+            }))
+          })
+        }
+      }
+
+      return updatedClass as ClassWithDetails
+    })
   }
 
   /**
@@ -619,10 +709,100 @@ export class ClassesService {
         username: true,
         email: true,
       },
-      orderBy: { username: 'asc' }
+      orderBy: {
+        username: 'asc',
+      },
     })
 
     return teachers
+  }
+
+  /**
+   * Get available users for a specific class (includes current members + available others)
+   * Only admins and teachers can access this
+   */
+  static async getAvailableUsersForClass(
+    currentUser: AuthenticatedUser,
+    classId: string
+  ): Promise<{
+    teachers: Array<{
+      id: string
+      username: string
+      email: string
+    }>
+    students: Array<{
+      id: string
+      username: string
+      email: string
+    }>
+  }> {
+    AuthService.requireTeacherOrAdmin(currentUser)
+
+    await this.verifyClassExists(classId)
+
+    // Get all available teachers (all teachers)
+    const allTeachers = await this.getAllTeachers(currentUser)
+
+    // Get current class students
+    const currentClassUsers = await prisma.userClass.findMany({
+      where: { 
+        classId,
+        user: { customRole: 'STUDENT' }
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+          }
+        }
+      }
+    })
+
+    const currentStudentIds = currentClassUsers.map(uc => uc.user.id)
+
+    // Build the where clause for available students
+    const studentWhereClause: any = {
+      customRole: 'STUDENT',
+      blocked: false,
+      confirmed: true,
+    }
+
+    // If there are current students, include them OR students not in any class
+    if (currentStudentIds.length > 0) {
+      studentWhereClause.OR = [
+        { id: { in: currentStudentIds } }, // Current class students
+        { 
+          classes: {
+            none: {} // Students not in any class
+          }
+        }
+      ]
+    } else {
+      // If no current students, just get students not in any class
+      studentWhereClause.classes = {
+        none: {} // Students not in any class
+      }
+    }
+
+    // Get available students
+    const availableStudents = await prisma.user.findMany({
+      where: studentWhereClause,
+      select: {
+        id: true,
+        username: true,
+        email: true
+      },
+      orderBy: {
+        username: 'asc'
+      }
+    })
+
+    return {
+      teachers: allTeachers,
+      students: availableStudents
+    }
   }
 
   /**
