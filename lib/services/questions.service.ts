@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import { AuthService, AuthenticatedUser, NotFoundError, ForbiddenError, ValidationError } from './auth.service'
 import { withTransaction } from '../db'
 
@@ -504,5 +504,30 @@ export class QuestionsService {
         attemptDate: p.createdAt
       }))
     }
+  }
+
+  /**
+   * Creates multiple questions for a given assignment within a transaction.
+   * @param questions - The question data to create.
+   * @param assignmentId - The ID of the assignment to associate the questions with.
+   * @param tx - The Prisma transaction client.
+   */
+  public async createManyForAssignment(
+    questions: { textQuestion: string; textAnswer: string }[],
+    assignmentId: string,
+    tx: Prisma.TransactionClient
+  ): Promise<void> {
+    if (!questions || questions.length === 0) {
+      return;
+    }
+
+    const questionsData = questions.map((q) => ({
+      ...q,
+      assignmentId: assignmentId,
+    }));
+
+    await tx.question.createMany({
+      data: questionsData,
+    });
   }
 } 
