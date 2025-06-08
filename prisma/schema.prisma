@@ -307,8 +307,10 @@ model StudentAssignmentProgress {
 
 // Activity Log model
 model ActivityLog {
-  id   String          @id @default(cuid())
-  type ActivityLogType
+  id          String          @id @default(cuid())
+  type        ActivityLogType
+  action      String?         // Detailed action description (optional for backwards compatibility)
+  details     Json?           // Additional metadata about the action
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -326,11 +328,44 @@ model ActivityLog {
 }
 
 enum ActivityLogType {
+  // User operations
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  USER_BLOCKED
+  USER_UNBLOCKED
+  USER_CONFIRMED
+  USER_PASSWORD_CHANGED
+  USER_ROLE_CHANGED
+  
+  // Class operations
+  CLASS_CREATED
+  CLASS_UPDATED
+  CLASS_DELETED
+  CLASS_USERS_ADDED
+  CLASS_USERS_REMOVED
+  
+  // Assignment operations  
+  ASSIGNMENT_CREATED
+  ASSIGNMENT_UPDATED
+  ASSIGNMENT_DELETED
+  ASSIGNMENT_PUBLISHED
+  ASSIGNMENT_ARCHIVED
+  INDIVIDUAL_ASSIGNMENT_CREATED
+  INDIVIDUAL_ASSIGNMENT_DELETED
+  
+  // Authentication operations
+  USER_LOGIN
+  USER_LOGOUT
+  USER_LOGIN_FAILED
+  
+  // System operations
+  SYSTEM_BACKUP_CREATED
+  SYSTEM_MAINTENANCE
+  
+  // Legacy support (for backwards compatibility)
   STUDENT_CREATED
   TEACHER_CREATED
-  CLASS_CREATED
-  ASSIGNMENT_CREATED
-  INDIVIDUAL_ASSIGNMENT_CREATED
 }
 
 // Assignment Category model

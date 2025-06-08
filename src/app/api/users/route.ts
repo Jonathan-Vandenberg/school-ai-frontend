@@ -97,7 +97,7 @@ export async function PUT(request: NextRequest) {
     
     // Parse request body
     const body = await request.json()
-    const { userId, username, email, customRole, phone, address, isPlayGame, confirmed, blocked, theme } = body
+    const { userId, username, email, customRole, phone, address, isPlayGame, confirmed, blocked, theme, isActivity = true } = body
 
     // Validate required fields
     if (!userId) {
@@ -125,7 +125,12 @@ export async function PUT(request: NextRequest) {
     if (blocked !== undefined) updateData.blocked = blocked
 
     // Use service to update user
-    const updatedUser = await UsersService.updateUser(currentUser, userId, updateData)
+    const updatedUser = await UsersService.updateUser(
+      currentUser, 
+      userId, 
+      updateData, 
+      !isActivity // Skip activity log when isActivity is false
+    )
 
     return NextResponse.json({
       success: true,

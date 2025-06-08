@@ -47,12 +47,20 @@ export {
   type QuestionListParams 
 } from './questions.service'
 
+// Activity logging
+export { 
+  ActivityLogService, 
+  type ActivityLogData, 
+  type ActivityLogEntry 
+} from './activity-log.service'
+
 // Import for ServiceFactory only (these must be value imports, not type imports)
 import { AuthService } from './auth.service'
 import { UsersService } from './users.service'
 import { AssignmentsService } from './assignments.service'
 import { ClassesService } from './classes.service'
 import { QuestionsService } from './questions.service'
+import { ActivityLogService } from './activity-log.service'
 
 /**
  * Service Factory
@@ -77,6 +85,10 @@ export class ServiceFactory {
 
   static get questions() {
     return QuestionsService
+  }
+
+  static get activityLog() {
+    return ActivityLogService
   }
 }
 

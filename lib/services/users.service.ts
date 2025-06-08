@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { AuthService, AuthenticatedUser, NotFoundError, ForbiddenError, ValidationError } from './auth.service'
+import { ActivityLogService } from './activity-log.service'
 import { hashPassword } from '../auth'
 import { withTransaction } from '../db'
 
@@ -24,6 +25,7 @@ export interface UpdateUserData {
   confirmed?: boolean
   blocked?: boolean
   theme?: 'light' | 'dark' | 'system'
+  customRole?: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT'
 }
 
 export interface UserWithDetails {
@@ -57,7 +59,7 @@ export interface UserListParams {
 
 /**
  * Users Service
- * Handles all user-related database operations with authentication
+ * Handles all user-related database operations with authentication and activity logging
  */
 export class UsersService {
   /**
@@ -70,22 +72,36 @@ export class UsersService {
   ): Promise<UserWithDetails> {
     AuthService.requireAdmin(currentUser)
 
-    // Validate email uniqueness
-    const existingUser = await prisma.user.findUnique({
-      where: { email: userData.email }
+    // Helper function to generate 3 random numbers
+    const generateRandomSuffix = () => Math.floor(100 + Math.random() * 900).toString()
+
+    // Handle username collision by adding random numbers
+    let finalUsername = userData.username
+    let usernameExists = await prisma.user.findUnique({
+      where: { username: finalUsername }
     })
 
-    if (existingUser) {
-      throw new ValidationError('Email already exists')
+    while (usernameExists) {
+      const suffix = generateRandomSuffix()
+      finalUsername = `${userData.username}${suffix}`
+      usernameExists = await prisma.user.findUnique({
+        where: { username: finalUsername }
+      })
     }
 
-    // Validate username uniqueness
-    const existingUsername = await prisma.user.findUnique({
-      where: { username: userData.username }
+    // Handle email collision by adding random numbers before @
+    let finalEmail = userData.email
+    let emailExists = await prisma.user.findUnique({
+      where: { email: finalEmail }
     })
 
-    if (existingUsername) {
-      throw new ValidationError('Username already exists')
+    while (emailExists) {
+      const suffix = generateRandomSuffix()
+      const [localPart, domain] = userData.email.split('@')
+      finalEmail = `${localPart}${suffix}@${domain}`
+      emailExists = await prisma.user.findUnique({
+        where: { email: finalEmail }
+      })
     }
 
     const hashedPassword = await hashPassword(userData.password)
@@ -94,6 +110,8 @@ export class UsersService {
       const user = await tx.user.create({
         data: {
           ...userData,
+          username: finalUsername,
+          email: finalEmail,
           password: hashedPassword,
           confirmed: true, // Admin-created users are auto-confirmed
         },
@@ -113,12 +131,23 @@ export class UsersService {
         },
       })
 
-      // Log the activity
+      // Log the activity using the new format
       await tx.activityLog.create({
         data: {
-          type: userData.customRole === 'STUDENT' ? 'STUDENT_CREATED' : 'TEACHER_CREATED',
+          type: 'USER_CREATED',
+          action: `${user.username} was added!`,
+          details: {
+            targetUserId: user.id,
+            targetUsername: user.username,
+            targetEmail: user.email,
+            targetRole: user.customRole,
+            createdByAdmin: true,
+            adminId: currentUser.id,
+            adminUsername: currentUser.username,
+            originalUsername: userData.username !== finalUsername ? userData.username : undefined,
+            originalEmail: userData.email !== finalEmail ? userData.email : undefined,
+          },
           userId: currentUser.id,
-          publishedAt: new Date(),
         },
       })
 
@@ -176,16 +205,38 @@ export class UsersService {
   static async updateUser(
     currentUser: AuthenticatedUser,
     userId: string,
-    updateData: UpdateUserData
+    updateData: UpdateUserData,
+    skipActivityLog: boolean = false
   ): Promise<UserWithDetails> {
     // Only admins can change confirmation status or block/unblock users
-    if (updateData.confirmed !== undefined || updateData.blocked !== undefined) {
+    if (updateData.confirmed !== undefined || updateData.blocked !== undefined || updateData.customRole !== undefined) {
       AuthService.requireAdmin(currentUser)
     } else {
       AuthService.requireOwnershipOrTeacher(currentUser, userId)
     }
 
     await AuthService.verifyUserExists(userId)
+
+    // Get the current user data for comparison and logging
+    const currentUserData = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        customRole: true,
+        phone: true,
+        address: true,
+        confirmed: true,
+        blocked: true,
+        isPlayGame: true,
+        theme: true,
+      }
+    })
+
+    if (!currentUserData) {
+      throw new NotFoundError('User not found')
+    }
 
     // Validate email uniqueness if changing email
     if (updateData.email) {
@@ -215,26 +266,168 @@ export class UsersService {
       }
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        customRole: true,
-        phone: true,
-        address: true,
-        confirmed: true,
-        blocked: true,
-        isPlayGame: true,
-        theme: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    })
+    return withTransaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: updateData,
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          customRole: true,
+          phone: true,
+          address: true,
+          confirmed: true,
+          blocked: true,
+          isPlayGame: true,
+          theme: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
 
-    return updatedUser as UserWithDetails
+      // Skip activity logging if flag is set (for personal preference changes like theme)
+      if (skipActivityLog) {
+        console.log(`🔕 ACTIVITY LOG SKIPPED: User ${updatedUser.username} update completed without logging`)
+        return updatedUser as UserWithDetails
+      }
+
+      // Track what changed for activity logging and if specific logs were created
+      const changedFields: string[] = []
+      let specificLogCreated = false
+      const logDetails: any = {
+        updatedByAdmin: currentUser.customRole === 'ADMIN' && currentUser.id !== userId,
+        adminId: currentUser.customRole === 'ADMIN' ? currentUser.id : undefined,
+        adminUsername: currentUser.customRole === 'ADMIN' ? currentUser.username : undefined
+      }
+
+      // Check for field changes and add specific activity logs
+      if (updateData.username !== undefined && updateData.username !== currentUserData.username) {
+        changedFields.push('username')
+        logDetails.oldUsername = currentUserData.username
+        logDetails.newUsername = updateData.username
+      }
+
+      if (updateData.email !== undefined && updateData.email !== currentUserData.email) {
+        changedFields.push('email')
+        logDetails.oldEmail = currentUserData.email
+        logDetails.newEmail = updateData.email
+      }
+
+      if (updateData.customRole !== undefined && updateData.customRole !== currentUserData.customRole) {
+        changedFields.push('customRole')
+        specificLogCreated = true
+        
+        // Create role change activity log directly in the transaction
+        await tx.activityLog.create({
+          data: {
+            type: 'USER_ROLE_CHANGED',
+            action: `User ${updatedUser.username} role changed from ${currentUserData.customRole} to ${updateData.customRole}`,
+            details: {
+              targetUserId: updatedUser.id,
+              targetUsername: updatedUser.username,
+              targetEmail: updatedUser.email,
+              oldRole: currentUserData.customRole,
+              newRole: updateData.customRole,
+              changedByAdmin: true,
+              adminId: currentUser.id,
+              adminUsername: currentUser.username
+            },
+            userId: currentUser.id,
+            publishedAt: new Date(),
+          },
+        })
+      }
+
+      if (updateData.blocked !== undefined && updateData.blocked !== currentUserData.blocked) {
+        changedFields.push('blocked')
+        specificLogCreated = true
+        
+        console.log(`🔒 BLOCKING/UNBLOCKING USER: ${updatedUser.username} - blocked: ${updateData.blocked}`)
+        
+        // Create activity log directly in the transaction (simplified for debugging)
+        await tx.activityLog.create({
+          data: {
+            type: updateData.blocked ? 'USER_BLOCKED' : 'USER_UNBLOCKED',
+            action: `User ${updatedUser.username} was ${updateData.blocked ? 'blocked' : 'unblocked'}`,
+            details: {
+              blocked: updateData.blocked,
+              adminId: currentUser.id,
+            },
+            userId: currentUser.id,
+            publishedAt: new Date(),
+          },
+        })
+        
+        console.log(`✅ ACTIVITY LOG CREATED for ${updateData.blocked ? 'blocking' : 'unblocking'} user: ${updatedUser.username}`)
+      }
+
+      if (updateData.confirmed !== undefined && updateData.confirmed !== currentUserData.confirmed) {
+        changedFields.push('confirmed')
+        specificLogCreated = true
+        
+        // Create confirmation activity log
+        await tx.activityLog.create({
+          data: {
+            type: 'USER_CONFIRMED',
+            action: `User ${updatedUser.username} was ${updateData.confirmed ? 'confirmed' : 'unconfirmed'}`,
+            details: {
+              targetUserId: updatedUser.id,
+              targetUsername: updatedUser.username,
+              targetEmail: updatedUser.email,
+              confirmed: updateData.confirmed,
+              changedByAdmin: true,
+              adminId: currentUser.id,
+              adminUsername: currentUser.username
+            },
+            userId: currentUser.id,
+            publishedAt: new Date(),
+          },
+        })
+      }
+
+      if (updateData.phone !== undefined && updateData.phone !== currentUserData.phone) {
+        changedFields.push('phone')
+      }
+
+      if (updateData.address !== undefined && updateData.address !== currentUserData.address) {
+        changedFields.push('address')
+      }
+
+      if (updateData.isPlayGame !== undefined && updateData.isPlayGame !== currentUserData.isPlayGame) {
+        changedFields.push('isPlayGame')
+      }
+
+      // Only create generic USER_UPDATED log if:
+      // 1. There were changes to track
+      // 2. No specific activity logs were already created
+      // 3. There are non-specific fields that changed (like username, email, phone, etc.)
+      const nonSpecificFields = changedFields.filter(field => 
+        !['customRole', 'blocked', 'confirmed'].includes(field)
+      )
+
+      if (nonSpecificFields.length > 0 && !specificLogCreated) {
+        await tx.activityLog.create({
+          data: {
+            type: 'USER_UPDATED',
+            action: `User ${updatedUser.username} updated`,
+            details: {
+              targetUserId: updatedUser.id,
+              targetUsername: updatedUser.username,
+              targetEmail: updatedUser.email,
+              updatedFields: nonSpecificFields,
+              updatedByAdmin: currentUser.customRole === 'ADMIN' && currentUser.id !== userId,
+              adminId: currentUser.customRole === 'ADMIN' ? currentUser.id : undefined,
+              adminUsername: currentUser.customRole === 'ADMIN' ? currentUser.username : undefined
+            },
+            userId: currentUser.id,
+            publishedAt: new Date(),
+          },
+        })
+      }
+
+      return updatedUser as UserWithDetails
+    })
   }
 
   /**
@@ -253,7 +446,41 @@ export class UsersService {
 
     await AuthService.verifyUserExists(userId)
 
+    // Get user data before deletion for logging
+    const userToDelete = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        customRole: true
+      }
+    })
+
+    if (!userToDelete) {
+      throw new NotFoundError('User not found')
+    }
+
     await withTransaction(async (tx) => {
+      // Log the deletion before actually deleting
+      await tx.activityLog.create({
+        data: {
+          type: 'USER_DELETED',
+          action: `User ${userToDelete.username} deleted`,
+          details: {
+            targetUserId: userToDelete.id,
+            targetUsername: userToDelete.username,
+            targetEmail: userToDelete.email,
+            deletedByAdmin: true,
+            adminId: currentUser.id,
+            adminUsername: currentUser.username,
+            userRole: userToDelete.customRole
+          },
+          userId: currentUser.id,
+          publishedAt: new Date(),
+        },
+      })
+
       // The foreign key constraints with onDelete: Cascade will handle
       // cleaning up related records (progresses, assignments, etc.)
       await tx.user.delete({
@@ -438,12 +665,19 @@ export class UsersService {
   }
 
   /**
-   * Update current user profile
+   * Update current user's profile
+   * Users can only update their own profile data
    */
   static async updateCurrentUserProfile(
     currentUser: AuthenticatedUser,
-    updateData: Omit<UpdateUserData, 'confirmed'>
+    updateData: Omit<UpdateUserData, 'confirmed'>,
+    skipActivityLog: boolean = false
   ): Promise<UserWithDetails> {
-    return this.updateUser(currentUser, currentUser.id, updateData)
+    return this.updateUser(
+      currentUser, 
+      currentUser.id, 
+      updateData, 
+      skipActivityLog
+    )
   }
 } 

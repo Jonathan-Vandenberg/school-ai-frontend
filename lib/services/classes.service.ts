@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { AuthService, AuthenticatedUser, NotFoundError, ForbiddenError, ValidationError } from './auth.service'
+import { ActivityLogService } from './activity-log.service'
 import { withTransaction } from '../db'
 
 const prisma = new PrismaClient()
@@ -52,7 +53,7 @@ export interface AssignUsersData {
 
 /**
  * Classes Service
- * Handles all class-related database operations with authentication
+ * Handles all class-related database operations with authentication and activity logging
  */
 export class ClassesService {
   /**
@@ -163,15 +164,28 @@ export class ClassesService {
         })
       }
 
-      // Log the activity
-      await tx.activityLog.create({
-        data: {
-          type: 'CLASS_CREATED',
-          userId: currentUser.id,
-          classId: newClass.id,
-          publishedAt: new Date(),
-        },
-      })
+      // Log the activity using the comprehensive ActivityLogService
+      try {
+        await ActivityLogService.logClassCreated(
+          currentUser,
+          {
+            id: newClass.id,
+            name: newClass.name
+          },
+          classData.teacherIds!,
+          classData.studentIds || [],
+          {
+            createdBy: currentUser.customRole,
+            creatorId: currentUser.id,
+            creatorUsername: currentUser.username,
+            teacherCount: classData.teacherIds!.length,
+            studentCount: classData.studentIds?.length || 0
+          }
+        )
+      } catch (logError) {
+        // Log the error but don't fail class creation
+        console.error('Failed to log class creation activity:', logError)
+      }
 
       return newClass as ClassWithDetails
     })
@@ -267,6 +281,31 @@ export class ClassesService {
 
     await this.verifyClassExists(classId)
 
+    // Get current class data for comparison and logging
+    const currentClassData = await prisma.class.findUnique({
+      where: { id: classId },
+      select: {
+        id: true,
+        name: true,
+        users: {
+          select: {
+            userId: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                customRole: true
+              }
+            }
+          }
+        }
+      }
+    })
+
+    if (!currentClassData) {
+      throw new NotFoundError('Class not found')
+    }
+
     // Validate class name uniqueness if changing name
     if (updateData.name) {
       const existingClass = await prisma.class.findFirst({
@@ -336,13 +375,26 @@ export class ClassesService {
     }
 
     return withTransaction(async (tx) => {
+      // Track what changed for activity logging
+      const changedFields: string[] = []
+      const logDetails: any = {
+        updatedBy: currentUser.customRole,
+        updatedById: currentUser.id,
+        updatedByUsername: currentUser.username
+      }
+
       // Update basic class information
+      const classUpdateData: any = {}
+      if (updateData.name !== undefined && updateData.name !== currentClassData.name) {
+        classUpdateData.name = updateData.name
+        changedFields.push('name')
+        logDetails.oldName = currentClassData.name
+        logDetails.newName = updateData.name
+      }
+
       const updatedClass = await tx.class.update({
         where: { id: classId },
-        data: {
-          name: updateData.name,
-          // Note: description field doesn't exist in the schema
-        },
+        data: classUpdateData,
         select: {
           id: true,
           name: true,
@@ -358,8 +410,32 @@ export class ClassesService {
         },
       })
 
+      // Track user assignment changes
+      let addedTeachers: string[] = []
+      let removedTeachers: string[] = []
+      let addedStudents: string[] = []
+      let removedStudents: string[] = []
+
       // Update user assignments if provided
       if (updateData.teacherIds !== undefined || updateData.studentIds !== undefined) {
+        const currentTeachers = currentClassData.users
+          .filter(u => u.user.customRole === 'TEACHER')
+          .map(u => u.userId)
+        const currentStudents = currentClassData.users
+          .filter(u => u.user.customRole === 'STUDENT')
+          .map(u => u.userId)
+
+        // Calculate changes
+        if (updateData.teacherIds !== undefined) {
+          addedTeachers = updateData.teacherIds.filter(id => !currentTeachers.includes(id))
+          removedTeachers = currentTeachers.filter(id => !updateData.teacherIds!.includes(id))
+        }
+
+        if (updateData.studentIds !== undefined) {
+          addedStudents = updateData.studentIds.filter(id => !currentStudents.includes(id))
+          removedStudents = currentStudents.filter(id => !updateData.studentIds!.includes(id))
+        }
+
         // Remove all existing user assignments
         await tx.userClass.deleteMany({
           where: { classId }
@@ -384,6 +460,86 @@ export class ClassesService {
             }))
           })
         }
+
+        changedFields.push('userAssignments')
+      }
+
+      // Log general class update if basic fields changed
+      if (changedFields.length > 0) {
+        await ActivityLogService.logClassUpdated(
+          currentUser,
+          {
+            id: updatedClass.id,
+            name: updatedClass.name
+          },
+          changedFields,
+          logDetails
+        )
+      }
+
+      // Log specific user assignment changes
+      if (addedTeachers.length > 0) {
+        await ActivityLogService.logClassUsersAdded(
+          currentUser,
+          {
+            id: updatedClass.id,
+            name: updatedClass.name
+          },
+          addedTeachers,
+          'teachers',
+          {
+            updateType: 'teacher_assignment',
+            addedCount: addedTeachers.length
+          }
+        )
+      }
+
+      if (removedTeachers.length > 0) {
+        await ActivityLogService.logClassUsersRemoved(
+          currentUser,
+          {
+            id: updatedClass.id,
+            name: updatedClass.name
+          },
+          removedTeachers,
+          'teachers',
+          {
+            updateType: 'teacher_assignment',
+            removedCount: removedTeachers.length
+          }
+        )
+      }
+
+      if (addedStudents.length > 0) {
+        await ActivityLogService.logClassUsersAdded(
+          currentUser,
+          {
+            id: updatedClass.id,
+            name: updatedClass.name
+          },
+          addedStudents,
+          'students',
+          {
+            updateType: 'student_assignment',
+            addedCount: addedStudents.length
+          }
+        )
+      }
+
+      if (removedStudents.length > 0) {
+        await ActivityLogService.logClassUsersRemoved(
+          currentUser,
+          {
+            id: updatedClass.id,
+            name: updatedClass.name
+          },
+          removedStudents,
+          'students',
+          {
+            updateType: 'student_assignment',
+            removedCount: removedStudents.length
+          }
+        )
       }
 
       return updatedClass as ClassWithDetails
@@ -402,7 +558,42 @@ export class ClassesService {
 
     await this.verifyClassExists(classId)
 
+    // Get class data before deletion for logging
+    const classToDelete = await prisma.class.findUnique({
+      where: { id: classId },
+      select: {
+        id: true,
+        name: true,
+        _count: {
+          select: {
+            users: true,
+            assignments: true
+          }
+        }
+      }
+    })
+
+    if (!classToDelete) {
+      throw new NotFoundError('Class not found')
+    }
+
     await withTransaction(async (tx) => {
+      // Log the deletion before actually deleting
+      await ActivityLogService.logClassDeleted(
+        currentUser,
+        {
+          id: classToDelete.id,
+          name: classToDelete.name
+        },
+        {
+          deletedByAdmin: true,
+          adminId: currentUser.id,
+          adminUsername: currentUser.username,
+          userCount: classToDelete._count.users,
+          assignmentCount: classToDelete._count.assignments
+        }
+      )
+
       // The foreign key constraints with onDelete: Cascade will handle
       // cleaning up related records (user_classes, class_assignments, etc.)
       await tx.class.delete({

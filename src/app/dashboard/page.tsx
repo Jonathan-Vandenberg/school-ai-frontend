@@ -15,10 +15,35 @@ import {
   Clock, 
   CheckCircle,
   AlertTriangle,
-  TrendingUp
+  TrendingUp,
+  Activity
 } from 'lucide-react'
 import { getRoleColor, getRoleDisplayName } from '@/lib/utils'
 
+interface ActivityLogEntry {
+  id: string
+  type: string
+  action?: string | null
+  details?: any
+  createdAt: string
+  userId?: string | null
+  classId?: string | null
+  assignmentId?: string | null
+  user?: {
+    id: string
+    username: string
+    email: string
+    customRole: string
+  } | null
+  class?: {
+    id: string
+    name: string
+  } | null
+  assignment?: {
+    id: string
+    topic?: string | null
+  } | null
+}
 
 interface Assignment {
   id: string
@@ -47,6 +72,14 @@ export default function DashboardPage() {
   const { data: session } = useSession()
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [users, setUsers] = useState<User[]>([])
+  const [roleCounts, setRoleCounts] = useState({
+    admin: 0,
+    teacher: 0,
+    student: 0,
+    parent: 0,
+    total: 0
+  })
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,6 +99,31 @@ export default function DashboardPage() {
           if (usersResponse.ok) {
             const usersData = await usersResponse.json()
             setUsers(usersData.data || [])
+            
+            // Use the accurate role counts from the API
+            if (usersData.roleCounts) {
+              const counts = usersData.roleCounts
+              setRoleCounts({
+                admin: counts.admin || 0,
+                teacher: counts.teacher || 0,
+                student: counts.student || 0,
+                parent: counts.parent || 0,
+                total: (counts.admin || 0) + (counts.teacher || 0) + (counts.student || 0) + (counts.parent || 0)
+              })
+            }
+          }
+        }
+
+        // Load recent activity logs (for admins)
+        if (session?.user?.role === 'ADMIN') {
+          try {
+            const logsResponse = await fetch('/api/activity-logs?limit=10')
+            if (logsResponse.ok) {
+              const logsData = await logsResponse.json()
+              setActivityLogs(logsData.data || [])
+            }
+          } catch (err) {
+            console.error('Error loading activity logs:', err)
           }
         }
       } catch (err) {
@@ -106,6 +164,34 @@ export default function DashboardPage() {
     }
   }
 
+  const getActivityTypeColor = (type: string) => {
+    switch (type) {
+      case 'USER_CREATED':
+      case 'USER_UPDATED':
+      case 'USER_CONFIRMED':
+        return 'bg-green-100 text-green-800'
+      case 'USER_DELETED':
+      case 'USER_BLOCKED':
+        return 'bg-red-100 text-red-800'
+      case 'CLASS_CREATED':
+      case 'CLASS_UPDATED':
+        return 'bg-blue-100 text-blue-800'
+      case 'ASSIGNMENT_CREATED':
+      case 'ASSIGNMENT_UPDATED':
+        return 'bg-purple-100 text-purple-800'
+      case 'USER_LOGIN':
+        return 'bg-gray-100 text-gray-800'
+      case 'USER_LOGIN_FAILED':
+        return 'bg-yellow-100 text-yellow-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const formatActivityType = (type: string) => {
+    return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -137,14 +223,6 @@ export default function DashboardPage() {
           {getDashboardDescription(userRole, username)}
         </p>
       </div>
-
-      {/* Phase 1 Completion Alert */}
-      <Alert className="border-green-200 bg-green-50">
-        <CheckCircle className="h-4 w-4 text-green-600" />
-        <AlertDescription className="text-green-800">
-          <strong>🎉 Phase 1 Complete!</strong> Authentication system with role-based access and global navigation is now fully functional.
-        </AlertDescription>
-      </Alert>
 
       {/* Stats Cards - Role-based */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -188,7 +266,7 @@ export default function DashboardPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.length}</div>
+                <div className="text-2xl font-bold">{roleCounts.total}</div>
                 <p className="text-xs text-muted-foreground">
                   Students, teachers, and admins
                 </p>
@@ -202,7 +280,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {users.filter(u => u.customRole === 'STUDENT').length}
+                  {roleCounts.student}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Enrolled learners
@@ -326,39 +404,53 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {userRole === 'ADMIN' && users.length > 0 && (
+      {userRole === 'ADMIN' && activityLogs.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Recent Users</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Recent Activity
+            </CardTitle>
             <CardDescription>
-              Latest users registered in the system
+              Latest system activities and user actions
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Activity</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Details</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.slice(0, 5).map((user) => (
-                  <TableRow key={user.id}>
+                {activityLogs.slice(0, 10).map((log) => (
+                  <TableRow key={log.id}>
                     <TableCell className="font-medium">
-                      {user.username}
+                      {log.action || 'System activity'}
                     </TableCell>
-                    <TableCell>{user.email}</TableCell>
                     <TableCell>
-                      <Badge className={getRoleColor(user.customRole)}>
-                        {getRoleDisplayName(user.customRole)}
+                      <Badge className={getActivityTypeColor(log.type)}>
+                        {formatActivityType(log.type)}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {new Date(user.createdAt).toLocaleDateString()}
+                      {log.user ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={getRoleColor(log.user.customRole)}>
+                            {getRoleDisplayName(log.user.customRole)}
+                          </Badge>
+                          <span>{log.user.username}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">System</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(log.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       <Button variant="outline" size="sm">

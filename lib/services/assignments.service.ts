@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { AuthService, AuthenticatedUser, NotFoundError, ForbiddenError, ValidationError } from './auth.service'
+import { ActivityLogService } from './activity-log.service'
 import { withTransaction } from '../db'
 
 const prisma = new PrismaClient()
@@ -135,7 +136,7 @@ export interface StudentProgress {
 
 /**
  * Assignments Service
- * Handles all assignment-related database operations with authentication
+ * Handles all assignment-related database operations with authentication and activity logging
  */
 export class AssignmentsService {
   /**
@@ -234,15 +235,28 @@ export class AssignmentsService {
         })
       }
 
-      // Log the activity
-      await tx.activityLog.create({
-        data: {
-          type: assignmentData.type === 'CLASS' ? 'ASSIGNMENT_CREATED' : 'INDIVIDUAL_ASSIGNMENT_CREATED',
-          userId: currentUser.id,
-          assignmentId: assignment.id,
-          publishedAt: new Date(),
+      // Log the activity using the comprehensive ActivityLogService
+      await ActivityLogService.logAssignmentCreated(
+        currentUser,
+        {
+          id: assignment.id,
+          topic: assignment.topic || 'Untitled Assignment'
         },
-      })
+        assignmentData.type,
+        {
+          createdBy: currentUser.customRole,
+          creatorId: currentUser.id,
+          creatorUsername: currentUser.username,
+          language: language.language,
+          languageCode: language.code,
+          classCount: classIds?.length || 0,
+          studentCount: studentIds?.length || 0,
+          isScheduled: !!assignmentData.scheduledPublishAt,
+          scheduledDate: assignmentData.scheduledPublishAt?.toISOString(),
+          assignmentType: assignmentData.type,
+          evaluationType: evaluationSettings?.type
+        }
+      )
 
       return assignment as AssignmentWithDetails
     })
