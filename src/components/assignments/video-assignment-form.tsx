@@ -14,6 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PlusCircle, Trash2, Eye } from "lucide-react";
-import { Class, Language, User } from "@prisma/client";
+import { Class, User } from "@prisma/client";
 import { Switch } from "@/components/ui/switch";
 import { useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -45,11 +46,11 @@ import { VideoAssignmentPreview } from "./video-assignment-preview";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 const formSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
   videoUrl: z.string().url("Please enter a valid YouTube URL"),
-  languageId: z.string().min(1, "Language is required"),
   questions: z.array(z.object({
     text: z.string().min(1, "Question text cannot be empty."),
     answer: z.string().min(1, "Answer text cannot be empty."),
@@ -58,47 +59,110 @@ const formSchema = z.object({
   studentIds: z.array(z.string()).optional(),
   assignToEntireClass: z.boolean(),
   scheduledPublishAt: z.date().optional().nullable(),
+  hasTranscript: z.boolean().optional(),
+  languageId: z.string().optional(),
 });
 
 type VideoFormValues = z.infer<typeof formSchema>;
 
 interface VideoAssignmentFormProps {
   data: {
-    languages: Language[];
     classes: Class[];
+    languages: { id: string; name: string }[];
   };
 }
 
 export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
   const router = useRouter();
-  const { languages, classes } = data;
+  const { classes, languages } = data;
   const [students, setStudents] = useState<User[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [enableSchedule, setEnableSchedule] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  
+  // State for video transcript checking
+  const [videoHasTranscript, setVideoHasTranscript] = useState<boolean | null>(null);
+  const [transcriptContent, setTranscriptContent] = useState<string | null>(null);
+  const [transcriptLanguage, setTranscriptLanguage] = useState<string | null>(null);
+  const [isCheckingTranscript, setIsCheckingTranscript] = useState(false);
+
+  // State for tracking assignment analysis
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [improvedQuestions, setImprovedQuestions] = useState<{ text: string; answer: string; }[]>([]);
 
   const form = useForm<VideoFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       topic: "",
       videoUrl: "",
-      languageId: "",
       questions: [{ text: "", answer: "" }],
       classIds: [],
       studentIds: [],
       assignToEntireClass: true,
       scheduledPublishAt: null,
+      hasTranscript: false,
+      languageId: "",
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "questions"
   });
 
   const selectedClasses = form.watch("classIds");
   const assignToEntireClass = form.watch("assignToEntireClass");
+  const videoUrl = form.watch("videoUrl");
+
+  // Check for video transcript when URL changes
+  useEffect(() => {
+    const checkVideoTranscript = async () => {
+      if (!videoUrl || !z.string().url().safeParse(videoUrl).success) {
+        setVideoHasTranscript(null);
+        setTranscriptContent(null);
+        setTranscriptLanguage(null);
+        setImprovedQuestions([]);
+        return;
+      }
+
+      setIsCheckingTranscript(true);
+      setImprovedQuestions([]); // Reset improved questions on new URL
+      setVideoHasTranscript(null); // Reset transcript state
+
+      try {
+        const response = await fetch('/api/check-video-transcript', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ videoUrl })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to check video transcript');
+        }
+
+        const data = await response.json();
+        setVideoHasTranscript(data.hasTranscript);
+        setTranscriptContent(data.transcriptContent);
+        setTranscriptLanguage(data.transcriptLang);
+        form.setValue('hasTranscript', data.hasTranscript);
+
+      } catch (error) {
+        console.error('Error checking transcript:', error);
+        setVideoHasTranscript(false);
+        setTranscriptContent(null);
+        setTranscriptLanguage(null);
+      } finally {
+        setIsCheckingTranscript(false);
+      }
+    };
+
+    const debounceId = setTimeout(() => {
+      checkVideoTranscript();
+    }, 500); // Reduced debounce time for better responsiveness
+
+    return () => clearTimeout(debounceId);
+  }, [videoUrl, form]);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -126,6 +190,84 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
 
     fetchStudents();
   }, [selectedClasses, assignToEntireClass, form]);
+
+  // Function to analyze transcript and suggest questions
+  const suggestQuestionsFromTranscript = async () => {
+    if (!transcriptContent) {
+      setFormMessage({ type: 'error', message: 'No transcript available to analyze.' });
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setFormMessage(null); // Clear previous messages
+
+    try {
+      const formData = form.getValues();
+
+      const response = await fetch('/api/analyze-video-assignment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcript: transcriptContent,
+          topic: formData.topic,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.improvedQuestions?.questions) {
+        const newQuestions: { text: string; answer: string; }[] = result.improvedQuestions.questions;
+        
+        const existingQuestionsSet = new Set(
+          improvedQuestions.map(q => `${q.text.trim().toLowerCase()}-${q.answer.trim().toLowerCase()}`)
+        );
+
+        const uniqueNewQuestions = newQuestions.filter((newQ) => {
+          const newQKey = `${newQ.text.trim().toLowerCase()}-${newQ.answer.trim().toLowerCase()}`;
+          return !existingQuestionsSet.has(newQKey);
+        });
+
+        if (uniqueNewQuestions.length > 0) {
+          setImprovedQuestions(prev => [...prev, ...uniqueNewQuestions]);
+          setFormMessage({ type: 'success', message: `Successfully generated ${uniqueNewQuestions.length} new questions.` });
+        } else {
+          setFormMessage({ type: 'success', message: 'No new unique questions were found.' });
+        }
+      } else {
+        throw new Error(result.error || 'AI analysis failed');
+      }
+    } catch (error) {
+      console.error('Error generating questions:', error);
+      const message = error instanceof Error ? error.message : 'Failed to generate AI questions.';
+      setFormMessage({ type: 'error', message });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const applyOneImprovedQuestion = (question: { text: string; answer: string; }) => {
+    // Check if the first question is empty and replace it, otherwise append.
+    const firstQuestion = form.getValues("questions")[0];
+    if (form.getValues("questions").length === 1 && !firstQuestion.text && !firstQuestion.answer) {
+      replace([question]);
+    } else {
+      append(question);
+    }
+    setFormMessage({ type: 'success', message: 'Question added.' });
+  };
+
+  const applyAllImprovedQuestions = () => {
+    if (improvedQuestions.length === 0) return;
+    replace(improvedQuestions);
+    setFormMessage({ type: 'success', message: 'All suggested questions have been applied.' });
+  };
 
   async function onSubmit(values: VideoFormValues) {
     setIsSubmitting(true);
@@ -180,7 +322,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                 <FormItem>
                   <FormLabel>Topic</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., The Past Tense" {...field} />
+                    <Input placeholder="Top 10 things to remember when learning IELTS" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -193,36 +335,158 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                 <FormItem>
                   <FormLabel>YouTube Video URL</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://www.youtube.com/watch?v=..." {...field} />
+                    <Input 
+                      placeholder="https://www.youtube.com/watch?v=..." 
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="languageId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Language</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a language" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {languages.map((lang) => (
-                        <SelectItem key={lang.id} value={lang.id}>
-                          {lang.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
+            {isCheckingTranscript && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Checking...</AlertTitle>
+                <AlertDescription>
+                  Checking for transcript availability...
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {videoHasTranscript === false && !isCheckingTranscript && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>No Transcript</AlertTitle>
+                <AlertDescription>
+                  No transcript is available for this video. Please choose another or add questions manually.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {videoHasTranscript && transcriptContent && !isCheckingTranscript && (
+              <Alert variant="default">
+                 <CheckCircle2 className="h-4 w-4" />
+                <AlertTitle>Transcript Available!</AlertTitle>
+                <AlertDescription>
+                  <details className="mt-2 cursor-pointer">
+                    <summary className="font-semibold">View Transcript</summary>
+                    <div className="mt-2 p-2 bg-secondary rounded-md max-h-48 overflow-y-auto whitespace-pre-wrap">
+                      {transcriptContent}
+                    </div>
+                  </details>
+                  {improvedQuestions.length === 0 && (
+                    <Button 
+                      type="button"
+                      onClick={suggestQuestionsFromTranscript}
+                      disabled={isAnalyzing}
+                      className="mt-4"
+                    >
+                      {isAnalyzing ? 'Generating...' : 'Generate Questions from Transcript'}
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {improvedQuestions.length > 0 && (
+          <Card>
+            <CardHeader>
+                <CardTitle>Suggested Questions</CardTitle>
+                <CardDescription>
+                  These questions have been generated by AI based on the video transcript. You can add them individually or all at once.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-4">
+                {improvedQuestions.map((q, i) => (
+                  <div key={i} className="p-4 border rounded-md bg-secondary">
+                    <p className="font-semibold">{i + 1}. {q.text}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="font-semibold">Answer:</span> {q.answer}
+                    </p>
+                    <div className="flex justify-end mt-2">
+                       <Button 
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => applyOneImprovedQuestion(q)}
+                        >
+                          Use This Question
+                        </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-4 mt-4 justify-end">
+                <Button type="button" onClick={applyAllImprovedQuestions}>
+                  Use All Suggested Questions
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={suggestQuestionsFromTranscript}
+                  disabled={isAnalyzing}
+                >
+                  {isAnalyzing ? 'Generating more...' : 'Generate More Questions'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Questions</CardTitle>
+            <CardDescription>
+              Add questions that students will answer after watching the video.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {fields.map((field, index) => (
+              <div key={field.id} className="flex items-start justify-between w-full gap-4 p-4 border rounded-md">
+                <div className="flex-grow gap-4">
+                  <FormField
+                    control={form.control}
+                    name={`questions.${index}.text`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Question {index + 1}</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="e.g., What did the character do?"
+                            {...field}
+                            rows={2}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  onClick={() => remove(index)}
+                  className="mt-8"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => append({ text: "", answer: "" })}
+            >
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add Question
+            </Button>
           </CardContent>
         </Card>
 
@@ -283,88 +547,27 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Individual Students</FormLabel>
-                    {isLoadingStudents ? <p>Loading students...</p> : (
-                      <Select onValueChange={(value) => field.onChange([...(field.value || []), value])}>
-                         <FormControl>
-                           <SelectTrigger>
-                             <SelectValue placeholder="Select students" />
-                           </SelectTrigger>
-                         </FormControl>
-                         <SelectContent>
-                           {students.map((s) => (
-                             <SelectItem key={s.id} value={s.id}>
-                               {s.username}
-                             </SelectItem>
-                           ))}
-                         </SelectContent>
-                       </Select>
-                    )}
+                     <FormControl>
+                        <MultiSelect
+                          options={students.map(student => ({
+                            value: student.id,
+                            label: student.username || student.email,
+                          }))}
+                          selected={field.value || []}
+                          onChange={field.onChange}
+                          placeholder={isLoadingStudents ? "Loading students..." : "Select students..."}
+                          emptyText="No available students for the selected class."
+                          disabled={isLoadingStudents || students.length === 0}
+                        />
+                      </FormControl>
+                    <FormDescription>
+                      If you don't assign to the entire class, you must select individual students.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             )}
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Questions</CardTitle>
-            <CardDescription>
-              Add questions that students will answer after watching the video.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {fields.map((field, index) => (
-              <div key={field.id} className="flex items-start gap-4 p-4 border rounded-md">
-                <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name={`questions.${index}.text`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Question {index + 1}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., What did the character do?" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`questions.${index}.answer`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Expected Answer</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., They went to the park." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="icon"
-                  onClick={() => remove(index)}
-                  className="mt-8"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => append({ text: "", answer: "" })}
-            >
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Add Question
-            </Button>
           </CardContent>
         </Card>
         
