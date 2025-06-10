@@ -294,356 +294,356 @@ export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCr
   return (
     <>
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Create Users
-            </DialogTitle>
-            <DialogDescription>
-              Add individual users or bulk create students from CSV data
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Create Users
+          </DialogTitle>
+          <DialogDescription>
+            Add individual users or bulk create students from CSV data
+          </DialogDescription>
+        </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="single" className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Single User
-              </TabsTrigger>
-              <TabsTrigger value="bulk" className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Bulk Students
-              </TabsTrigger>
-            </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="single" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Single User
+            </TabsTrigger>
+            <TabsTrigger value="bulk" className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              Bulk Students
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Single User Creation */}
-            <TabsContent value="single" className="space-y-4">
-              <Form {...singleForm}>
-                <form onSubmit={singleForm.handleSubmit(handleSingleUserSubmit)} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={singleForm.control}
-                      name="username"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Username</FormLabel>
-                          <FormControl>
-                            <Input placeholder="john_doe" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={singleForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input placeholder="john@school.com" type="email" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={singleForm.control}
-                      name="customRole"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Role</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select role" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="ADMIN">Admin</SelectItem>
-                              <SelectItem value="TEACHER">Teacher</SelectItem>
-                              <SelectItem value="STUDENT">Student</SelectItem>
-                              <SelectItem value="PARENT">Parent</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={singleForm.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Password</FormLabel>
-                          <FormControl>
-                            <Input placeholder="min 6 characters" type="password" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={singleForm.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="+1-555-0123" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={singleForm.control}
-                      name="address"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Address (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="123 School St" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {singleForm.formState.errors.root && (
-                    <Alert variant="destructive">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription>
-                        {singleForm.formState.errors.root.message}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  <div className="flex justify-end space-x-2">
-                    <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={loading}>
-                      {loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating...
-                        </>
-                      ) : (
-                        'Create User'
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </TabsContent>
-
-            {/* Bulk Students Creation */}
-            <TabsContent value="bulk" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Names Template
-                  </CardTitle>
-                  <CardDescription>
-                    Download the template to see the expected format
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">bulk_students_names.txt</p>
-                      <p className="text-sm text-muted-foreground">
-                        Format: One name per line (e.g., "John Doe")
-                      </p>
-                    </div>
-                    <Button variant="outline" onClick={downloadTemplate}>
-                      <Download className="mr-2 h-4 w-4" />
-                      Download
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Form {...bulkForm}>
-                <form onSubmit={bulkForm.handleSubmit(handleBulkStudentsSubmit)} className="space-y-4">
+          {/* Single User Creation */}
+          <TabsContent value="single" className="space-y-4">
+            <Form {...singleForm}>
+              <form onSubmit={singleForm.handleSubmit(handleSingleUserSubmit)} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <FormField
-                    control={bulkForm.control}
-                    name="namesList"
+                    control={singleForm.control}
+                    name="username"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Student Names</FormLabel>
+                        <FormLabel>Username</FormLabel>
                         <FormControl>
-                          <Textarea 
-                            placeholder={`John Doe\nJane Smith\nAlex Johnson\nMaria Garcia\nDavid Wilson`}
-                            className="min-h-[200px] font-mono text-sm"
+                          <Input placeholder="john_doe" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={singleForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="john@school.com" type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={singleForm.control}
+                    name="customRole"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Role</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="ADMIN">Admin</SelectItem>
+                            <SelectItem value="TEACHER">Teacher</SelectItem>
+                            <SelectItem value="STUDENT">Student</SelectItem>
+                            <SelectItem value="PARENT">Parent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={singleForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input placeholder="min 6 characters" type="password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={singleForm.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="+1-555-0123" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={singleForm.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="123 School St" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {singleForm.formState.errors.root && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      {singleForm.formState.errors.root.message}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex justify-end space-x-2">
+                    <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      'Create User'
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </TabsContent>
+
+          {/* Bulk Students Creation */}
+          <TabsContent value="bulk" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Names Template
+                </CardTitle>
+                <CardDescription>
+                  Download the template to see the expected format
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                  <div>
+                    <p className="font-medium">bulk_students_names.txt</p>
+                    <p className="text-sm text-muted-foreground">
+                      Format: One name per line (e.g., "John Doe")
+                    </p>
+                  </div>
+                  <Button variant="outline" onClick={downloadTemplate}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Form {...bulkForm}>
+              <form onSubmit={bulkForm.handleSubmit(handleBulkStudentsSubmit)} className="space-y-4">
+                <FormField
+                  control={bulkForm.control}
+                  name="namesList"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Student Names</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder={`John Doe\nJane Smith\nAlex Johnson\nMaria Garcia\nDavid Wilson`}
+                          className="min-h-[200px] font-mono text-sm"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Enter one student name per line. Usernames and emails will be auto-generated.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={bulkForm.control}
+                  name="passwordOption"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel>Password Option</FormLabel>
+                      <FormControl>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="generate"
+                              value="generate"
+                              checked={field.value === 'generate'}
+                              onChange={() => field.onChange('generate')}
+                              className="w-4 h-4"
+                            />
+                            <label htmlFor="generate" className="text-sm font-medium">
+                              Generate random passwords for each student
+                            </label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="custom"
+                              value="custom"
+                              checked={field.value === 'custom'}
+                              onChange={() => field.onChange('custom')}
+                              className="w-4 h-4"
+                            />
+                            <label htmlFor="custom" className="text-sm font-medium">
+                              Use the same password for all students
+                            </label>
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {bulkForm.watch('passwordOption') === 'custom' && (
+                  <FormField
+                    control={bulkForm.control}
+                    name="customPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom Password</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="password"
+                            placeholder="Enter password for all students"
                             {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          Enter one student name per line. Usernames and emails will be auto-generated.
+                          This password will be used for all students in this batch
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                )}
 
-                  <FormField
-                    control={bulkForm.control}
-                    name="passwordOption"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel>Password Option</FormLabel>
-                        <FormControl>
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id="generate"
-                                value="generate"
-                                checked={field.value === 'generate'}
-                                onChange={() => field.onChange('generate')}
-                                className="w-4 h-4"
-                              />
-                              <label htmlFor="generate" className="text-sm font-medium">
-                                Generate random passwords for each student
-                              </label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id="custom"
-                                value="custom"
-                                checked={field.value === 'custom'}
-                                onChange={() => field.onChange('custom')}
-                                className="w-4 h-4"
-                              />
-                              <label htmlFor="custom" className="text-sm font-medium">
-                                Use the same password for all students
-                              </label>
-                            </div>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                {bulkForm.formState.errors.root && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      {bulkForm.formState.errors.root.message}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
-                  {bulkForm.watch('passwordOption') === 'custom' && (
-                    <FormField
-                      control={bulkForm.control}
-                      name="customPassword"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Custom Password</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="password"
-                              placeholder="Enter password for all students"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            This password will be used for all students in this batch
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-
-                  {bulkForm.formState.errors.root && (
-                    <Alert variant="destructive">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription>
-                        {bulkForm.formState.errors.root.message}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {bulkResults && (
-                    <Alert variant={bulkResults.failed === 0 ? "default" : "destructive"}>
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <div className="space-y-2">
-                          <p>Bulk creation completed:</p>
-                          <div className="flex gap-4">
-                            <Badge variant="default" className="bg-green-100 text-green-800">
-                              ✅ Created: {bulkResults.created}
+                {bulkResults && (
+                  <Alert variant={bulkResults.failed === 0 ? "default" : "destructive"}>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="space-y-2">
+                        <p>Bulk creation completed:</p>
+                        <div className="flex gap-4">
+                          <Badge variant="default" className="bg-green-100 text-green-800">
+                            ✅ Created: {bulkResults.created}
+                          </Badge>
+                          {bulkResults.failed > 0 && (
+                            <Badge variant="destructive">
+                              ❌ Failed: {bulkResults.failed}
                             </Badge>
-                            {bulkResults.failed > 0 && (
-                              <Badge variant="destructive">
-                                ❌ Failed: {bulkResults.failed}
-                              </Badge>
-                            )}
-                          </div>
-                          {bulkResults.errors && bulkResults.errors.length > 0 && (
-                            <div className="text-sm">
-                              <p className="font-medium">Errors:</p>
-                              <ul className="list-disc list-inside">
-                                {bulkResults.errors.slice(0, 5).map((error, index) => (
-                                  <li key={index}>{error}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {bulkResults.createdUsers && bulkResults.createdUsers.length > 0 && (
-                            <div className="text-sm">
-                              <p className="font-medium">Created students:</p>
-                              <ul className="list-disc list-inside">
-                                {bulkResults.createdUsers.slice(0, 5).map((user, index) => (
-                                  <li key={index}>{user.username} ({user.email})</li>
-                                ))}
-                                {bulkResults.createdUsers.length > 5 && (
-                                  <li>... and {bulkResults.createdUsers.length - 5} more</li>
-                                )}
-                              </ul>
-                            </div>
                           )}
                         </div>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  <div className="flex justify-end space-x-2">
-                    <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
-                      Cancel
-                    </Button>
-                    {bulkResults ? (
-                      <Button type="button" onClick={resetBulkForm}>
-                        Create More Students
-                      </Button>
-                    ) : (
-                      <Button type="submit" disabled={loading}>
-                        {loading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Creating Students...
-                          </>
-                        ) : (
-                          'Create Students'
+                        {bulkResults.errors && bulkResults.errors.length > 0 && (
+                          <div className="text-sm">
+                            <p className="font-medium">Errors:</p>
+                            <ul className="list-disc list-inside">
+                              {bulkResults.errors.slice(0, 5).map((error, index) => (
+                                <li key={index}>{error}</li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
-                      </Button>
-                    )}
-                  </div>
-                </form>
-              </Form>
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+                        {bulkResults.createdUsers && bulkResults.createdUsers.length > 0 && (
+                          <div className="text-sm">
+                            <p className="font-medium">Created students:</p>
+                            <ul className="list-disc list-inside">
+                              {bulkResults.createdUsers.slice(0, 5).map((user, index) => (
+                                <li key={index}>{user.username} ({user.email})</li>
+                              ))}
+                              {bulkResults.createdUsers.length > 5 && (
+                                <li>... and {bulkResults.createdUsers.length - 5} more</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex justify-end space-x-2">
+                    <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
+                    Cancel
+                  </Button>
+                  {bulkResults ? (
+                    <Button type="button" onClick={resetBulkForm}>
+                      Create More Students
+                    </Button>
+                  ) : (
+                    <Button type="submit" disabled={loading}>
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating Students...
+                        </>
+                      ) : (
+                        'Create Students'
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </Form>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
 
       <UnsavedChangesDialog
         open={showUnsavedChangesDialog}

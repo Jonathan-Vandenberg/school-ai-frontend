@@ -267,200 +267,200 @@ export function ClassCreationDialog({ open, onOpenChange, onClassCreated }: Clas
   return (
     <>
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <School className="h-5 w-5" />
-              Create Class
-            </DialogTitle>
-            <DialogDescription>
-              Create a new class and assign teachers and students
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <School className="h-5 w-5" />
+            Create Class
+          </DialogTitle>
+          <DialogDescription>
+            Create a new class and assign teachers and students
+          </DialogDescription>
+        </DialogHeader>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-              {/* Basic Information */}
-              <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Class Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Mathematics 101" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Choose a descriptive name for your class
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description (Optional)</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Brief description of the class content and objectives..."
-                          className="min-h-[80px]"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Provide additional details about the class
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Teachers Section */}
-              <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="teacherIds"
-                  render={() => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Teachers (Required)
-                      </FormLabel>
-                      
-                      {/* Teacher Search Dropdown */}
-                      <FormControl>
-                        <Popover open={teacherPopoverOpen} onOpenChange={setTeacherPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              aria-expanded={teacherPopoverOpen}
-                              className="w-full justify-between"
-                              disabled={loadingUsers}
-                            >
-                              {loadingUsers ? "Loading teachers..." : "Search and select teachers..."}
-                              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-full p-0" align="start">
-                            <Command>
-                              <CommandInput placeholder="Search teachers by name or email..." />
-                              <CommandList>
-                                <CommandEmpty>No teachers found.</CommandEmpty>
-                                <CommandGroup>
-                                  {availableTeachersFiltered.map((teacher) => (
-                                    <CommandItem
-                                      key={teacher.id}
-                                      value={`${teacher.username} ${teacher.email}`}
-                                      onSelect={() => handleTeacherSelect(teacher)}
-                                      className="flex items-center gap-2"
-                                    >
-                                      <div className="flex flex-col">
-                                        <span className="font-medium">{teacher.username}</span>
-                                        <span className="text-sm text-muted-foreground">{teacher.email}</span>
-                                      </div>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                      </FormControl>
-                      
-                      <FormDescription>
-                        At least one teacher is required for a class
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Selected Teachers */}
-                {selectedTeachers.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Selected Teachers:</div>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedTeachers.map((teacher) => (
-                        <Badge key={teacher.id} variant="secondary" className="flex items-center gap-2">
-                          {teacher.username}
-                          <button
-                            type="button"
-                            onClick={() => removeTeacher(teacher.id)}
-                            className="ml-1 hover:bg-muted rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Class Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Mathematics 101" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Choose a descriptive name for your class
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Brief description of the class content and objectives..."
+                        className="min-h-[80px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Provide additional details about the class
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Teachers Section */}
+            <div className="space-y-4">
+              <FormField
+                control={form.control}
+                name="teacherIds"
+                render={() => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Teachers (Required)
+                    </FormLabel>
+                    
+                    {/* Teacher Search Dropdown */}
+                    <FormControl>
+                      <Popover open={teacherPopoverOpen} onOpenChange={setTeacherPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={teacherPopoverOpen}
+                            className="w-full justify-between"
+                            disabled={loadingUsers}
+                          >
+                            {loadingUsers ? "Loading teachers..." : "Search and select teachers..."}
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search teachers by name or email..." />
+                            <CommandList>
+                              <CommandEmpty>No teachers found.</CommandEmpty>
+                              <CommandGroup>
+                                {availableTeachersFiltered.map((teacher) => (
+                                  <CommandItem
+                                    key={teacher.id}
+                                    value={`${teacher.username} ${teacher.email}`}
+                                    onSelect={() => handleTeacherSelect(teacher)}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{teacher.username}</span>
+                                      <span className="text-sm text-muted-foreground">{teacher.email}</span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </FormControl>
+                    
+                    <FormDescription>
+                      At least one teacher is required for a class
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Selected Teachers */}
+              {selectedTeachers.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Selected Teachers:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTeachers.map((teacher) => (
+                      <Badge key={teacher.id} variant="secondary" className="flex items-center gap-2">
+                        {teacher.username}
+                        <button
+                          type="button"
+                          onClick={() => removeTeacher(teacher.id)}
+                          className="ml-1 hover:bg-muted rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
               {/* Students Section with Multi-Select Checkboxes */}
-              <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="studentIds"
-                  render={() => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Students (Optional)
-                      </FormLabel>
-                      
+            <div className="space-y-4">
+              <FormField
+                control={form.control}
+                name="studentIds"
+                render={() => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Students (Optional)
+                    </FormLabel>
+                    
                       {/* Temporarily disabled while fixing X button issue */}
-                      <FormControl>
+                    <FormControl>
                         <div className="p-4 border border-dashed border-muted rounded-lg text-center text-muted-foreground">
                           <p>Student selection temporarily disabled</p>
                           <p className="text-xs">Working on fixing the X button removal issue</p>
-                        </div>
-                      </FormControl>
-                      
-                      <FormDescription>
+                                    </div>
+                    </FormControl>
+                    
+                    <FormDescription>
                         Student assignment will be available after fixing the removal functionality.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-              {form.formState.errors.root && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    {form.formState.errors.root.message}
-                  </AlertDescription>
-                </Alert>
-              )}
+            {form.formState.errors.root && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  {form.formState.errors.root.message}
+                </AlertDescription>
+              </Alert>
+            )}
 
-              <div className="flex justify-end space-x-2 pt-4 border-t">
+            <div className="flex justify-end space-x-2 pt-4 border-t">
                 <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={loading || loadingUsers}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Class'
-                  )}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading || loadingUsers}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Class'
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
 
       <UnsavedChangesDialog
         open={showUnsavedChangesDialog}

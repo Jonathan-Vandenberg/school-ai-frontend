@@ -158,11 +158,11 @@ export function ClassEditDialog({
         const classData = data.data
         
         // Set form values
-        form.reset({
+      form.reset({
           name: classData.name,
           teacherIds: classData.teachers?.map((t: User) => t.id) || [],
           studentIds: classData.students?.map((s: User) => s.id) || [],
-        })
+      })
         
         // Set selected users
         setSelectedTeachers(classData.teachers || [])
@@ -170,7 +170,7 @@ export function ClassEditDialog({
         
         // Mark initial load as complete
         setInitialLoadComplete(true)
-      }
+    }
     } catch (err) {
       setError('Failed to load class data')
       console.error('Error loading class data:', err)
@@ -279,50 +279,50 @@ export function ClassEditDialog({
     <>
       <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <School className="h-5 w-5" />
-              Edit Class
-            </DialogTitle>
-            <DialogDescription>
-              Update class information and settings
-            </DialogDescription>
-          </DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <School className="h-5 w-5" />
+            Edit Class
+          </DialogTitle>
+          <DialogDescription>
+            Update class information and settings
+          </DialogDescription>
+        </DialogHeader>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-          {successMessage && (
-            <Alert className="border-green-200 bg-green-50">
-              <AlertDescription className="text-green-800">
-                {successMessage}
-              </AlertDescription>
-            </Alert>
-          )}
+        {successMessage && (
+          <Alert className="border-green-200 bg-green-50">
+            <AlertDescription className="text-green-800">
+              {successMessage}
+            </AlertDescription>
+          </Alert>
+        )}
 
-          <Form {...form}>
+        <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
               {/* Basic Information */}
               <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Class Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter class name" {...field} disabled={loading} />
-                      </FormControl>
-                      <FormDescription>
-                        The display name for this class
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Class Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter class name" {...field} disabled={loading} />
+                  </FormControl>
+                  <FormDescription>
+                    The display name for this class
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
               </div>
 
               {/* Teachers Section */}
@@ -503,45 +503,45 @@ export function ClassEditDialog({
               </div>
 
               {/* Class Statistics */}
-              {classItem && (
-                <div className="bg-muted p-3 rounded-lg text-sm">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium">Class Statistics</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+            {classItem && (
+              <div className="bg-muted p-3 rounded-lg text-sm">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Class Statistics</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>Students: {selectedStudents.length}</div>
-                    <div>Assignments: {classItem._count?.assignments || 0}</div>
-                    <div className="col-span-2">
-                      Created: {new Date(classItem.createdAt).toLocaleDateString()}
-                    </div>
+                  <div>Assignments: {classItem._count?.assignments || 0}</div>
+                  <div className="col-span-2">
+                    Created: {new Date(classItem.createdAt).toLocaleDateString()}
                   </div>
                 </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex justify-end space-x-2 pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleDialogClose(false)}
-                  disabled={loading}
-                >
-                  <X className="mr-2 h-4 w-4" />
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={loading || loadingUsers}>
-                  {loading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  {loading ? 'Updating...' : 'Update Class'}
-                </Button>
               </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+            )}
+
+            {/* Action Buttons */}
+              <div className="flex justify-end space-x-2 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                  onClick={() => handleDialogClose(false)}
+                disabled={loading}
+              >
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+                <Button type="submit" disabled={loading || loadingUsers}>
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="mr-2 h-4 w-4" />
+                )}
+                {loading ? 'Updating...' : 'Update Class'}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
 
       <UnsavedChangesDialog
         open={showUnsavedChangesDialog}

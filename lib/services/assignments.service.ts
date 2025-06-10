@@ -2,9 +2,7 @@ import { PrismaClient, Prisma, User, Assignment } from '@prisma/client'
 import { AuthService, AuthenticatedUser, NotFoundError, ForbiddenError, ValidationError } from './auth.service'
 import { ActivityLogService } from './activity-log.service'
 import { withTransaction } from '../db'
-import { db } from '@/lib/db'
 import { handleServiceError } from './auth.service'
-import { Prisma } from '@prisma/client';
 import { DefaultArgs } from '@prisma/client/runtime/library'
 import { QuestionsService } from './questions.service'
 import { prisma } from '../db'
@@ -259,7 +257,8 @@ export class AssignmentsService {
           scheduledDate: assignmentData.scheduledPublishAt?.toISOString(),
           assignmentType: assignmentData.type,
           evaluationType: evaluationSettings?.type
-        }
+        },
+        tx
       )
 
       return assignment as AssignmentWithDetails
@@ -717,7 +716,7 @@ export class AssignmentsService {
   }
 
   /**
-   * Get assignments for current user (dashboard)
+   * Get assignments for current user
    */
   static async getMyAssignments(
     currentUser: AuthenticatedUser,
@@ -808,106 +807,247 @@ export class AssignmentsService {
   }
 
   /**
-   * Creates a new video assignment, including questions, within a transaction.
-   * @param actor - The user performing the action.
-   * @param data - The data for the new video assignment.
-   * @returns The newly created assignment.
+   * Creates a new video assignment with comprehensive features
+   * @param currentUser - The authenticated user performing the action
+   * @param data - The data for the new video assignment
+   * @returns The newly created assignment with full details
    */
-  public async createVideoAssignment(
-    actor: User,
+  static async createVideoAssignment(
+    currentUser: AuthenticatedUser,
     data: CreateVideoAssignmentDto
-  ): Promise<Assignment> {
-    if (actor.customRole !== 'ADMIN' && actor.customRole !== 'TEACHER') {
-        throw new Error('Unauthorized: Only ADMIN or TEACHER can create assignments');
-    }
+  ): Promise<AssignmentWithDetails> {
+    AuthService.requireTeacherOrAdmin(currentUser)
 
     const {
       topic,
       videoUrl,
+      videoTranscript,
+      hasTranscript,
       languageId,
       questions,
       classIds,
       studentIds,
       assignToEntireClass,
       scheduledPublishAt,
+      color,
+      rules,
+      feedbackSettings,
+      evaluationSettings,
+      totalStudentsInScope,
+      analysisResult,
     } = data;
 
-    try {
-      return await prisma.$transaction(async (tx) => {
-        // 1. Create the main Assignment record
-        const newAssignment = await tx.assignment.create({
-          data: {
-            topic,
-            videoUrl,
-            languageId,
-            teacherId: actor.id,
-            type: assignToEntireClass ? 'CLASS' : 'INDIVIDUAL',
-            isActive: !scheduledPublishAt, // Active if not scheduled
-            scheduledPublishAt,
-            evaluationSettings: {
-              create: {
-                type: 'VIDEO',
+    // Validate language exists
+    const language = await prisma.language.findUnique({
+      where: { id: languageId }
+    })
+
+    if (!language) {
+      throw new ValidationError('Language not found')
+    }
+
+    return withTransaction(async (tx) => {
+      // Calculate initial stats
+      const initialTotalStudentsInScope = totalStudentsInScope || 0;
+      const publishDate = new Date();
+      const isActive = !scheduledPublishAt;
+
+      // Create comprehensive evaluation settings
+      const evaluationData = {
+        type: 'VIDEO' as const,
+        customPrompt: evaluationSettings?.customPrompt || '',
+        rules: rules || evaluationSettings?.rules || [],
+        acceptableResponses: analysisResult ? [JSON.stringify(analysisResult)] : (evaluationSettings?.acceptableResponses || []),
+        feedbackSettings: feedbackSettings || evaluationSettings?.feedbackSettings || {
+          detailedFeedback: true,
+          encouragementEnabled: true
+        }
+      };
+
+      // 1. Create the main Assignment record
+      const newAssignment = await tx.assignment.create({
+        data: {
+          topic,
+          videoUrl,
+          videoTranscript: videoTranscript || '',
+          languageId,
+          teacherId: currentUser.id,
+          type: assignToEntireClass ? 'CLASS' : 'INDIVIDUAL',
+          color: color || '#3B82F6',
+          isActive,
+          publishedAt: publishDate,
+          scheduledPublishAt,
+          totalStudentsInScope: initialTotalStudentsInScope,
+          completedStudentsCount: 0,
+          completionRate: 0.0,
+          averageScoreOfCompleted: 0.0,
+          evaluationSettings: {
+            create: evaluationData
+          }
+        },
+        include: {
+          teacher: {
+            select: { id: true, username: true }
+          },
+          language: {
+            select: { id: true, language: true, code: true }
+          },
+          evaluationSettings: true,
+          questions: {
+            select: {
+              id: true,
+              textQuestion: true,
+              textAnswer: true,
+              image: true,
+              videoUrl: true,
+            }
+          },
+          classes: {
+            include: {
+              class: {
+                select: { id: true, name: true }
               }
             }
           },
-        });
-
-        // 2. Create the associated questions
-        if (questions && questions.length > 0) {
-          await QuestionsService.createManyForAssignment(
-            questions.map(q => ({ textQuestion: q.text, textAnswer: q.answer })),
-            newAssignment.id,
-            tx as unknown as Prisma.TransactionClient
-          );
-        }
-
-        // 3. Link assignment to classes or students
-        if (assignToEntireClass) {
-          await tx.classAssignment.createMany({
-            data: classIds.map((classId) => ({
-              classId,
-              assignmentId: newAssignment.id,
-            })),
-          });
-        } else if (studentIds && studentIds.length > 0) {
-          await tx.userAssignment.createMany({
-            data: studentIds.map((userId) => ({
-              userId,
-              assignmentId: newAssignment.id,
-            })),
-          });
-        }
-
-        // 4. Create an ActivityLog entry
-        await ActivityLogService.create(
-          {
-            type: 'ASSIGNMENT_CREATED',
-            details: {
-              assignmentId: newAssignment.id,
-              topic: newAssignment.topic,
-              type: 'VIDEO',
-            },
-            userId: actor.id,
+          students: {
+            include: {
+              user: {
+                select: { id: true, username: true }
+              }
+            }
           },
-          tx as unknown as Prisma.TransactionClient
-        );
-        
-        return newAssignment;
+        }
       });
-    } catch (error) {
-      handleServiceError(error)
-      throw error;
-    }
+
+      // 2. Create the associated questions
+      if (questions && questions.length > 0) {
+        await tx.question.createMany({
+          data: questions.map(q => ({
+            textQuestion: q.question,
+            textAnswer: q.answer,
+            assignmentId: newAssignment.id,
+            videoUrl: videoUrl,
+            publishedAt: publishDate
+          }))
+        });
+      }
+
+      // 3. Link assignment to classes or students
+      if (assignToEntireClass && classIds && classIds.length > 0) {
+        await tx.classAssignment.createMany({
+          data: classIds.map((classId) => ({
+            classId,
+            assignmentId: newAssignment.id,
+          })),
+        });
+      } else if (!assignToEntireClass && studentIds && studentIds.length > 0) {
+        await tx.userAssignment.createMany({
+          data: studentIds.map((userId) => ({
+            userId,
+            assignmentId: newAssignment.id,
+          })),
+        });
+      }
+
+      // 4. Log the activity using the comprehensive ActivityLogService
+      await ActivityLogService.logAssignmentCreated(
+        currentUser,
+        {
+          id: newAssignment.id,
+          topic: newAssignment.topic || 'Untitled Assignment'
+        },
+        assignToEntireClass ? 'CLASS' : 'INDIVIDUAL',
+        {
+          createdBy: currentUser.customRole,
+          creatorId: currentUser.id,
+          creatorUsername: currentUser.username,
+          language: language.language,
+          languageCode: language.code,
+          classCount: classIds?.length || 0,
+          studentCount: studentIds?.length || 0,
+          isScheduled: !!scheduledPublishAt,
+          scheduledDate: scheduledPublishAt?.toISOString(),
+          assignmentType: assignToEntireClass ? 'CLASS' : 'INDIVIDUAL',
+          evaluationType: 'VIDEO',
+          hasTranscript: hasTranscript || false,
+          questionCount: questions?.length || 0
+        },
+        tx
+      );
+      
+      // Refetch the assignment with all relations to match AssignmentWithDetails interface
+      const completeAssignment = await tx.assignment.findUnique({
+        where: { id: newAssignment.id },
+        include: {
+          teacher: {
+            select: { id: true, username: true }
+          },
+          language: {
+            select: { id: true, language: true, code: true }
+          },
+          evaluationSettings: true,
+          questions: {
+            select: {
+              id: true,
+              textQuestion: true,
+              textAnswer: true,
+              image: true,
+              videoUrl: true,
+            }
+          },
+          classes: {
+            include: {
+              class: {
+                select: { id: true, name: true }
+              }
+            }
+          },
+          students: {
+            include: {
+              user: {
+                select: { id: true, username: true }
+              }
+            }
+          },
+        }
+      });
+
+      if (!completeAssignment) {
+        throw new Error('Failed to retrieve created assignment');
+      }
+
+      return completeAssignment as AssignmentWithDetails;
+    });
   }
 }
 
 export interface CreateVideoAssignmentDto {
   topic: string;
   videoUrl: string;
+  videoTranscript?: string;
+  hasTranscript?: boolean;
   languageId: string;
-  questions: { text: string; answer: string }[];
+  questions: { question: string; answer: string }[];
   classIds: string[];
   studentIds?: string[];
   assignToEntireClass: boolean;
   scheduledPublishAt?: Date | null;
+  color?: string;
+  rules?: string[];
+  feedbackSettings?: {
+    detailedFeedback: boolean;
+    encouragementEnabled: boolean;
+  };
+  evaluationSettings?: {
+    type: 'VIDEO';
+    customPrompt?: string;
+    rules?: string[];
+    acceptableResponses?: string[];
+    feedbackSettings?: {
+      detailedFeedback: boolean;
+      encouragementEnabled: boolean;
+    };
+  };
+  totalStudentsInScope?: number;
+  analysisResult?: any;
 } 

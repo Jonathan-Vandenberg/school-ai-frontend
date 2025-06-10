@@ -1,7 +1,6 @@
 import { PrismaClient, ActivityLogType } from '@prisma/client'
 import { AuthenticatedUser } from './auth.service'
-
-const prisma = new PrismaClient()
+import { prisma } from '../db'
 
 export interface ActivityLogData {
   type: ActivityLogType
@@ -45,8 +44,9 @@ export class ActivityLogService {
   /**
    * Log a general activity
    */
-  static async log(data: ActivityLogData): Promise<ActivityLogEntry> {
-    const logEntry = await prisma.activityLog.create({
+  static async log(data: ActivityLogData, tx?: PrismaClient): Promise<ActivityLogEntry> {
+    const client = tx || prisma;
+    const logEntry = await client.activityLog.create({
       data: {
         type: data.type,
         action: data.action,
@@ -348,7 +348,8 @@ export class ActivityLogService {
     currentUser: AuthenticatedUser,
     assignmentData: { id: string; topic?: string },
     assignmentType: 'CLASS' | 'INDIVIDUAL',
-    details?: Record<string, any>
+    details?: Record<string, any>,
+    tx?: PrismaClient
   ): Promise<ActivityLogEntry> {
     return this.log({
       type: assignmentType === 'CLASS' ? 'ASSIGNMENT_CREATED' : 'INDIVIDUAL_ASSIGNMENT_CREATED',
@@ -359,7 +360,7 @@ export class ActivityLogService {
       },
       userId: currentUser.id,
       assignmentId: assignmentData.id,
-    })
+    }, tx)
   }
 
   // ===================

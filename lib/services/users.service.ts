@@ -268,28 +268,28 @@ export class UsersService {
 
     return withTransaction(async (tx) => {
       const updatedUser = await tx.user.update({
-        where: { id: userId },
-        data: updateData,
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          customRole: true,
-          phone: true,
-          address: true,
-          confirmed: true,
-          blocked: true,
-          isPlayGame: true,
-          theme: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      })
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        customRole: true,
+        phone: true,
+        address: true,
+        confirmed: true,
+        blocked: true,
+        isPlayGame: true,
+        theme: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
 
       // Skip activity logging if flag is set (for personal preference changes like theme)
       if (skipActivityLog) {
         console.log(`🔕 ACTIVITY LOG SKIPPED: User ${updatedUser.username} update completed without logging`)
-        return updatedUser as UserWithDetails
+    return updatedUser as UserWithDetails
       }
 
       // Track what changed for activity logging and if specific logs were created

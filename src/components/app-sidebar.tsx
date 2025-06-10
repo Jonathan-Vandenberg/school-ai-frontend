@@ -93,15 +93,14 @@ const navItems: NavItem[] = [
   },
   {
     title: 'Assignments',
-    href: '/dashboard/assignments',
+    href: '/assignments',
     icon: BookOpen,
     roles: ['ADMIN', 'TEACHER', 'STUDENT']
-  },
-  {
-    title: 'My Assignments',
-    href: '/dashboard/my-assignments',
-    icon: FileText,
-    roles: ['STUDENT']
+  },  {
+    title: 'Create Assignment',
+    href: '/create-assignment',
+    icon: BookOpen,
+    roles: ['ADMIN', 'TEACHER']
   },
   {
     title: 'Classes',

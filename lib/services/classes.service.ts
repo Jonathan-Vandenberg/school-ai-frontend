@@ -393,22 +393,22 @@ export class ClassesService {
       }
 
       const updatedClass = await tx.class.update({
-        where: { id: classId },
+      where: { id: classId },
         data: classUpdateData,
-        select: {
-          id: true,
-          name: true,
-          createdAt: true,
-          updatedAt: true,
-          publishedAt: true,
-          _count: {
-            select: {
-              users: true,
-              assignments: true,
-            },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        publishedAt: true,
+        _count: {
+          select: {
+            users: true,
+            assignments: true,
           },
         },
-      })
+      },
+    })
 
       // Track user assignment changes
       let addedTeachers: string[] = []
@@ -542,7 +542,7 @@ export class ClassesService {
         )
       }
 
-      return updatedClass as ClassWithDetails
+    return updatedClass as ClassWithDetails
     })
   }
 

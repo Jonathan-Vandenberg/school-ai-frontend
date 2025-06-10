@@ -137,7 +137,7 @@ export default function UsersPage() {
       if (isSearch) {
         setSearchLoading(true)
       } else {
-        setLoading(true)
+      setLoading(true)
       }
       
       const params = new URLSearchParams({
@@ -180,7 +180,7 @@ export default function UsersPage() {
       if (isSearch) {
         setSearchLoading(false)
       } else {
-        setLoading(false)
+      setLoading(false)
       }
     }
   }
@@ -281,7 +281,7 @@ export default function UsersPage() {
 
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= pagination.totalPages && page !== currentPage) {
-      setCurrentPage(page)
+    setCurrentPage(page)
     }
   }
 
@@ -384,8 +384,8 @@ export default function UsersPage() {
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
-              <Input 
-                placeholder="Search by username or email..."
+                <Input
+                  placeholder="Search by username or email..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="h-9"
@@ -394,7 +394,7 @@ export default function UsersPage() {
               {searchLoading && (
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                </div>
+              </div>
               )}
             </div>
             <div className="w-full sm:w-48">

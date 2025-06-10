@@ -152,7 +152,7 @@ export function getAssignmentStatus(
   if (isComplete) return 'completed'
   if (dueDate && isOverdue(dueDate)) return 'overdue'
   return 'pending'
-}
+} 
 
 /**
  * Get Tailwind classes for user role badges

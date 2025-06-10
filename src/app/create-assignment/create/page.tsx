@@ -1,6 +1,9 @@
 import { VideoAssignmentForm } from "@/components/assignments/video-assignment/video-assignment-form";
 import { ClassesService } from "../../../../lib/services/classes.service";
 import { AuthService } from "../../../../lib/services/auth.service";
+import { prisma } from "@/lib/db";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 import { notFound, redirect } from "next/navigation";
 
 interface CreateAssignmentPageProps {

@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { VideoAssignmentForm } from "@/components/assignments/video-assignment-form";
+import { VideoAssignmentForm } from "@/components/assignments/video-assignment/video-assignment-form";
 import { Language, Class } from "@prisma/client";
 
 interface CreateAssignmentStateProps {

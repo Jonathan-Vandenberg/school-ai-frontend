@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { PlusCircle, Trash2, Eye } from "lucide-react";
+import { PlusCircle, Trash2, Eye, Clock } from "lucide-react";
 import { Class, User } from "@prisma/client";
 import { Switch } from "@/components/ui/switch";
 import { useState, useEffect } from "react";
@@ -68,13 +68,12 @@ type VideoFormValues = z.infer<typeof formSchema>;
 interface VideoAssignmentFormProps {
   data: {
     classes: Class[];
-    languages: { id: string; name: string }[];
   };
 }
 
 export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
   const router = useRouter();
-  const { classes, languages } = data;
+  const { classes } = data;
   const [students, setStudents] = useState<User[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [enableSchedule, setEnableSchedule] = useState(false);
@@ -273,7 +272,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     setIsSubmitting(true);
     setFormMessage(null);
     try {
-      const response = await fetch('/api/assignments', {
+      const response = await fetch('/api/assignments/video', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -281,6 +280,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
         body: JSON.stringify({
           creationType: 'video',
           ...values,
+          videoTranscript: transcriptContent || '',
         }),
       });
 
@@ -583,7 +583,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
               <div className="space-y-0.5">
                 <FormLabel className="text-base">Enable Scheduling</FormLabel>
                 <FormDescription>
-                  If disabled, the assignment will be published immediately.
+                  If disabled, the assignment will be published immediately. If enabled, you can set a specific date and time for publication.
                 </FormDescription>
               </div>
               <FormControl>
@@ -599,38 +599,72 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                 name="scheduledPublishAt"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Publish Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-[240px] pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value || undefined}
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date < new Date(new Date().setHours(0, 0, 0, 0))
-                          }
-                          initialFocus
+                    <FormLabel>Publish Date & Time</FormLabel>
+                    <div className="flex gap-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-[240px] pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value || undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                const currentTime = field.value || new Date();
+                                const newDateTime = new Date(date);
+                                newDateTime.setHours(currentTime.getHours());
+                                newDateTime.setMinutes(currentTime.getMinutes());
+                                field.onChange(newDateTime);
+                              } else {
+                                field.onChange(null);
+                              }
+                            }}
+                            disabled={(date) =>
+                              date < new Date(new Date().setHours(0, 0, 0, 0))
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 opacity-50" />
+                        <Input
+                          type="time"
+                          value={field.value ? format(field.value, "HH:mm") : "09:00"}
+                          onChange={(e) => {
+                            const timeValue = e.target.value;
+                            if (timeValue) {
+                              const [hours, minutes] = timeValue.split(':').map(Number);
+                              const currentDate = field.value || new Date();
+                              const newDateTime = new Date(currentDate);
+                              newDateTime.setHours(hours);
+                              newDateTime.setMinutes(minutes);
+                              field.onChange(newDateTime);
+                            }
+                          }}
+                          className="w-[120px]"
                         />
-                      </PopoverContent>
-                    </Popover>
+                      </div>
+                    </div>
+                    <FormDescription>
+                      Assignment will be published on the selected date and time.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
