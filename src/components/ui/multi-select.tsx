@@ -1,10 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, X } from "lucide-react"
+import { ChevronsUpDown, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,7 +69,6 @@ export function MultiSelect({
     onChange([])
   }, [onChange])
 
-  // Filter options based on search term
   const filteredOptions = React.useMemo(() => {
     if (!searchTerm) return options
     return options.filter(option => 
@@ -115,14 +113,12 @@ export function MultiSelect({
                         console.log('🖱️ X button mouseDown for value:', value)
                         e.preventDefault()
                         e.stopPropagation()
-                        e.stopImmediatePropagation()
                         handleSelect(value)
                       }}
                       onClick={(e) => {
                         console.log('🔘 X button onClick for value:', value)
                         e.preventDefault()
                         e.stopPropagation()
-                        e.stopImmediatePropagation()
                       }}
                       role="button"
                       tabIndex={0}

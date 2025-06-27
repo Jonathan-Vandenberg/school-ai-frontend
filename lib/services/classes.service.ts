@@ -479,6 +479,13 @@ export class ClassesService {
 
       // Log specific user assignment changes
       if (addedTeachers.length > 0) {
+        // Get teacher names for logging
+        const addedTeacherData = await tx.user.findMany({
+          where: { id: { in: addedTeachers } },
+          select: { username: true }
+        })
+        const addedTeacherNames = addedTeacherData.map(u => u.username)
+
         await ActivityLogService.logClassUsersAdded(
           currentUser,
           {
@@ -489,12 +496,20 @@ export class ClassesService {
           'teachers',
           {
             updateType: 'teacher_assignment',
-            addedCount: addedTeachers.length
+            addedCount: addedTeachers.length,
+            addedUserNames: addedTeacherNames
           }
         )
       }
 
       if (removedTeachers.length > 0) {
+        // Get teacher names for logging
+        const removedTeacherData = await tx.user.findMany({
+          where: { id: { in: removedTeachers } },
+          select: { username: true }
+        })
+        const removedTeacherNames = removedTeacherData.map(u => u.username)
+
         await ActivityLogService.logClassUsersRemoved(
           currentUser,
           {
@@ -505,12 +520,20 @@ export class ClassesService {
           'teachers',
           {
             updateType: 'teacher_assignment',
-            removedCount: removedTeachers.length
+            removedCount: removedTeachers.length,
+            removedUserNames: removedTeacherNames
           }
         )
       }
 
       if (addedStudents.length > 0) {
+        // Get student names for logging
+        const addedStudentData = await tx.user.findMany({
+          where: { id: { in: addedStudents } },
+          select: { username: true }
+        })
+        const addedStudentNames = addedStudentData.map(u => u.username)
+
         await ActivityLogService.logClassUsersAdded(
           currentUser,
           {
@@ -521,12 +544,20 @@ export class ClassesService {
           'students',
           {
             updateType: 'student_assignment',
-            addedCount: addedStudents.length
+            addedCount: addedStudents.length,
+            addedUserNames: addedStudentNames
           }
         )
       }
 
       if (removedStudents.length > 0) {
+        // Get student names for logging
+        const removedStudentData = await tx.user.findMany({
+          where: { id: { in: removedStudents } },
+          select: { username: true }
+        })
+        const removedStudentNames = removedStudentData.map(u => u.username)
+
         await ActivityLogService.logClassUsersRemoved(
           currentUser,
           {
@@ -537,7 +568,8 @@ export class ClassesService {
           'students',
           {
             updateType: 'student_assignment',
-            removedCount: removedStudents.length
+            removedCount: removedStudents.length,
+            removedUserNames: removedStudentNames
           }
         )
       }
@@ -635,6 +667,13 @@ export class ClassesService {
 
     // Students can only see their own classes
     if (currentUser.customRole === 'STUDENT') {
+      where.users = {
+        some: { userId: currentUser.id }
+      }
+    }
+
+    // Teachers can only see their own classes
+    if (currentUser.customRole === 'TEACHER') {
       where.users = {
         some: { userId: currentUser.id }
       }

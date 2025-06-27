@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { ActivityLogType, PrismaClient } from '@prisma/client'
 import { hashPassword } from '../lib/auth'
 
 const prisma = new PrismaClient()
@@ -466,12 +466,18 @@ async function main() {
 
     for (const activity of activityData) {
       const existing = await prisma.activityLog.findFirst({
-        where: activity
+        where: {
+          type: activity.type as ActivityLogType,
+          userId: activity.userId,
+          assignmentId: activity.assignmentId,
+          classId: activity.classId,
+        }
       })
       if (!existing) {
         await prisma.activityLog.create({
           data: {
             ...activity,
+            type: activity.type as ActivityLogType,
             publishedAt: new Date(),
           }
         })

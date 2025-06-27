@@ -39,7 +39,12 @@ export async function GET(
       data: {
         ...classDetails,
         teachers,
-        students
+        students,
+        _count: {
+          ...classDetails._count,
+          teachers: teachers.length,
+          students: students.length,
+        }
       },
     })
   } catch (error) {

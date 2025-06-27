@@ -294,11 +294,18 @@ export class ActivityLogService {
     details?: Record<string, any>
   ): Promise<ActivityLogEntry> {
     const singularType = userType === 'teachers' ? 'teacher' : 'student'
-    const pluralizedType = this.pluralize(addedUserIds.length, singularType, userType)
+    
+    let action: string
+    if (addedUserIds.length === 1 && details?.addedUserNames?.[0]) {
+      action = `${singularType} "${details.addedUserNames[0]}" added to class "${classData.name}"`
+    } else {
+      const pluralizedType = this.pluralize(addedUserIds.length, singularType, userType)
+      action = `${addedUserIds.length} ${pluralizedType} added to class "${classData.name}"`
+    }
     
     return this.log({
       type: 'CLASS_USERS_ADDED',
-      action: `${addedUserIds.length} ${pluralizedType} added to class "${classData.name}"`,
+      action,
       details: {
         userType,
         addedUserIds,
@@ -321,11 +328,18 @@ export class ActivityLogService {
     details?: Record<string, any>
   ): Promise<ActivityLogEntry> {
     const singularType = userType === 'teachers' ? 'teacher' : 'student'
-    const pluralizedType = this.pluralize(removedUserIds.length, singularType, userType)
+    
+    let action: string
+    if (removedUserIds.length === 1 && details?.removedUserNames?.[0]) {
+      action = `${singularType} "${details.removedUserNames[0]}" removed from class "${classData.name}"`
+    } else {
+      const pluralizedType = this.pluralize(removedUserIds.length, singularType, userType)
+      action = `${removedUserIds.length} ${pluralizedType} removed from class "${classData.name}"`
+    }
     
     return this.log({
       type: 'CLASS_USERS_REMOVED',
-      action: `${removedUserIds.length} ${pluralizedType} removed from class "${classData.name}"`,
+      action,
       details: {
         userType,
         removedUserIds,

@@ -42,6 +42,10 @@ export interface UpdateAssignmentData {
   isIELTS?: boolean
   context?: string
   languageId?: string
+  type?: 'CLASS' | 'INDIVIDUAL'
+  classIds?: string[]
+  studentIds?: string[]
+  questions?: Array<{ id?: string; textQuestion: string; textAnswer: string }>
 }
 
 export interface AssignmentWithDetails {
@@ -335,7 +339,8 @@ export class AssignmentsService {
   static async updateAssignment(
     currentUser: AuthenticatedUser,
     assignmentId: string,
-    updateData: UpdateAssignmentData
+    updateData: UpdateAssignmentData,
+    questions: Array<{ id?: string; textQuestion: string; textAnswer: string }>
   ): Promise<AssignmentWithDetails> {
     const canManage = await AuthService.canManageAssignment(currentUser, assignmentId)
     if (!canManage) {
@@ -353,50 +358,142 @@ export class AssignmentsService {
       }
     }
 
-    const updatedAssignment = await prisma.assignment.update({
-      where: { id: assignmentId },
-      data: updateData,
-      include: {
-        teacher: {
-          select: { id: true, username: true }
-        },
-        language: {
-          select: { id: true, language: true, code: true }
-        },
-        evaluationSettings: true,
-        questions: {
-          select: {
-            id: true,
-            textQuestion: true,
-            textAnswer: true,
-            image: true,
-            videoUrl: true,
-          }
-        },
-        classes: {
-          include: {
-            class: {
-              select: { id: true, name: true }
+    // Extract questions and assignment data from updateData since they're not part of assignment schema
+    const { questions: _, classIds, studentIds, ...assignmentUpdateData } = updateData
+
+    return withTransaction(async (tx) => {
+      // Update assignment basic data
+      await tx.assignment.update({
+        where: { id: assignmentId },
+        data: assignmentUpdateData,
+      })
+
+      // Handle class/student reassignment if provided
+      if (classIds !== undefined || studentIds !== undefined) {
+        // Clear existing assignments
+        await tx.classAssignment.deleteMany({
+          where: { assignmentId }
+        })
+        await tx.userAssignment.deleteMany({
+          where: { assignmentId }
+        })
+
+        // Add new class assignments
+        if (classIds && classIds.length > 0) {
+          await tx.classAssignment.createMany({
+            data: classIds.map(classId => ({
+              classId,
+              assignmentId,
+            }))
+          })
+        }
+
+        // Add new individual student assignments
+        if (studentIds && studentIds.length > 0) {
+          await tx.userAssignment.createMany({
+            data: studentIds.map(userId => ({
+              userId,
+              assignmentId,
+            }))
+          })
+        }
+      }
+
+      // Handle questions if provided
+      if (questions.length > 0) {
+        // Get current questions
+        const currentQuestions = await tx.question.findMany({
+          where: { assignmentId },
+          select: { id: true }
+        })
+
+        const currentQuestionIds = currentQuestions.map(q => q.id)
+        const updatedQuestionIds = questions.filter(q => q.id).map(q => q.id!)
+
+        // Delete questions that are no longer in the list
+        const questionsToDelete = currentQuestionIds.filter(id => !updatedQuestionIds.includes(id))
+        if (questionsToDelete.length > 0) {
+          await tx.question.deleteMany({
+            where: {
+              id: { in: questionsToDelete },
+              assignmentId
             }
-          }
-        },
-        students: {
-          include: {
-            user: {
-              select: { id: true, username: true }
-            }
-          }
-        },
-        _count: {
-          select: {
-            progresses: true,
-            questions: true,
+          })
+        }
+
+        // Update or create questions
+        for (const question of questions) {
+          if (question.id) {
+            // Update existing question
+            await tx.question.update({
+              where: { id: question.id },
+              data: {
+                textQuestion: question.textQuestion,
+                textAnswer: question.textAnswer
+              }
+            })
+          } else {
+            // Create new question
+            await tx.question.create({
+              data: {
+                assignmentId,
+                textQuestion: question.textQuestion,
+                textAnswer: question.textAnswer
+              }
+            })
           }
         }
       }
-    })
 
-    return updatedAssignment as AssignmentWithDetails
+      // Return updated assignment with all relations
+      const updatedAssignment = await tx.assignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          teacher: {
+            select: { id: true, username: true }
+          },
+          language: {
+            select: { id: true, language: true, code: true }
+          },
+          evaluationSettings: true,
+          questions: {
+            select: {
+              id: true,
+              textQuestion: true,
+              textAnswer: true,
+              image: true,
+              videoUrl: true,
+            }
+          },
+          classes: {
+            include: {
+              class: {
+                select: { id: true, name: true }
+              }
+            }
+          },
+          students: {
+            include: {
+              user: {
+                select: { id: true, username: true }
+              }
+            }
+          },
+          _count: {
+            select: {
+              progresses: true,
+              questions: true,
+            }
+          }
+        }
+      })
+
+      if (!updatedAssignment) {
+        throw new NotFoundError('Assignment not found')
+      }
+
+      return updatedAssignment as AssignmentWithDetails
+    })
   }
 
   /**
@@ -450,12 +547,13 @@ export class AssignmentsService {
 
     const skip = (page - 1) * limit
 
-    // Build where clause based on user role
     const where: any = {}
 
-    // Role-based filtering
     if (currentUser.customRole === 'TEACHER') {
-      where.teacherId = currentUser.id
+      if (!classId) {
+        where.teacherId = currentUser.id
+      }
+    } else if (currentUser.customRole === 'ADMIN') {
     } else if (currentUser.customRole === 'STUDENT') {
       where.OR = [
         {
@@ -475,10 +573,9 @@ export class AssignmentsService {
           }
         }
       ]
-      where.isActive = true // Students only see active assignments
+      where.isActive = true
     }
 
-    // Additional filters
     if (type) {
       where.type = type
     }
@@ -598,7 +695,6 @@ export class AssignmentsService {
   ): Promise<StudentProgress[]> {
     const targetStudentId = studentId || currentUser.id
 
-    // Check permissions
     if (currentUser.customRole === 'STUDENT' && targetStudentId !== currentUser.id) {
       throw new ForbiddenError('Can only view your own progress')
     }

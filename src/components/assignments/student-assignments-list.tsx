@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Video, BookOpen, Mic, Image as ImageIcon, FileText, Settings, Calendar, Clock, Users, User } from "lucide-react";
+import { Video, BookOpen, Mic, Image as ImageIcon, FileText, Settings, Calendar, Clock, Users, User, School } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -153,6 +153,17 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
                     
                     {/* Assignment metadata - First row */}
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-muted-foreground mb-1">
+                    {assignment.classes && assignment.classes.length > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <School className="h-3 w-3" />
+                          <span className="font-medium">
+                            {assignment.classes.length === 1 
+                              ? assignment.classes[0].class.name
+                              : `${assignment.classes.length} classes`
+                            }
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center space-x-1">
                         <User className="h-3 w-3" />
                         <span className="font-medium">{assignment.teacher?.username}</span>

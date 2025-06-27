@@ -150,7 +150,7 @@ export class QuestionsService {
       throw new ForbiddenError('Cannot access this question')
     }
 
-    return question as QuestionWithDetails
+    return question as unknown as QuestionWithDetails
   }
 
   /**
@@ -331,7 +331,7 @@ export class QuestionsService {
     ])
 
     return {
-      questions: questions as QuestionWithDetails[],
+      questions: questions as unknown as QuestionWithDetails[],
       pagination: {
         page,
         limit,

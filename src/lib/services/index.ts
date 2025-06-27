@@ -38,7 +38,6 @@ export class ValidationError extends ServiceError {
 export { AuthService } from './auth'  
 export { UsersService } from './users'
 export { AssignmentsService } from './assignments'
-export { ClassesService } from './classes'
 export { QuestionsService } from './questions'
 export { AnalyticsService } from './analytics'
 

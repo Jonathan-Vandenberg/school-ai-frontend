@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -73,6 +74,7 @@ interface PaginationData {
 
 export default function ClassesPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const [classes, setClasses] = useState<ClassListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -158,10 +160,13 @@ export default function ClassesPage() {
         setConfirmationDialogOpen(true)
         break
       case 'view-assignments':
-        // Navigate to class assignments page
-        window.location.href = `/dashboard/classes/${classId}/assignments`
+        router.push(`/dashboard/classes/${classId}/assignments`)
         break
     }
+  }
+
+  const handleRowClick = (classId: string) => {
+    router.push(`/dashboard/classes/${classId}`)
   }
 
   const handleConfirmDelete = async (classItem: ClassListItem) => {
@@ -194,7 +199,6 @@ export default function ClassesPage() {
     setCurrentPage(1)
   }
 
-  // Generate pagination numbers with ellipsis
   const generatePaginationItems = () => {
     const items = []
     const totalPages = pagination.totalPages
@@ -363,7 +367,11 @@ export default function ClassesPage() {
                   </TableHeader>
                   <TableBody>
                     {classes.map((classItem) => (
-                      <TableRow key={classItem.id}>
+                      <TableRow 
+                        key={classItem.id}
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => handleRowClick(classItem.id)}
+                      >
                         <TableCell>
                           <div>
                             <div className="font-medium">{classItem.name}</div>
@@ -399,21 +407,31 @@ export default function ClassesPage() {
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleClassAction('view-assignments', classItem.id)}>
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation()
+                                handleClassAction('view-assignments', classItem.id)
+                              }}>
                                 <BookOpen className="mr-2 h-4 w-4" />
                                 View Assignments
                               </DropdownMenuItem>
                               {(session.user.role === 'ADMIN' || session.user.role === 'TEACHER') && (
                                 <>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => handleClassAction('edit', classItem.id)}>
+                                  <DropdownMenuItem onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleClassAction('edit', classItem.id)
+                                  }}>
                                     <Edit className="mr-2 h-4 w-4" />
                                     Edit Class
                                   </DropdownMenuItem>
@@ -423,7 +441,10 @@ export default function ClassesPage() {
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem 
-                                    onClick={() => handleClassAction('delete', classItem.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleClassAction('delete', classItem.id)
+                                    }}
                                     className="text-red-600"
                                   >
                                     <Trash2 className="mr-2 h-4 w-4" />
