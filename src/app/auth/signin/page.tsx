@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { signIn, getSession } from 'next-auth/react'
+import React, { useState, useEffect } from 'react'
+import { signIn, getSession, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,19 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const { data: session, status } = useSession()
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      console.log('User already authenticated, redirecting...', session.user)
+      if (session.user.role === 'ADMIN' || session.user.role === 'TEACHER') {
+        router.push('/dashboard')
+      } else {
+        router.push('/profile')
+      }
+    }
+  }, [session, status, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,33 +37,64 @@ export default function SignInPage() {
     setError('')
 
     try {
+      console.log('Attempting sign in with:', { email })
+      
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
       })
 
+      console.log('Sign in result:', result)
+
       if (result?.error) {
+        console.error('Sign in error:', result.error)
         setError('Invalid credentials. Please check your email/username and password.')
         return
       }
 
       if (result?.ok) {
+        console.log('Sign in successful, getting session...')
         // Get the session to determine user role for redirection
         const sessionData = await getSession()
+        console.log('Session data:', sessionData)
         
         // Role-based redirection
-        if (sessionData?.user?.role === 'ADMIN') {
+        if (sessionData?.user?.role === 'ADMIN' || sessionData?.user?.role === 'TEACHER') {
+          console.log('Redirecting to dashboard')
           router.push('/dashboard')
         } else {
+          console.log('Redirecting to profile')
           router.push('/profile')
         }
       }
     } catch (error) {
+      console.error('Unexpected error during sign in:', error)
       setError('An unexpected error occurred. Please try again.')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Show loading while checking session
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
+
+  // Don't render the form if already authenticated
+  if (status === 'authenticated') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Redirecting...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

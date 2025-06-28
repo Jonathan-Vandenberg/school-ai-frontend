@@ -12,7 +12,7 @@ declare module 'next-auth' {
   interface User {
     id: string
     username: string
-    role: UserRole
+    customRole: UserRole
     customImage?: string
   }
 
@@ -56,9 +56,6 @@ export const authOptions: NextAuthOptions = {
               { email: credentials.email },
               { username: credentials.email } // Using email field for both email and username input
             ]
-          },
-          include: {
-            role: true
           }
         })
 
@@ -83,7 +80,7 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email,
           username: user.username,
-          role: user.customRole,
+          customRole: user.customRole,
           customImage: user.customImage || undefined
         }
       }
@@ -95,7 +92,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role
+        token.role = user.customRole
         token.username = user.username
         token.customImage = user.customImage
       }

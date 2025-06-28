@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const videoSchema = z.object({
       topic: z.string().min(1, 'Topic is required'),
       videoUrl: z.string().url('Valid video URL is required'),
-      languageId: z.string().min(1, 'Language is required'),
+      languageId: z.string(),
       questions: z.array(z.object({
         text: z.string().min(1, 'Question text is required'),
         answer: z.string().min(1, 'Answer is required'),
@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
       studentIds: z.array(z.string()).optional(),
       assignToEntireClass: z.boolean(),
       scheduledPublishAt: z.string().optional().nullable(),
+      dueDate: z.string().optional().nullable(),
       color: z.string().optional(),
       rules: z.array(z.string()).optional(),
       feedbackSettings: z.object({
@@ -79,6 +80,7 @@ export async function POST(request: NextRequest) {
       studentIds: validatedData.studentIds || [],
       assignToEntireClass: validatedData.assignToEntireClass,
       scheduledPublishAt: validatedData.scheduledPublishAt ? new Date(validatedData.scheduledPublishAt) : null,
+      dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
       color: validatedData.color,
       rules: validatedData.rules,
       feedbackSettings: validatedData.feedbackSettings,

@@ -59,6 +59,7 @@ const formSchema = z.object({
   studentIds: z.array(z.string()).optional(),
   assignToEntireClass: z.boolean(),
   scheduledPublishAt: z.date().optional().nullable(),
+  dueDate: z.date().optional().nullable(),
   hasTranscript: z.boolean().optional(),
   languageId: z.string().optional(),
 });
@@ -77,6 +78,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
   const [students, setStudents] = useState<User[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [enableSchedule, setEnableSchedule] = useState(false);
+  const [enableDueDate, setEnableDueDate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
@@ -100,8 +102,9 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
       studentIds: [],
       assignToEntireClass: true,
       scheduledPublishAt: null,
+      dueDate: null,
       hasTranscript: false,
-      languageId: "",
+      languageId: "", // Will default to English on backend
     },
   });
 
@@ -664,6 +667,108 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                     </div>
                     <FormDescription>
                       Assignment will be published on the selected date and time.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Due Date</CardTitle>
+            <CardDescription>
+              Optional: Set a due date for when students should complete this assignment.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base">Enable Due Date</FormLabel>
+                <FormDescription>
+                  If enabled, students will see when the assignment is due.
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={enableDueDate}
+                  onCheckedChange={setEnableDueDate}
+                />
+              </FormControl>
+            </FormItem>
+            {enableDueDate && (
+              <FormField
+                control={form.control}
+                name="dueDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Due Date & Time</FormLabel>
+                    <div className="flex gap-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-[240px] pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value || undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                const currentTime = field.value || new Date();
+                                const newDateTime = new Date(date);
+                                newDateTime.setHours(currentTime.getHours());
+                                newDateTime.setMinutes(currentTime.getMinutes());
+                                field.onChange(newDateTime);
+                              } else {
+                                field.onChange(null);
+                              }
+                            }}
+                            disabled={(date) =>
+                              date < new Date(new Date().setHours(0, 0, 0, 0))
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 opacity-50" />
+                        <Input
+                          type="time"
+                          value={field.value ? format(field.value, "HH:mm") : "23:59"}
+                          onChange={(e) => {
+                            const timeValue = e.target.value;
+                            if (timeValue) {
+                              const [hours, minutes] = timeValue.split(':').map(Number);
+                              const currentDate = field.value || new Date();
+                              const newDateTime = new Date(currentDate);
+                              newDateTime.setHours(hours);
+                              newDateTime.setMinutes(minutes);
+                              field.onChange(newDateTime);
+                            }
+                          }}
+                          className="w-[120px]"
+                        />
+                      </div>
+                    </div>
+                    <FormDescription>
+                      Students will see this due date and be encouraged to complete by this time.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

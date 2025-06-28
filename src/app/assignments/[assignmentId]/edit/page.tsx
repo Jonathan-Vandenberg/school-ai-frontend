@@ -38,6 +38,7 @@ interface Assignment {
   color: string | null
   isActive: boolean | null
   scheduledPublishAt: string | null
+  dueDate: string | null
   videoUrl: string | null
   videoTranscript: string | null
   languageAssessmentType: string | null
@@ -111,6 +112,7 @@ export default function EditAssignmentPage() {
   const [context, setContext] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [scheduledPublishAt, setScheduledPublishAt] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [questions, setQuestions] = useState<Question[]>([])
   const [assignmentType, setAssignmentType] = useState<'CLASS' | 'INDIVIDUAL'>('CLASS')
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([])
@@ -144,6 +146,8 @@ export default function EditAssignmentPage() {
         setIsActive(assignmentData.isActive || false)
         setScheduledPublishAt(assignmentData.scheduledPublishAt ? 
           new Date(assignmentData.scheduledPublishAt).toISOString().slice(0, 16) : '')
+        setDueDate(assignmentData.dueDate ? 
+          new Date(assignmentData.dueDate).toISOString().slice(0, 16) : '')
         setQuestions(assignmentData.questions.map((q: any) => ({
           id: q.id,
           textQuestion: q.textQuestion || '',
@@ -245,6 +249,7 @@ export default function EditAssignmentPage() {
         context: context.trim() || null,
         isActive,
         scheduledPublishAt: scheduledPublishAt ? new Date(scheduledPublishAt).toISOString() : null,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
         type: assignmentType,
         classIds: assignmentType === 'CLASS' ? selectedClassIds : [],
         studentIds: assignmentType === 'INDIVIDUAL' ? selectedStudentIds : [],
@@ -463,6 +468,20 @@ export default function EditAssignmentPage() {
                 />
                 <p className="text-sm text-muted-foreground mt-1">
                   Leave empty to publish immediately when active
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="dueDate">Due Date</Label>
+                <Input
+                  id="dueDate"
+                  type="datetime-local"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="mt-1"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Optional: Set when students should complete this assignment
                 </p>
               </div>
             </CardContent>

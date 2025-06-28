@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -92,11 +92,18 @@ const navItems: NavItem[] = [
     roles: ['ADMIN', 'TEACHER']
   },
   {
+    title: 'My Assignments',
+    href: '/assignments',
+    icon: BookOpen,
+    roles: ['STUDENT']
+  },
+  {
     title: 'Assignments',
     href: '/assignments',
     icon: BookOpen,
-    roles: ['ADMIN', 'TEACHER', 'STUDENT']
-  },  {
+    roles: ['ADMIN', 'TEACHER']
+  },
+  {
     title: 'Create Assignment',
     href: '/create-assignment',
     icon: BookOpen,
@@ -106,7 +113,7 @@ const navItems: NavItem[] = [
     title: 'Classes',
     href: '/dashboard/classes',
     icon: School,
-    roles: ['ADMIN', 'TEACHER', 'STUDENT']
+    roles: ['ADMIN', 'TEACHER']
   },
   {
     title: 'Analytics',
@@ -122,9 +129,15 @@ const navItems: NavItem[] = [
   },
   {
     title: 'Calendar',
+    href: '/calendar',
+    icon: Calendar,
+    roles: ['STUDENT']
+  },
+  {
+    title: 'Calendar',
     href: '/dashboard/calendar',
     icon: Calendar,
-    roles: ['ADMIN', 'TEACHER', 'STUDENT']
+    roles: ['ADMIN', 'TEACHER']
   },
   {
     title: 'Messages',
@@ -149,8 +162,61 @@ const navItems: NavItem[] = [
 export function AppSidebar() {
   const { data: session } = useSession()
   const pathname = usePathname()
+  const [studentStats, setStudentStats] = useState({
+    totalAssignments: 0,
+    totalAssignmentsCompleted: 0,
+    averageScoreOfCompleted: 0
+  })
+  const [statsLoading, setStatsLoading] = useState(false)
 
   const userRole = session?.user?.role || ''
+
+  const fetchStudentStats = React.useCallback(async () => {
+    try {
+      setStatsLoading(true)
+      const response = await fetch('/api/profile/stats')
+      if (response.ok) {
+        const data = await response.json()
+        setStudentStats({
+          totalAssignments: data.data.assignments || 0,
+          totalAssignmentsCompleted: data.data.completedAssignments || 0,
+          averageScoreOfCompleted: data.data.averageScore || 0
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching student stats:', error)
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [])
+
+  // Fetch student stats if user is a student
+  useEffect(() => {
+    if (session?.user && userRole === 'STUDENT') {
+      fetchStudentStats()
+    }
+  }, [session, userRole, fetchStudentStats])
+
+  // Refresh stats when user returns to the page (similar to assignments page)
+  useEffect(() => {
+    if (userRole === 'STUDENT') {
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          fetchStudentStats()
+        }
+      }
+
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [userRole, fetchStudentStats])
+
+  // Also refresh stats when pathname changes (user navigates)
+  useEffect(() => {
+    if (userRole === 'STUDENT') {
+      fetchStudentStats()
+    }
+  }, [pathname, userRole, fetchStudentStats])
 
   const filteredNavItems = navItems.filter(item => 
     item.roles.includes(userRole)
@@ -176,13 +242,15 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard">
+              <Link href={userRole === 'STUDENT' ? '/assignments' : '/dashboard'}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <School className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">JIS AI Portal</span>
-                  <span className="truncate text-xs">Japanese International School</span>
+                  <span className="truncate text-xs">
+                    {userRole === 'STUDENT' ? 'Student Portal' : 'Japanese International School'}
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -247,21 +315,42 @@ export function AppSidebar() {
         {/* Quick Stats for Students */}
         {userRole === 'STUDENT' && (
           <SidebarGroup>
-            <SidebarGroupLabel>Quick Stats</SidebarGroupLabel>
+            <SidebarGroupLabel>My Progress</SidebarGroupLabel>
             <SidebarGroupContent>
-              <div className="px-2 py-1 text-xs space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Assignments</span>
-                  <span className="font-medium">0</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Completed</span>
-                  <span className="font-medium">0</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Average Score</span>
-                  <span className="font-medium">--</span>
-                </div>
+              <div className="px-2 py-1 text-xs space-y-2">
+                {statsLoading ? (
+                  <div className="text-muted-foreground text-center">Loading...</div>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Total Assignments</span>
+                      <span className="font-medium text-blue-600">{studentStats.totalAssignments}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Completed</span>
+                      <span className="font-medium text-green-600">{studentStats.totalAssignmentsCompleted}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Average Score</span>
+                      <span className="font-medium text-purple-600">
+                        {studentStats.averageScoreOfCompleted ? 
+                          `${Math.round(studentStats.averageScoreOfCompleted)}%` : 
+                          '--'
+                        }
+                      </span>
+                    </div>
+                    {studentStats.totalAssignments > 0 && (
+                      <div className="mt-2 pt-2 border-t">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Completion Rate</span>
+                          <span className="font-medium text-orange-600">
+                            {Math.round((studentStats.totalAssignmentsCompleted / studentStats.totalAssignments) * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </SidebarGroupContent>
           </SidebarGroup>

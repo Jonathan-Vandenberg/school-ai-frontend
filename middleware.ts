@@ -40,10 +40,10 @@ export default withAuth(
       }
     }
 
-    // Protect dashboard routes - only admins can access
+    // Protect dashboard routes - only admins and teachers can access
     if (pathname.startsWith('/dashboard')) {
-      if (token?.role !== 'ADMIN') {
-        // Redirect non-admin users to their profile
+      if (!token?.role || !['ADMIN'].includes(token.role)) {
+        // Redirect unauthorized users to their profile
         return NextResponse.redirect(new URL('/profile', req.url))
       }
     }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,8 +22,50 @@ import {
 // Import global utility functions
 import { getRoleColor, getRoleDisplayName } from '@/lib/utils'
 
+interface ProfileStats {
+  role: string
+  classes?: number
+  students?: number
+  assignments?: number
+  completedAssignments?: number
+  averageScore?: number
+  teachers?: number
+  children?: number
+  reports?: number
+}
+
 export default function ProfilePage() {
   const { data: session, status } = useSession()
+  const [stats, setStats] = useState<ProfileStats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch profile statistics
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!session) return
+      
+      try {
+        setLoading(true)
+        const response = await fetch('/api/profile/stats')
+        
+        if (response.ok) {
+          const data = await response.json()
+          setStats(data.data)
+        } else {
+          console.error('Failed to fetch profile stats')
+          setError('Failed to load profile statistics')
+        }
+      } catch (err) {
+        console.error('Error fetching profile stats:', err)
+        setError('Failed to load profile statistics')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchStats()
+  }, [session])
 
   if (status === 'loading') {
     return (
@@ -118,7 +161,9 @@ export default function ProfilePage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
+                <div className="text-2xl font-bold">
+                  {loading ? '...' : (stats?.classes || 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Active classes
                 </p>
@@ -131,7 +176,9 @@ export default function ProfilePage() {
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
+                <div className="text-2xl font-bold">
+                  {loading ? '...' : (stats?.assignments || 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Created assignments
                 </p>
@@ -144,7 +191,9 @@ export default function ProfilePage() {
                 <GraduationCap className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
+                <div className="text-2xl font-bold">
+                  {loading ? '...' : (stats?.students || 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Total students
                 </p>
@@ -161,7 +210,9 @@ export default function ProfilePage() {
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
+                <div className="text-2xl font-bold">
+                  {loading ? '...' : (stats?.assignments || 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Available assignments
                 </p>
@@ -174,7 +225,9 @@ export default function ProfilePage() {
                 <Award className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
+                <div className="text-2xl font-bold">
+                  {loading ? '...' : (stats?.completedAssignments || 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Assignments completed
                 </p>
@@ -187,7 +240,9 @@ export default function ProfilePage() {
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">--</div>
+                <div className="text-2xl font-bold">
+                  {loading ? '...' : (stats?.averageScore ? `${stats.averageScore}%` : '--')}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Overall performance
                 </p>
@@ -204,7 +259,9 @@ export default function ProfilePage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
+                <div className="text-2xl font-bold">
+                  {loading ? '...' : (stats?.children || 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Connected children
                 </p>
@@ -230,7 +287,9 @@ export default function ProfilePage() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
+                <div className="text-2xl font-bold">
+                  {loading ? '...' : (stats?.reports || 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Available reports
                 </p>
@@ -239,6 +298,13 @@ export default function ProfilePage() {
           </>
         )}
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Quick Actions */}
       <Card>

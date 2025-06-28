@@ -1,11 +1,51 @@
-import { PrismaClient, Prisma, User, Assignment } from '@prisma/client'
+import { PrismaClient, Prisma, User, Assignment, StudentAssignmentProgress, Question, Class, UserClass } from '@prisma/client'
 import { AuthService, AuthenticatedUser, NotFoundError, ForbiddenError, ValidationError } from './auth.service'
 import { ActivityLogService } from './activity-log.service'
 import { withTransaction } from '../db'
 import { handleServiceError } from './auth.service'
 import { DefaultArgs } from '@prisma/client/runtime/library'
 import { QuestionsService } from './questions.service'
+import { StatisticsService } from './statistics.service'
 import { prisma } from '../db'
+
+// Type definitions for complex Prisma queries
+type AssignmentWithStatisticsData = Prisma.AssignmentGetPayload<{
+  include: {
+    questions: { select: { id: true } }
+    progresses: {
+      where: { isComplete: true }
+      select: {
+        studentId: true
+        isCorrect: true
+        questionId: true
+      }
+    }
+    classes: {
+      include: {
+        class: {
+          include: {
+            users: { select: { userId: true } }
+          }
+        }
+      }
+    }
+    students: { select: { userId: true } }
+  }
+}>
+
+type ClassWithAssignments = Prisma.AssignmentGetPayload<{
+  include: {
+    questions: { select: { id: true } }
+    progresses: {
+      select: {
+        studentId: true
+        isCorrect: true
+        questionId: true
+        assignmentId: true
+      }
+    }
+  }
+}>
 
 export interface CreateAssignmentData {
   topic: string
@@ -13,6 +53,7 @@ export interface CreateAssignmentData {
   color?: string
   vocabularyItems?: any[]
   scheduledPublishAt?: Date
+  dueDate?: Date
   videoUrl?: string
   videoTranscript?: string
   languageAssessmentType?: 'SCRIPTED_US' | 'SCRIPTED_UK' | 'UNSCRIPTED_US' | 'UNSCRIPTED_UK' | 'PRONUNCIATION_US' | 'PRONUNCIATION_UK'
@@ -35,6 +76,7 @@ export interface UpdateAssignmentData {
   color?: string
   vocabularyItems?: any[]
   scheduledPublishAt?: Date | null
+  dueDate?: Date | null
   isActive?: boolean
   videoUrl?: string
   videoTranscript?: string
@@ -55,6 +97,7 @@ export interface AssignmentWithDetails {
   color: string | null
   vocabularyItems: any
   scheduledPublishAt: Date | null
+  dueDate: Date | null
   isActive: boolean | null
   videoUrl: string | null
   videoTranscript: string | null
@@ -103,6 +146,22 @@ export interface AssignmentWithDetails {
       id: string
       username: string
     }
+  }>
+  progresses?: Array<{
+    id: string
+    isComplete: boolean
+    isCorrect: boolean
+    createdAt: Date
+    updatedAt: Date
+    publishedAt: Date | null
+    assignmentId: string
+    languageConfidenceResponse: any
+    grammarCorrected: any
+    studentId: string
+    questionId: string | null
+    question: {
+      id: string
+    } | null
   }>
   _count?: {
     progresses: number
@@ -264,6 +323,9 @@ export class AssignmentsService {
         },
         tx
       )
+
+      // Initialize assignment statistics
+      await AssignmentsService.initializeAssignmentStatistics(assignment.id)
 
       return assignment as AssignmentWithDetails
     })
@@ -886,6 +948,17 @@ export class AssignmentsService {
             }
           }
         },
+        // Include student progress for students
+        ...(currentUser.customRole === 'STUDENT' && {
+          progresses: {
+            where: { studentId: currentUser.id },
+            include: {
+              question: {
+                select: { id: true }
+              }
+            }
+          }
+        }),
         _count: {
           select: {
             progresses: true,
@@ -899,7 +972,7 @@ export class AssignmentsService {
       ]
     })
 
-    return assignments as AssignmentWithDetails[]
+    return assignments as any
   }
 
   /**
@@ -925,6 +998,7 @@ export class AssignmentsService {
       studentIds,
       assignToEntireClass,
       scheduledPublishAt,
+      dueDate,
       color,
       rules,
       feedbackSettings,
@@ -973,6 +1047,7 @@ export class AssignmentsService {
           isActive,
           publishedAt: publishDate,
           scheduledPublishAt,
+          dueDate,
           totalStudentsInScope: initialTotalStudentsInScope,
           completedStudentsCount: 0,
           completionRate: 0.0,
@@ -1112,9 +1187,222 @@ export class AssignmentsService {
         throw new Error('Failed to retrieve created assignment');
       }
 
+      // Initialize assignment statistics
+      await AssignmentsService.initializeAssignmentStatistics(newAssignment.id)
+
       return completeAssignment as AssignmentWithDetails;
     });
   }
+
+  /**
+   * Submit student progress for a question
+   */
+  static async submitStudentProgress(
+    studentId: string,
+    assignmentId: string,
+    questionId: string,
+    isCorrect: boolean,
+    transcript: string
+  ) {
+    return withTransaction(async (tx) => {
+      // Check if student has access to this assignment
+      const assignment = await tx.assignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          classes: {
+            include: {
+              class: {
+                include: {
+                  users: {
+                    where: { userId: studentId }
+                  }
+                }
+              }
+            }
+          },
+          students: {
+            where: { userId: studentId }
+          }
+        }
+      })
+
+      if (!assignment) {
+        throw new NotFoundError('Assignment not found')
+      }
+
+      // Check if student has access (either through class or individual assignment)
+      const hasClassAccess = assignment.classes.some(ac => ac.class.users.length > 0)
+      const hasIndividualAccess = assignment.students.length > 0
+      
+      if (!hasClassAccess && !hasIndividualAccess) {
+        throw new ForbiddenError('Access denied')
+      }
+
+      // Verify the question belongs to this assignment
+      const question = await tx.question.findFirst({
+        where: {
+          id: questionId,
+          assignmentId: assignmentId
+        }
+      })
+
+      if (!question) {
+        throw new NotFoundError('Question not found in this assignment')
+      }
+
+      // Check if progress already exists
+      const existingProgress = await tx.studentAssignmentProgress.findFirst({
+        where: {
+          studentId: studentId,
+          assignmentId: assignmentId,
+          questionId: questionId
+        }
+      })
+
+      let progress
+      if (existingProgress) {
+        // Update existing progress
+        progress = await tx.studentAssignmentProgress.update({
+          where: {
+            id: existingProgress.id
+          },
+          data: {
+            isCorrect,
+            languageConfidenceResponse: {
+              transcript: transcript,
+              timestamp: new Date().toISOString()
+            },
+            isComplete: true,
+            updatedAt: new Date()
+          }
+        })
+      } else {
+        // Create new progress record
+        progress = await tx.studentAssignmentProgress.create({
+          data: {
+            studentId: studentId,
+            assignmentId: assignmentId,
+            questionId: questionId,
+            isCorrect,
+            languageConfidenceResponse: {
+              transcript: transcript,
+              timestamp: new Date().toISOString()
+            },
+            isComplete: true
+          }
+        })
+      }
+
+      // Get the student's current progress for this assignment
+      const studentProgress = await tx.studentAssignmentProgress.findMany({
+        where: {
+          studentId: studentId,
+          assignmentId: assignmentId,
+          isComplete: true
+        },
+        include: {
+          question: true
+        }
+      })
+
+      // Calculate completion percentage and accuracy
+      const totalQuestions = await tx.question.count({
+        where: { assignmentId: assignmentId }
+      })
+
+      const completedQuestions = studentProgress.length
+      const correctAnswers = studentProgress.filter(p => p.isCorrect).length
+      
+      const completionPercentage = totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0
+      const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0
+
+                   // Update statistics incrementally using the new scalable service
+      await StatisticsService.updateAssignmentStatistics(assignmentId, studentId, isCorrect, true)
+      await StatisticsService.updateStudentStatistics(studentId, assignmentId, isCorrect, true)
+
+      return {
+        success: true,
+        progress: {
+          totalQuestions,
+          completedQuestions,
+          correctAnswers,
+          completionPercentage: Math.round(completionPercentage * 100) / 100,
+          accuracy: Math.round(accuracy * 100) / 100,
+          isComplete: completedQuestions >= totalQuestions
+        }
+      }
+    })
+  }
+
+  /**
+   * Get assignment statistics using pre-aggregated data
+   */
+  static async getAssignmentStatistics(assignmentId: string) {
+    return await StatisticsService.getAssignmentStatistics(assignmentId)
+  }
+
+  /**
+   * Initialize assignment statistics when assignment is created
+   */
+  static async initializeAssignmentStatistics(assignmentId: string) {
+    try {
+      // Get assignment details to determine scope
+      const assignment = await prisma.assignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          classes: {
+            include: {
+              class: {
+                include: {
+                  users: { select: { userId: true } }
+                }
+              }
+            }
+          },
+          students: { select: { userId: true } }
+        }
+      })
+
+      if (!assignment) {
+        console.error(`Assignment ${assignmentId} not found for statistics initialization`)
+        return
+      }
+
+      // 1. Initialize assignment statistics record
+      await StatisticsService.updateAssignmentStatistics(assignmentId, '', false, false)
+
+      // 2. Get all affected students
+      const classStudentIds = assignment.classes.flatMap(ac => 
+        ac.class.users.map(u => u.userId)
+      )
+      const individualStudentIds = assignment.students.map(s => s.userId)
+      const allStudentIds = [...new Set([...classStudentIds, ...individualStudentIds])]
+
+      // 3. Update each student's assignment count
+      for (const studentId of allStudentIds) {
+        await StatisticsService.incrementStudentAssignmentCount(studentId)
+      }
+
+      // 4. Update class statistics for class assignments
+      if (assignment.type === 'CLASS') {
+        for (const classAssignment of assignment.classes) {
+          await StatisticsService.incrementClassAssignmentCount(classAssignment.classId)
+        }
+      }
+
+      // 5. Update school-wide statistics
+      await StatisticsService.incrementSchoolAssignmentCount(true, !!assignment.scheduledPublishAt)
+
+      console.log(`Initialized statistics for assignment ${assignmentId} (${allStudentIds.length} students affected)`)
+    } catch (error) {
+      console.error('Error initializing assignment statistics:', error)
+      // Don't throw error to avoid breaking assignment creation
+    }
+  }
+
+
+
+
 }
 
 export interface CreateVideoAssignmentDto {
@@ -1128,6 +1416,7 @@ export interface CreateVideoAssignmentDto {
   studentIds?: string[];
   assignToEntireClass: boolean;
   scheduledPublishAt?: Date | null;
+  dueDate?: Date | null;
   color?: string;
   rules?: string[];
   feedbackSettings?: {

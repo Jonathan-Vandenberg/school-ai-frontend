@@ -11,41 +11,16 @@ import { z } from 'zod'
  */
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate user
     const currentUser = await AuthService.getAuthenticatedUser()
+    const assignments = await AssignmentsService.getMyAssignments(currentUser)
     
-    // Extract query parameters
-    const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
-    const classId = searchParams.get('classId')
-    const type = searchParams.get('type') as 'CLASS' | 'INDIVIDUAL' | null
-    const search = searchParams.get('search')
-    const studentId = searchParams.get('studentId')
-    const teacherId = searchParams.get('teacherId')
-    const isActive = searchParams.get('isActive')
-    const languageId = searchParams.get('languageId')
-
-    // Use service to get assignments
-    const result = await AssignmentsService.listAssignments(currentUser, {
-      page,
-      limit,
-      classId: classId || undefined,
-      type: type || undefined,
-      search: search || undefined,
-      studentId: studentId || undefined,
-      teacherId: teacherId || undefined,
-      isActive: isActive ? isActive === 'true' : undefined,
-      languageId: languageId || undefined,
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: result.assignments,
-      pagination: result.pagination,
-    })
+    return NextResponse.json(assignments)
   } catch (error) {
-    return handleServiceError(error)
+    console.error('Error fetching assignments:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch assignments' },
+      { status: 500 }
+    )
   }
 }
 
