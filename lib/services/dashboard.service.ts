@@ -127,7 +127,12 @@ export class DashboardService {
    * Get current real-time metrics using our statistics service
    */
   static async getCurrentMetrics(): Promise<CurrentMetrics> {
-    const schoolStats = await StatisticsService.getSchoolStatistics()
+    const [schoolStats, studentsNeedingHelpCount] = await Promise.all([
+      StatisticsService.getSchoolStatistics(),
+      prisma.studentsNeedingHelp.count({
+        where: { isResolved: false }
+      })
+    ])
 
     // Handle null case by providing defaults
     if (!schoolStats) {
@@ -140,7 +145,7 @@ export class DashboardService {
         averageCompletionRate: 0,
         averageScore: 0,
         dailyActiveStudents: 0,
-        studentsNeedingHelp: 0
+        studentsNeedingHelp: studentsNeedingHelpCount
       }
     }
 
@@ -153,7 +158,7 @@ export class DashboardService {
       averageCompletionRate: schoolStats.averageCompletionRate,
       averageScore: schoolStats.averageScore,
       dailyActiveStudents: schoolStats.dailyActiveStudents,
-      studentsNeedingHelp: schoolStats.studentsNeedingHelp
+      studentsNeedingHelp: studentsNeedingHelpCount
     }
   }
 

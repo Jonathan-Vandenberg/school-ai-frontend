@@ -39,6 +39,8 @@ model User {
   role                        Role?                       @relation(fields: [roleId], references: [id])
   studentStats                StudentStats?
   teacherStats                TeacherStats?
+  needsHelpRecords            StudentsNeedingHelp[]
+  teacherNotifications        StudentsNeedingHelpTeacher[] @relation("TeacherNotifications")
 
   @@map("users")
 }
@@ -87,6 +89,7 @@ model Class {
   statsClasses StatsClass?
   users        UserClass[]
   detailedStats ClassStatsDetailed?
+  studentsNeedingHelp StudentsNeedingHelpClass[]
 
   @@map("classes")
 }
@@ -642,4 +645,54 @@ enum TimeFrame {
   DAILY
   WEEKLY
   MONTHLY
+}
+
+// Students requiring assistance tracking
+model StudentsNeedingHelp {
+  id                  String   @id @default(cuid())
+  studentId           String
+  reasons             Json     // Array of reasons why student needs help
+  needsHelpSince      DateTime // When they first needed help
+  lastUpdated         DateTime @default(now()) @updatedAt
+  isResolved          Boolean  @default(false)
+  resolvedAt          DateTime?
+  overdueAssignments  Int      @default(0)
+  averageScore        Float    @default(0.0)
+  completionRate      Float    @default(0.0)
+  daysNeedingHelp     Int      @default(0)
+  severity            String   @default("MODERATE") // CRITICAL, HIGH, MODERATE, LOW
+  teacherNotes        String?
+  actionsTaken        Json?    // Array of actions taken to help student
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  student             User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classes             StudentsNeedingHelpClass[]
+  teachers            StudentsNeedingHelpTeacher[]
+  
+  @@unique([studentId, isResolved])
+  @@map("students_needing_help")
+}
+
+// Junction table for StudentsNeedingHelp and Classes
+model StudentsNeedingHelpClass {
+  studentNeedingHelpId String
+  classId              String
+  studentNeedingHelp   StudentsNeedingHelp @relation(fields: [studentNeedingHelpId], references: [id], onDelete: Cascade)
+  class                Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  
+  @@id([studentNeedingHelpId, classId])
+  @@map("students_needing_help_classes")
+}
+
+// Junction table for StudentsNeedingHelp and Teachers
+model StudentsNeedingHelpTeacher {
+  studentNeedingHelpId String
+  teacherId            String
+  studentNeedingHelp   StudentsNeedingHelp @relation(fields: [studentNeedingHelpId], references: [id], onDelete: Cascade)
+  teacher              User                @relation("TeacherNotifications", fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  @@id([studentNeedingHelpId, teacherId])
+  @@map("students_needing_help_teachers")
 }

@@ -54,6 +54,13 @@ export {
   type ActivityLogEntry 
 } from './activity-log.service'
 
+// Students needing help
+export { 
+  StudentsNeedingHelpService, 
+  type StudentNeedingHelpData, 
+  type StudentsNeedingHelpSummary 
+} from './students-needing-help.service'
+
 // Import for ServiceFactory only (these must be value imports, not type imports)
 import { AuthService } from './auth.service'
 import { UsersService } from './users.service'
@@ -61,6 +68,7 @@ import { AssignmentsService } from './assignments.service'
 import { ClassesService } from './classes.service'
 import { QuestionsService } from './questions.service'
 import { ActivityLogService } from './activity-log.service'
+import { StudentsNeedingHelpService } from './students-needing-help.service'
 
 /**
  * Service Factory
@@ -89,6 +97,10 @@ export class ServiceFactory {
 
   static get activityLog() {
     return ActivityLogService
+  }
+
+  static get studentsNeedingHelp() {
+    return StudentsNeedingHelpService
   }
 }
 
