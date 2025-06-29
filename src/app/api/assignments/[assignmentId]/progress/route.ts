@@ -194,12 +194,16 @@ export async function GET(
     const studentProgress = filteredStudents.map(student => {
       const studentProgresses = progressByStudent.get(student.id) || []
       const totalQuestions = assignment.questions.length
-      const completedQuestions = studentProgresses.filter(p => p.isComplete).length
+      
+      // Count unique questions answered (not just progress records)
+      const uniqueQuestionsAnswered = new Set(
+        studentProgresses.filter(p => p.isComplete).map(p => p.questionId)
+      ).size
       const correctAnswers = studentProgresses.filter(p => p.isCorrect).length
       
-      const completionRate = totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0
-      const accuracyRate = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0
-      const isComplete = completedQuestions >= totalQuestions
+      const completionRate = totalQuestions > 0 ? (uniqueQuestionsAnswered / totalQuestions) * 100 : 0
+      const accuracyRate = uniqueQuestionsAnswered > 0 ? (correctAnswers / uniqueQuestionsAnswered) * 100 : 0
+      const isComplete = uniqueQuestionsAnswered >= totalQuestions
       
       return {
         student: {
@@ -211,7 +215,7 @@ export async function GET(
         },
         stats: {
           totalQuestions,
-          completedQuestions,
+          completedQuestions: uniqueQuestionsAnswered,
           correctAnswers,
           completionRate: Math.round(completionRate),
           accuracyRate: Math.round(accuracyRate),

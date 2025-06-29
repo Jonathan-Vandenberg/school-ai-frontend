@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
+import { useStatsRefresh } from '@/hooks/use-stats-refresh'
 import { VideoAssignmentPlayer } from '@/components/assignments/video-assignment/video-assignment-player'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -145,6 +146,7 @@ export default function AssignmentDetailPage() {
   const params = useParams()
   const router = useRouter()
   const assignmentId = params.assignmentId as string
+  const { triggerRefresh } = useStatsRefresh()
   
   const [assignment, setAssignment] = useState<Assignment | null>(null)
   const [progressData, setProgressData] = useState<ProgressData | null>(null)
@@ -228,10 +230,9 @@ export default function AssignmentDetailPage() {
 
       if (response.ok) {
         const data = await response.json()
-        // The submit-progress API returns { success: true, progress: {...} }
-        // After submitting, reload the full progress data
         if (data.success) {
-          await loadStudentProgress() // Reload to get the updated progress
+          await loadStudentProgress()
+          triggerRefresh()
         }
       } else {
         console.error('Failed to submit progress')

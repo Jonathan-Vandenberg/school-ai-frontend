@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService, ClassesService, handleServiceError } from '@/lib/services'
+import { prisma } from '@/lib/db'
 
 /**
  * GET /api/classes/[classId]
- * Get class details including teachers and students
+ * Get class details including teachers and students with help status
  * Role-based access: Admins/Teachers see all, Students see only their classes
  */
 export async function GET(
@@ -34,12 +35,53 @@ export async function GET(
     const teachers = classDetails.users?.filter(uc => uc.user.customRole === 'TEACHER').map(uc => uc.user) || []
     const students = classDetails.users?.filter(uc => uc.user.customRole === 'STUDENT').map(uc => uc.user) || []
 
+    // Get students needing help information for this class
+    const studentsNeedingHelp = await prisma.studentsNeedingHelp.findMany({
+      where: {
+        isResolved: false,
+        classes: {
+          some: {
+            classId: classId
+          }
+        }
+      },
+      include: {
+        student: {
+          select: {
+            id: true
+          }
+        }
+      }
+    })
+
+    // Create a map of student help information
+    const helpInfoMap = new Map()
+    studentsNeedingHelp.forEach(help => {
+      helpInfoMap.set(help.studentId, {
+        reasons: help.reasons,
+        needsHelpSince: help.needsHelpSince,
+        daysNeedingHelp: help.daysNeedingHelp,
+        severity: help.severity,
+        overdueAssignments: help.overdueAssignments,
+        averageScore: help.averageScore,
+        completionRate: help.completionRate,
+        teacherNotes: help.teacherNotes
+      })
+    })
+
+    // Add help information to students
+    const studentsWithHelpInfo = students.map(student => ({
+      ...student,
+      needsHelp: helpInfoMap.has(student.id),
+      helpInfo: helpInfoMap.get(student.id) || null
+    }))
+
     return NextResponse.json({
       success: true,
       data: {
         ...classDetails,
         teachers,
-        students,
+        students: studentsWithHelpInfo,
         _count: {
           ...classDetails._count,
           teachers: teachers.length,

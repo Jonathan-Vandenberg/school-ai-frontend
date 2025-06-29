@@ -16,9 +16,27 @@ export class StatisticsService {
     assignmentId: string,
     studentId: string,
     isCorrect: boolean,
+    isNewSubmission: boolean = true,
+    providedTx?: any
+  ) {
+    if (providedTx) {
+      // Use the provided transaction
+      return this._updateAssignmentStatisticsWithTx(providedTx, assignmentId, studentId, isCorrect, isNewSubmission)
+    } else {
+      // Create our own transaction
+      return withTransaction(async (tx) => {
+        return this._updateAssignmentStatisticsWithTx(tx, assignmentId, studentId, isCorrect, isNewSubmission)
+      })
+    }
+  }
+
+  private static async _updateAssignmentStatisticsWithTx(
+    tx: any,
+    assignmentId: string,
+    studentId: string,
+    isCorrect: boolean,
     isNewSubmission: boolean = true
   ) {
-    return withTransaction(async (tx) => {
       // Get or create assignment stats
       let assignmentStats = await tx.assignmentStats.findUnique({
         where: { assignmentId }
@@ -46,10 +64,10 @@ export class StatisticsService {
         if (!assignment) return
 
         // Calculate total students in scope
-        const classStudentIds = assignment.classes.flatMap(ac => 
-          ac.class.users.map(u => u.userId)
+        const classStudentIds = assignment.classes.flatMap((ac: any) => 
+          ac.class.users.map((u: any) => u.userId)
         )
-        const individualStudentIds = assignment.students.map(s => s.userId)
+        const individualStudentIds = assignment.students.map((s: any) => s.userId)
         const allStudentIds = [...new Set([...classStudentIds, ...individualStudentIds])]
 
         assignmentStats = await tx.assignmentStats.create({
@@ -132,7 +150,7 @@ export class StatisticsService {
 
         // Group by student and calculate scores
         const studentScores = new Map<string, { correct: number, total: number }>()
-        completedStudents.forEach(progress => {
+        completedStudents.forEach((progress: any) => {
           if (!studentScores.has(progress.studentId)) {
             studentScores.set(progress.studentId, { correct: 0, total: 0 })
           }
@@ -166,7 +184,6 @@ export class StatisticsService {
       })
 
       return updatedStats
-    })
   }
 
   /**
@@ -176,159 +193,213 @@ export class StatisticsService {
     studentId: string,
     assignmentId: string,
     isCorrect: boolean,
+    isNewSubmission: boolean = true,
+    providedTx?: any
+  ) {
+    if (providedTx) {
+      // Use the provided transaction
+      return this._updateStudentStatisticsWithTx(providedTx, studentId, assignmentId, isCorrect, isNewSubmission)
+    } else {
+      // Create our own transaction
+      return withTransaction(async (tx) => {
+        return this._updateStudentStatisticsWithTx(tx, studentId, assignmentId, isCorrect, isNewSubmission)
+      })
+    }
+  }
+
+  private static async _updateStudentStatisticsWithTx(
+    tx: any,
+    studentId: string,
+    assignmentId: string,
+    isCorrect: boolean,
     isNewSubmission: boolean = true
   ) {
-    return withTransaction(async (tx) => {
-      // Get or create student stats
-      let studentStats = await tx.studentStats.findUnique({
-        where: { studentId }
-      })
+    // Get or create student stats
+    let studentStats = await tx.studentStats.findUnique({
+      where: { studentId }
+    })
 
-      if (!studentStats) {
-        // Initialize stats for new student
-        const studentAssignments = await tx.assignment.count({
-          where: {
-            OR: [
-              {
-                classes: {
-                  some: {
-                    class: {
-                      users: {
-                        some: { userId: studentId }
-                      }
+    if (!studentStats) {
+      // Initialize stats for new student
+      const studentAssignments = await tx.assignment.count({
+        where: {
+          OR: [
+            {
+              classes: {
+                some: {
+                  class: {
+                    users: {
+                      some: { userId: studentId }
                     }
                   }
                 }
-              },
-              {
-                students: {
-                  some: { userId: studentId }
+              }
+            },
+            {
+              students: {
+                some: { userId: studentId }
+              }
+            }
+          ]
+        }
+      })
+
+      studentStats = await tx.studentStats.create({
+        data: {
+          studentId,
+          totalAssignments: studentAssignments,
+          completedAssignments: 0,
+          inProgressAssignments: 0,
+          notStartedAssignments: studentAssignments,
+          averageScore: 0.0,
+          totalQuestions: 0,
+          totalAnswers: 0,
+          totalCorrectAnswers: 0,
+          accuracyRate: 0.0,
+          completionRate: 0.0,
+          lastActivityDate: new Date()
+        }
+      })
+    }
+
+    // Efficient incremental updates
+    const updates: any = {
+      lastUpdated: new Date(),
+      lastActivityDate: new Date()
+    }
+
+    if (isNewSubmission) {
+      // Update answer counts
+      updates.totalAnswers = { increment: 1 }
+      if (isCorrect) {
+        updates.totalCorrectAnswers = { increment: 1 }
+      }
+
+      // Check if this assignment just became complete
+      const totalQuestions = await tx.question.count({
+        where: { assignmentId }
+      })
+
+      // Get unique questions answered for this specific assignment
+      const uniqueProgressRecords = await tx.studentAssignmentProgress.findMany({
+        where: {
+          studentId,
+          assignmentId,
+          isComplete: true
+        },
+        select: { questionId: true },
+        distinct: ['questionId']
+      })
+      const uniqueQuestionsAnswered = uniqueProgressRecords.length
+
+      // Check assignment status changes
+      const wasComplete = uniqueQuestionsAnswered - 1 >= totalQuestions
+      const isNowComplete = uniqueQuestionsAnswered >= totalQuestions
+
+      if (!wasComplete && isNowComplete) {
+        // Assignment just became complete
+        updates.completedAssignments = { increment: 1 }
+        updates.inProgressAssignments = { decrement: 1 }
+      } else if (uniqueQuestionsAnswered === 1) {
+        // First question answered - moved from not started to in progress
+        updates.inProgressAssignments = { increment: 1 }
+        updates.notStartedAssignments = { decrement: 1 }
+      }
+    }
+
+    // Update student stats
+    const updatedStats = await tx.studentStats.update({
+      where: { studentId },
+      data: updates
+    })
+
+    // Calculate derived metrics
+    const completionRate = updatedStats.totalAssignments > 0 
+      ? (updatedStats.completedAssignments / updatedStats.totalAssignments) * 100 
+      : 0
+
+    const accuracyRate = updatedStats.totalAnswers > 0 
+      ? (updatedStats.totalCorrectAnswers / updatedStats.totalAnswers) * 100 
+      : 0
+
+    // Calculate average score
+    let averageScore = 0
+    if (updatedStats.completedAssignments > 0) {
+      // Get all assignments for this student to check which ones are truly completed
+      const studentAssignments = await tx.assignment.findMany({
+        where: {
+          OR: [
+            {
+              classes: {
+                some: {
+                  class: {
+                    users: {
+                      some: { userId: studentId }
+                    }
+                  }
                 }
               }
-            ]
+            },
+            {
+              students: {
+                some: { userId: studentId }
+              }
+            }
+          ]
+        },
+        select: {
+          id: true,
+          questions: {
+            select: { id: true }
           }
-        })
-
-        studentStats = await tx.studentStats.create({
-          data: {
-            studentId,
-            totalAssignments: studentAssignments,
-            completedAssignments: 0,
-            inProgressAssignments: 0,
-            notStartedAssignments: studentAssignments,
-            averageScore: 0.0,
-            totalQuestions: 0,
-            totalAnswers: 0,
-            totalCorrectAnswers: 0,
-            accuracyRate: 0.0,
-            completionRate: 0.0,
-            lastActivityDate: new Date()
-          }
-        })
-      }
-
-      // Update counters incrementally
-      const updates: any = {
-        lastUpdated: new Date(),
-        lastActivityDate: new Date()
-      }
-
-      if (isNewSubmission) {
-        updates.totalAnswers = { increment: 1 }
-        if (isCorrect) {
-          updates.totalCorrectAnswers = { increment: 1 }
-        }
-
-        // Check if this is the first question for this assignment
-        const previousProgress = await tx.studentAssignmentProgress.count({
-          where: {
-            studentId,
-            assignmentId,
-            isComplete: true
-          }
-        })
-
-        if (previousProgress === 1) {
-          // First question answered - assignment moved from not started to in progress
-          updates.inProgressAssignments = { increment: 1 }
-          updates.notStartedAssignments = { decrement: 1 }
-        }
-
-        // Check if assignment is now completed
-        const totalQuestions = await tx.question.count({
-          where: { assignmentId }
-        })
-
-        if (previousProgress >= totalQuestions) {
-          // Assignment just completed
-          updates.completedAssignments = { increment: 1 }
-          updates.inProgressAssignments = { decrement: 1 }
-        }
-      }
-
-      // Update student stats
-      const updatedStats = await tx.studentStats.update({
-        where: { studentId },
-        data: updates
-      })
-
-      // Calculate derived metrics
-      const completionRate = updatedStats.totalAssignments > 0 
-        ? (updatedStats.completedAssignments / updatedStats.totalAssignments) * 100 
-        : 0
-
-      const accuracyRate = updatedStats.totalAnswers > 0 
-        ? (updatedStats.totalCorrectAnswers / updatedStats.totalAnswers) * 100 
-        : 0
-
-      // Calculate average score
-      let averageScore = 0
-      if (updatedStats.completedAssignments > 0) {
-        // Get all completed progress for this student
-        const studentProgress = await tx.studentAssignmentProgress.findMany({
-          where: {
-            studentId,
-            isComplete: true
-          },
-          select: {
-            assignmentId: true,
-            isCorrect: true
-          }
-        })
-
-        // Group by assignment and calculate scores
-        const assignmentScores = new Map<string, { correct: number, total: number }>()
-        studentProgress.forEach(progress => {
-          if (!assignmentScores.has(progress.assignmentId)) {
-            assignmentScores.set(progress.assignmentId, { correct: 0, total: 0 })
-          }
-          const assignment = assignmentScores.get(progress.assignmentId)!
-          assignment.total++
-          if (progress.isCorrect) assignment.correct++
-        })
-
-        // Calculate average score across all assignments
-        if (assignmentScores.size > 0) {
-          const totalScore = Array.from(assignmentScores.values()).reduce((sum, scores) => {
-            const score = scores.total > 0 ? (scores.correct / scores.total) * 100 : 0
-            return sum + score
-          }, 0)
-          averageScore = totalScore / assignmentScores.size
-        }
-      }
-
-      // Update calculated fields
-      await tx.studentStats.update({
-        where: { studentId },
-        data: {
-          completionRate: parseFloat(completionRate.toFixed(2)),
-          accuracyRate: parseFloat(accuracyRate.toFixed(2)),
-          averageScore: parseFloat(averageScore.toFixed(2))
         }
       })
 
-      return updatedStats
+      // Get all progress for this student
+      const studentProgress = await tx.studentAssignmentProgress.findMany({
+        where: {
+          studentId,
+          isComplete: true
+        },
+        select: {
+          assignmentId: true,
+          questionId: true,
+          isCorrect: true
+        }
+      })
+
+      // Calculate scores only for truly completed assignments
+      const completedAssignmentScores: number[] = []
+      
+      for (const assignment of studentAssignments) {
+        const assignmentProgress = studentProgress.filter((p: any) => p.assignmentId === assignment.id)
+        const uniqueQuestionsAnswered = new Set(assignmentProgress.map((p: any) => p.questionId)).size
+        const totalQuestions = assignment.questions.length
+        
+        // Only include if all questions have been answered
+        if (totalQuestions > 0 && uniqueQuestionsAnswered >= totalQuestions) {
+          const correctAnswers = assignmentProgress.filter((p: any) => p.isCorrect).length
+          const score = (correctAnswers / totalQuestions) * 100
+          completedAssignmentScores.push(score)
+        }
+      }
+
+      if (completedAssignmentScores.length > 0) {
+        averageScore = completedAssignmentScores.reduce((sum, score) => sum + score, 0) / completedAssignmentScores.length
+      }
+    }
+
+    // Update calculated fields
+    await tx.studentStats.update({
+      where: { studentId },
+      data: {
+        completionRate: parseFloat(completionRate.toFixed(2)),
+        accuracyRate: parseFloat(accuracyRate.toFixed(2)),
+        averageScore: parseFloat(averageScore.toFixed(2))
+      }
     })
+
+    return updatedStats
   }
 
   /**
@@ -710,8 +781,44 @@ export class StatisticsService {
   /**
    * Increment student assignment count when a new assignment is created
    */
-  static async incrementStudentAssignmentCount(studentId: string) {
-    return withTransaction(async (tx) => {
+  static async incrementStudentAssignmentCount(studentId: string, providedTx?: any) {
+    if (providedTx) {
+      // Use the provided transaction
+      return this._incrementStudentAssignmentCountWithTx(providedTx, studentId)
+    } else {
+      // Create our own transaction
+      return withTransaction(async (tx) => {
+        return this._incrementStudentAssignmentCountWithTx(tx, studentId)
+      })
+    }
+  }
+
+  private static async _incrementStudentAssignmentCountWithTx(tx: any, studentId: string) {
+      // Calculate the actual total assignments for this student
+      const actualAssignmentCount = await tx.assignment.count({
+        where: {
+          isActive: true,
+          OR: [
+            {
+              students: {
+                some: { userId: studentId }
+              }
+            },
+            {
+              classes: {
+                some: {
+                  class: {
+                    users: {
+                      some: { userId: studentId }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      })
+
       // Get or create student stats
       let studentStats = await tx.studentStats.findUnique({
         where: { studentId }
@@ -722,9 +829,10 @@ export class StatisticsService {
         studentStats = await tx.studentStats.create({
           data: {
             studentId,
-            totalAssignments: 1,
+            totalAssignments: actualAssignmentCount,
             completedAssignments: 0,
             inProgressAssignments: 0,
+            notStartedAssignments: actualAssignmentCount,
             averageScore: 0.0,
             totalQuestions: 0,
             totalAnswers: 0,
@@ -734,17 +842,17 @@ export class StatisticsService {
           }
         })
       } else {
-        // Increment total assignments
+        // Update with actual assignment count (not just increment)
         studentStats = await tx.studentStats.update({
           where: { studentId },
           data: {
-            totalAssignments: { increment: 1 },
+            totalAssignments: actualAssignmentCount,
             lastUpdated: new Date()
           }
         })
       }
 
-      // Recalculate completion rate
+      // Recalculate completion rate using the actual total
       const completionRate = studentStats.totalAssignments > 0 
         ? (studentStats.completedAssignments / studentStats.totalAssignments) * 100 
         : 0
@@ -757,14 +865,24 @@ export class StatisticsService {
       })
 
       return studentStats
-    })
   }
 
   /**
    * Increment class assignment count when a new class assignment is created
    */
-  static async incrementClassAssignmentCount(classId: string) {
-    return withTransaction(async (tx) => {
+  static async incrementClassAssignmentCount(classId: string, providedTx?: any) {
+    if (providedTx) {
+      // Use the provided transaction
+      return this._incrementClassAssignmentCountWithTx(providedTx, classId)
+    } else {
+      // Create our own transaction
+      return withTransaction(async (tx) => {
+        return this._incrementClassAssignmentCountWithTx(tx, classId)
+      })
+    }
+  }
+
+  private static async _incrementClassAssignmentCountWithTx(tx: any, classId: string) {
       // Get or create class stats
       let classStats = await tx.classStatsDetailed.findUnique({
         where: { classId }
@@ -802,14 +920,24 @@ export class StatisticsService {
       }
 
       return classStats
-    })
   }
 
   /**
    * Increment school assignment count when a new assignment is created
    */
-  static async incrementSchoolAssignmentCount(isActive: boolean, isScheduled: boolean) {
-    return withTransaction(async (tx) => {
+  static async incrementSchoolAssignmentCount(isActive: boolean, isScheduled: boolean, providedTx?: any) {
+    if (providedTx) {
+      // Use the provided transaction
+      return this._incrementSchoolAssignmentCountWithTx(providedTx, isActive, isScheduled)
+    } else {
+      // Create our own transaction
+      return withTransaction(async (tx) => {
+        return this._incrementSchoolAssignmentCountWithTx(tx, isActive, isScheduled)
+      })
+    }
+  }
+
+  private static async _incrementSchoolAssignmentCountWithTx(tx: any, isActive: boolean, isScheduled: boolean) {
       const today = new Date()
       const dateKey = new Date(today.getFullYear(), today.getMonth(), today.getDate())
 
@@ -848,6 +976,5 @@ export class StatisticsService {
       }
 
       return schoolStats
-    })
   }
 } 

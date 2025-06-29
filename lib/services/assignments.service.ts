@@ -182,22 +182,7 @@ export interface AssignmentListParams {
   isScheduled?: boolean
 }
 
-export interface StudentProgress {
-  id: string
-  isComplete: boolean
-  isCorrect: boolean
-  languageConfidenceResponse: any
-  grammarCorrected: any
-  createdAt: Date
-  student: {
-    id: string
-    username: string
-  }
-  question: {
-    id: string
-    textQuestion: string | null
-  } | null
-}
+
 
 /**
  * Assignments Service
@@ -324,8 +309,8 @@ export class AssignmentsService {
         tx
       )
 
-      // Initialize assignment statistics
-      await AssignmentsService.initializeAssignmentStatistics(assignment.id)
+      // Initialize assignment statistics WITHIN the transaction
+      await AssignmentsService.initializeAssignmentStatistics(assignment.id, tx)
 
       return assignment as AssignmentWithDetails
     })
@@ -747,131 +732,9 @@ export class AssignmentsService {
     }
   }
 
-  /**
-   * Get assignment progress for a specific student
-   */
-  static async getAssignmentProgress(
-    currentUser: AuthenticatedUser,
-    assignmentId: string,
-    studentId?: string
-  ): Promise<StudentProgress[]> {
-    const targetStudentId = studentId || currentUser.id
 
-    if (currentUser.customRole === 'STUDENT' && targetStudentId !== currentUser.id) {
-      throw new ForbiddenError('Can only view your own progress')
-    }
 
-    const hasAccess = await AuthService.canAccessAssignment(currentUser, assignmentId)
-    if (!hasAccess) {
-      throw new ForbiddenError('Cannot access this assignment')
-    }
 
-    const progresses = await prisma.studentAssignmentProgress.findMany({
-      where: {
-        assignmentId,
-        studentId: targetStudentId,
-      },
-      include: {
-        student: {
-          select: { id: true, username: true }
-        },
-        question: {
-          select: { id: true, textQuestion: true }
-        }
-      },
-      orderBy: { createdAt: 'asc' }
-    })
-
-    return progresses as StudentProgress[]
-  }
-
-  /**
-   * Submit assignment progress
-   * Students can submit their own progress
-   */
-  static async submitProgress(
-    currentUser: AuthenticatedUser,
-    assignmentId: string,
-    questionId: string,
-    data: {
-      isComplete: boolean
-      isCorrect?: boolean
-      languageConfidenceResponse?: any
-      grammarCorrected?: any
-    }
-  ): Promise<StudentProgress> {
-    // Students can only submit their own progress
-    if (currentUser.customRole === 'STUDENT') {
-      const hasAccess = await AuthService.canAccessAssignment(currentUser, assignmentId)
-      if (!hasAccess) {
-        throw new ForbiddenError('Cannot access this assignment')
-      }
-    }
-
-    // Verify question belongs to assignment
-    const question = await prisma.question.findFirst({
-      where: {
-        id: questionId,
-        assignmentId,
-      }
-    })
-
-    if (!question) {
-      throw new NotFoundError('Question not found in this assignment')
-    }
-
-    return withTransaction(async (tx) => {
-      // First, try to find existing progress
-      const existingProgress = await tx.studentAssignmentProgress.findFirst({
-        where: {
-          studentId: currentUser.id,
-          assignmentId,
-          questionId,
-        }
-      })
-
-      let progress
-      if (existingProgress) {
-        // Update existing progress
-        progress = await tx.studentAssignmentProgress.update({
-          where: { id: existingProgress.id },
-          data: {
-            ...data,
-            publishedAt: new Date(),
-          },
-          include: {
-            student: {
-              select: { id: true, username: true }
-            },
-            question: {
-              select: { id: true, textQuestion: true }
-            }
-          }
-        })
-      } else {
-        // Create new progress
-        progress = await tx.studentAssignmentProgress.create({
-          data: {
-            studentId: currentUser.id,
-            assignmentId,
-            questionId,
-            ...data,
-            publishedAt: new Date(),
-          },
-          include: {
-            student: {
-              select: { id: true, username: true }
-            },
-            question: {
-              select: { id: true, textQuestion: true }
-            }
-          }
-        })
-      }
-
-      return progress as StudentProgress
-    })
-  }
 
   /**
    * Get assignments for current user
@@ -1187,8 +1050,8 @@ export class AssignmentsService {
         throw new Error('Failed to retrieve created assignment');
       }
 
-      // Initialize assignment statistics
-      await AssignmentsService.initializeAssignmentStatistics(newAssignment.id)
+      // Initialize assignment statistics WITHIN the transaction
+      await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
 
       return completeAssignment as AssignmentWithDetails;
     });
@@ -1300,35 +1163,46 @@ export class AssignmentsService {
           assignmentId: assignmentId,
           isComplete: true
         },
-        include: {
-          question: true
+        select: {
+          questionId: true,
+          isCorrect: true
         }
       })
 
-      // Calculate completion percentage and accuracy
+      // Calculate completion percentage and accuracy using unique questions answered
       const totalQuestions = await tx.question.count({
         where: { assignmentId: assignmentId }
       })
 
-      const completedQuestions = studentProgress.length
+      // Count unique questions answered (not just progress records)
+      const uniqueQuestionsAnswered = new Set(studentProgress.map(p => p.questionId)).size
       const correctAnswers = studentProgress.filter(p => p.isCorrect).length
       
-      const completionPercentage = totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0
-      const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0
+      const completionPercentage = totalQuestions > 0 ? (uniqueQuestionsAnswered / totalQuestions) * 100 : 0
+      const accuracy = uniqueQuestionsAnswered > 0 ? (correctAnswers / uniqueQuestionsAnswered) * 100 : 0
 
-                   // Update statistics incrementally using the new scalable service
-      await StatisticsService.updateAssignmentStatistics(assignmentId, studentId, isCorrect, true)
-      await StatisticsService.updateStudentStatistics(studentId, assignmentId, isCorrect, true)
+      // Update statistics incrementally using the new scalable service
+      // These updates MUST be part of the transaction to ensure data integrity
+      console.log(`[STATS] Updating assignment statistics for assignment ${assignmentId}, student ${studentId}`)
+      await StatisticsService.updateAssignmentStatistics(assignmentId, studentId, isCorrect, true, tx)
+      
+      console.log(`[STATS] Updating student statistics for student ${studentId}, assignment ${assignmentId}`)
+      await StatisticsService.updateStudentStatistics(studentId, assignmentId, isCorrect, true, tx)
+      
+      console.log(`[STATS] Statistics update completed successfully`)
+
+      // Update help status based on completion and performance
+      await AssignmentsService.updateStudentHelpStatus(studentId, assignmentId, completionPercentage, accuracy, tx)
 
       return {
         success: true,
         progress: {
           totalQuestions,
-          completedQuestions,
+          completedQuestions: uniqueQuestionsAnswered,
           correctAnswers,
           completionPercentage: Math.round(completionPercentage * 100) / 100,
           accuracy: Math.round(accuracy * 100) / 100,
-          isComplete: completedQuestions >= totalQuestions
+          isComplete: uniqueQuestionsAnswered >= totalQuestions
         }
       }
     })
@@ -1344,10 +1218,13 @@ export class AssignmentsService {
   /**
    * Initialize assignment statistics when assignment is created
    */
-  static async initializeAssignmentStatistics(assignmentId: string) {
+  static async initializeAssignmentStatistics(assignmentId: string, tx?: any) {
     try {
+      // Use the provided transaction or fallback to prisma
+      const db = tx || prisma
+
       // Get assignment details to determine scope
-      const assignment = await prisma.assignment.findUnique({
+      const assignment = await db.assignment.findUnique({
         where: { id: assignmentId },
         include: {
           classes: {
@@ -1369,38 +1246,193 @@ export class AssignmentsService {
       }
 
       // 1. Initialize assignment statistics record
-      await StatisticsService.updateAssignmentStatistics(assignmentId, '', false, false)
+      await StatisticsService.updateAssignmentStatistics(assignmentId, '', false, false, tx)
 
       // 2. Get all affected students
-      const classStudentIds = assignment.classes.flatMap(ac => 
-        ac.class.users.map(u => u.userId)
+      const classStudentIds = assignment.classes.flatMap((ac: any) => 
+        ac.class.users.map((u: any) => u.userId)
       )
-      const individualStudentIds = assignment.students.map(s => s.userId)
+      const individualStudentIds = assignment.students.map((s: any) => s.userId)
       const allStudentIds = [...new Set([...classStudentIds, ...individualStudentIds])]
 
       // 3. Update each student's assignment count
       for (const studentId of allStudentIds) {
-        await StatisticsService.incrementStudentAssignmentCount(studentId)
+        await StatisticsService.incrementStudentAssignmentCount(studentId, tx)
       }
 
       // 4. Update class statistics for class assignments
       if (assignment.type === 'CLASS') {
         for (const classAssignment of assignment.classes) {
-          await StatisticsService.incrementClassAssignmentCount(classAssignment.classId)
+          await StatisticsService.incrementClassAssignmentCount(classAssignment.classId, tx)
         }
       }
 
       // 5. Update school-wide statistics
-      await StatisticsService.incrementSchoolAssignmentCount(true, !!assignment.scheduledPublishAt)
+      await StatisticsService.incrementSchoolAssignmentCount(true, !!assignment.scheduledPublishAt, tx)
 
       console.log(`Initialized statistics for assignment ${assignmentId} (${allStudentIds.length} students affected)`)
     } catch (error) {
       console.error('Error initializing assignment statistics:', error)
-      // Don't throw error to avoid breaking assignment creation
+      // Throw error to rollback the transaction if we're in one
+      if (tx) {
+        throw error
+      }
     }
   }
 
+  /**
+   * Update student help status based on assignment completion and performance
+   */
+  static async updateStudentHelpStatus(
+    studentId: string, 
+    assignmentId: string, 
+    completionPercentage: number, 
+    accuracy: number, 
+    tx?: any
+  ) {
+    try {
+      const db = tx || prisma
+      const currentDate = new Date()
 
+      // Get student and assignment details
+      const [student, assignment] = await Promise.all([
+        db.user.findUnique({
+          where: { id: studentId },
+          select: { id: true, username: true, email: true }
+        }),
+        db.assignment.findUnique({
+          where: { id: assignmentId },
+          select: { 
+            id: true, 
+            topic: true, 
+            teacherId: true,
+            classes: {
+              include: {
+                class: {
+                  select: { id: true }
+                }
+              }
+            }
+          }
+        })
+      ])
+
+      if (!student || !assignment) {
+        return
+      }
+
+      // Get student's classes
+      const studentClasses = await db.userClass.findMany({
+        where: { userId: studentId },
+        select: { classId: true }
+      })
+      const classIds = studentClasses.map((uc: { classId: string }) => uc.classId)
+
+      // Determine if student needs help based on completion and score
+      const reasons: string[] = []
+      let needsHelp = false
+
+      // Check if assignment is completed but with low score
+      if (completionPercentage >= 100 && accuracy < 50) {
+        reasons.push('Low accuracy on completed assignments')
+        needsHelp = true
+      }
+      
+      // Check if assignment has low completion rate
+      if (completionPercentage < 50) {
+        reasons.push('Low completion rate on assignments')
+        needsHelp = true
+      }
+
+      // Get student's overall statistics for accurate averages
+      const studentStats = await db.studentStats.findUnique({
+        where: { studentId: studentId },
+        select: { 
+          averageScore: true, 
+          completionRate: true,
+          completedAssignments: true,
+          totalAssignments: true
+        }
+      })
+
+      // Use overall statistics instead of single assignment performance
+      const overallAverageScore = studentStats?.averageScore || 0
+      const overallCompletionRate = studentStats?.completionRate || 0
+
+      // Get existing help record (there can only be one per student now)
+      const existingRecord = await db.studentsNeedingHelp.findUnique({
+        where: { studentId: studentId }
+      })
+
+      if (needsHelp) {
+        if (existingRecord) {
+          // Update existing record
+          await db.studentsNeedingHelp.update({
+            where: { id: existingRecord.id },
+            data: {
+              reasons: reasons,
+              daysNeedingHelp: Math.max(1, Math.ceil((currentDate.getTime() - existingRecord.needsHelpSince.getTime()) / (1000 * 60 * 60 * 24))),
+              averageScore: overallAverageScore,
+              completionRate: overallCompletionRate,
+              severity: 'RECENT',
+              isResolved: false,
+              resolvedAt: null,
+              updatedAt: currentDate
+            }
+          })
+        } else {
+          // Create new record
+          const record = await db.studentsNeedingHelp.create({
+            data: {
+              studentId: studentId,
+              reasons: reasons,
+              needsHelpSince: currentDate,
+              daysNeedingHelp: 1,
+              overdueAssignments: 0,
+              averageScore: overallAverageScore,
+              completionRate: overallCompletionRate,
+              severity: 'RECENT',
+              isResolved: false
+            }
+          })
+
+          // Link to classes
+          for (const classId of classIds) {
+            await db.studentsNeedingHelpClass.create({
+              data: {
+                studentNeedingHelpId: record.id,
+                classId: classId
+              }
+            })
+          }
+
+          // Link to teacher
+          if (assignment.teacherId) {
+            await db.studentsNeedingHelpTeacher.create({
+              data: {
+                studentNeedingHelpId: record.id,
+                teacherId: assignment.teacherId
+              }
+            })
+          }
+        }
+
+        console.log(`[HELP] Student ${student.username} needs help: ${reasons.join(', ')} (overall completion: ${overallCompletionRate}%, overall accuracy: ${overallAverageScore}%)`)
+      } else if (overallCompletionRate >= 50 && overallAverageScore >= 50) {
+        // Student's overall performance is good, remove help record if it exists
+        if (existingRecord) {
+          await db.studentsNeedingHelp.delete({
+            where: { id: existingRecord.id }
+          })
+          console.log(`[HELP] Removed help status for ${student.username} - good overall performance (completion: ${overallCompletionRate}%, accuracy: ${overallAverageScore}%)`)
+        }
+      }
+
+    } catch (error) {
+      console.error(`Error updating help status for student ${studentId}:`, error)
+      // Don't throw error to avoid breaking the assignment submission
+    }
+  }
 
 
 }

@@ -57,12 +57,15 @@ const getStudentProgress = (assignment: AssignmentWithDetails) => {
 
   const totalQuestions = assignment.questions.length;
   const completedProgresses = assignment.progresses.filter(p => p.isComplete);
+  
+  // Count unique questions answered (not just progress records)
+  const uniqueQuestionsAnswered = new Set(completedProgresses.map(p => p.questionId)).size;
   const correctProgresses = assignment.progresses.filter(p => p.isComplete && p.isCorrect);
   
-  const completed = completedProgresses.length;
+  const completed = uniqueQuestionsAnswered;
   const correct = correctProgresses.length;
   const accuracy = completed > 0 ? Math.round((correct / completed) * 100) : 0;
-  const isFullyCompleted = completed === totalQuestions && correct === totalQuestions;
+  const isFullyCompleted = completed >= totalQuestions;
   const hasStarted = assignment.progresses.length > 0;
 
   return {
@@ -71,6 +74,7 @@ const getStudentProgress = (assignment: AssignmentWithDetails) => {
     correct,
     accuracy,
     isFullyCompleted,
+    isPerfectScore: isFullyCompleted && accuracy === 100,
     hasStarted
   };
 };
@@ -217,8 +221,8 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
                         <h3 className="text-base font-semibold truncate">
                           {assignment.topic}
                         </h3>
-                        {/* Gold star for fully completed assignments */}
-                        {progress?.isFullyCompleted && (
+                        {/* Gold star for perfect score (100% accuracy) */}
+                        {progress?.isPerfectScore && (
                           <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
                         )}
                       </div>

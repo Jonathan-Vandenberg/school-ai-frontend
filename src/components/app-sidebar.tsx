@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { useStatsRefresh } from '@/hooks/use-stats-refresh'
 import {
   Sidebar,
   SidebarContent,
@@ -162,10 +163,11 @@ const navItems: NavItem[] = [
 export function AppSidebar() {
   const { data: session } = useSession()
   const pathname = usePathname()
+  const { setRefreshCallback } = useStatsRefresh()
   const [studentStats, setStudentStats] = useState({
-    totalAssignments: 0,
-    totalAssignmentsCompleted: 0,
-    averageScoreOfCompleted: 0
+    assignments: 0,
+    completedAssignments: 0,
+    averageScore: 0
   })
   const [statsLoading, setStatsLoading] = useState(false)
 
@@ -178,9 +180,9 @@ export function AppSidebar() {
       if (response.ok) {
         const data = await response.json()
         setStudentStats({
-          totalAssignments: data.data.assignments || 0,
-          totalAssignmentsCompleted: data.data.completedAssignments || 0,
-          averageScoreOfCompleted: data.data.averageScore || 0
+          assignments: data.data.assignments || 0,
+          completedAssignments: data.data.completedAssignments || 0,
+          averageScore: data.data.averageScore || 0
         })
       }
     } catch (error) {
@@ -189,6 +191,13 @@ export function AppSidebar() {
       setStatsLoading(false)
     }
   }, [])
+
+  // Register the refresh callback with the global hook
+  useEffect(() => {
+    if (userRole === 'STUDENT') {
+      setRefreshCallback(fetchStudentStats)
+    }
+  }, [userRole, fetchStudentStats, setRefreshCallback])
 
   // Fetch student stats if user is a student
   useEffect(() => {
@@ -324,27 +333,27 @@ export function AppSidebar() {
                   <>
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Total Assignments</span>
-                      <span className="font-medium text-blue-600">{studentStats.totalAssignments}</span>
+                      <span className="font-medium text-blue-600">{studentStats.assignments}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Completed</span>
-                      <span className="font-medium text-green-600">{studentStats.totalAssignmentsCompleted}</span>
+                      <span className="font-medium text-green-600">{studentStats.completedAssignments}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Average Score</span>
                       <span className="font-medium text-purple-600">
-                        {studentStats.averageScoreOfCompleted ? 
-                          `${Math.round(studentStats.averageScoreOfCompleted)}%` : 
+                        {studentStats.averageScore ? 
+                          `${studentStats.averageScore}%` : 
                           '--'
                         }
                       </span>
                     </div>
-                    {studentStats.totalAssignments > 0 && (
+                    {studentStats.assignments > 0 && (
                       <div className="mt-2 pt-2 border-t">
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Completion Rate</span>
                           <span className="font-medium text-orange-600">
-                            {Math.round((studentStats.totalAssignmentsCompleted / studentStats.totalAssignments) * 100)}%
+                            {Math.round((studentStats.completedAssignments / studentStats.assignments) * 100)}%
                           </span>
                         </div>
                       </div>

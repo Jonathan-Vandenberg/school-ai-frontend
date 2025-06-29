@@ -1,5 +1,6 @@
 import { createPublishScheduledAssignmentsTask } from './publish-scheduled-assignments'
 import { createDashboardSnapshotTask } from './dashboard-snapshot'
+import { createStudentsNeedingHelpTask } from './update-students-needing-help'
 
 interface ScheduledTask {
   name: string
@@ -30,6 +31,14 @@ class ScheduledTaskManager {
       this.tasks.set('dashboard-snapshot', {
         name: 'Dashboard Snapshot',
         task: snapshotTask,
+        isActive: true,
+      })
+
+      // Start students needing help analysis task (runs every hour)
+      const studentsHelpTask = createStudentsNeedingHelpTask()
+      this.tasks.set('students-needing-help', {
+        name: 'Students Needing Help Analysis',
+        task: studentsHelpTask,
         isActive: true,
       })
 
@@ -126,6 +135,9 @@ class ScheduledTaskManager {
           break
         case 'dashboard-snapshot':
           newTask = createDashboardSnapshotTask()
+          break
+        case 'students-needing-help':
+          newTask = createStudentsNeedingHelpTask()
           break
         default:
           console.error(`Unknown task key: ${taskKey}`)

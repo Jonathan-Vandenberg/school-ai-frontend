@@ -156,7 +156,12 @@ async function analyzeStudent(
       id: true,
       dueDate: true,
       topic: true,
-      teacherId: true
+      teacherId: true,
+      questions: {
+        select: {
+          id: true
+        }
+      }
     }
   })
 
@@ -171,6 +176,7 @@ async function analyzeStudent(
     select: {
       id: true,
       assignmentId: true,
+      questionId: true,
       isComplete: true,
       isCorrect: true,
       createdAt: true
@@ -202,9 +208,24 @@ async function analyzeStudent(
     a.dueDate && new Date(a.dueDate) < currentDate
   ).length
 
-  const completedAssignmentIds = new Set(
-    progresses.filter(p => p.isComplete).map(p => p.assignmentId)
-  )
+  // Calculate which assignments are truly completed (all questions answered)
+  const completedAssignmentIds = new Set<string>()
+  
+  for (const assignment of allAssignments) {
+    const assignmentProgresses = progresses.filter(p => 
+      p.assignmentId === assignment.id && p.isComplete
+    )
+    
+    // Count unique questions answered for this assignment
+    const answeredQuestions = new Set(assignmentProgresses.map(p => p.questionId))
+    const totalQuestions = assignment.questions.length
+    
+    // Assignment is complete if all questions have been answered
+    if (totalQuestions > 0 && answeredQuestions.size >= totalQuestions) {
+      completedAssignmentIds.add(assignment.id)
+    }
+  }
+  
   const completedAssignments = completedAssignmentIds.size
 
   const completionRate = totalAssignments > 0 ? (completedAssignments / totalAssignments) * 100 : 0

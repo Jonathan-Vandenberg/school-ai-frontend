@@ -24,8 +24,7 @@ export {
   type CreateAssignmentData, 
   type UpdateAssignmentData, 
   type AssignmentWithDetails, 
-  type AssignmentListParams, 
-  type StudentProgress 
+  type AssignmentListParams 
 } from './assignments.service'
 
 // Class management

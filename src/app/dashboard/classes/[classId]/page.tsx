@@ -20,7 +20,15 @@ import {
   UserCheck,
   Plus,
   Edit,
-  Trash2
+  Trash2,
+  BarChart3,
+  Target,
+  Award,
+  AlertCircle,
+  Activity,
+  TrendingUp,
+  Clock,
+  AlertTriangle
 } from 'lucide-react'
 
 interface User {
@@ -28,6 +36,17 @@ interface User {
   username: string
   email: string
   customRole: string
+  needsHelp?: boolean
+  helpInfo?: {
+    reasons: string[]
+    needsHelpSince: string
+    daysNeedingHelp: number
+    severity: string
+    overdueAssignments: number
+    averageScore: number
+    completionRate: number
+    teacherNotes?: string
+  }
 }
 
 interface ClassDetails {
@@ -46,6 +65,21 @@ interface ClassDetails {
   }
 }
 
+interface ClassStats {
+  totalStudents: number
+  totalAssignments: number
+  averageCompletion: number
+  averageScore: number
+  totalQuestions: number
+  totalAnswers: number
+  totalCorrectAnswers: number
+  accuracyRate: number
+  activeStudents: number
+  studentsNeedingHelp: number
+  lastActivityDate: string | null
+  lastUpdated: string
+}
+
 export default function ClassProfilePage() {
   const { data: session } = useSession()
   const params = useParams()
@@ -53,12 +87,14 @@ export default function ClassProfilePage() {
   const classId = params.classId as string
   
   const [classDetails, setClassDetails] = useState<ClassDetails | null>(null)
+  const [classStats, setClassStats] = useState<ClassStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (session?.user && classId) {
       loadClassDetails()
+      loadClassStats()
     }
   }, [session, classId])
 
@@ -77,6 +113,20 @@ export default function ClassProfilePage() {
       console.error('Error loading class details:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadClassStats = async () => {
+    try {
+      const response = await fetch(`/api/classes/${classId}/stats`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setClassStats(data.data.stats)
+        }
+      }
+    } catch (err) {
+      console.error('Error loading class stats:', err)
     }
   }
 
@@ -99,6 +149,33 @@ export default function ClassProfilePage() {
       case 'ADMIN': return 'bg-purple-100 text-purple-800 border-purple-200'
       default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
+  }
+
+  const getHelpSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'CRITICAL': return 'text-red-600'
+      case 'HIGH': return 'text-orange-600'
+      case 'MODERATE': return 'text-yellow-600'
+      case 'LOW': return 'text-blue-600'
+      case 'RECENT': return 'text-orange-600'
+      default: return 'text-gray-600'
+    }
+  }
+
+  const formatHelpDuration = (days: number) => {
+    if (days === 0) return 'Today'
+    if (days === 1) return '1 day'
+    if (days < 7) return `${days} days`
+    const weeks = Math.floor(days / 7)
+    if (weeks === 1) return '1 week'
+    if (weeks < 4) return `${weeks} weeks`
+    const months = Math.floor(days / 30)
+    return months === 1 ? '1 month' : `${months} months`
+  }
+
+  const formatReasons = (reasons: string[]) => {
+    if (!Array.isArray(reasons) || reasons.length === 0) return 'General support needed'
+    return reasons.join(', ')
   }
 
   if (!session?.user) {
@@ -172,8 +249,8 @@ export default function ClassProfilePage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Summary Cards with Analytics */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Teachers</CardTitle>
@@ -199,7 +276,7 @@ export default function ClassProfilePage() {
               {classDetails._count.students}
             </div>
             <p className="text-xs text-muted-foreground">
-              Enrolled students
+              {classStats ? `${classStats.activeStudents} active` : 'Enrolled students'}
             </p>
           </CardContent>
         </Card>
@@ -214,22 +291,55 @@ export default function ClassProfilePage() {
               {classDetails._count.assignments}
             </div>
             <p className="text-xs text-muted-foreground">
-              Available assignments
+              {classStats ? `${classStats.totalQuestions} questions` : 'Available assignments'}
             </p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Created</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
+            <Target className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-bold">
-              {new Date(classDetails.createdAt).toLocaleDateString()}
+            <div className="text-2xl font-bold text-purple-600">
+              {classStats ? `${classStats.averageCompletion.toFixed(1)}%` : 'N/A'}
             </div>
             <p className="text-xs text-muted-foreground">
-              Class creation date
+              Class average
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Average Score</CardTitle>
+            <Award className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">
+              {classStats ? `${classStats.averageScore.toFixed(1)}%` : 'N/A'}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {classStats ? `${classStats.accuracyRate.toFixed(1)}% accuracy` : 'Performance metric'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Need Help</CardTitle>
+            <AlertCircle className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {classStats ? classStats.studentsNeedingHelp : 'N/A'}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {classStats && classStats.totalStudents > 0 
+                ? `${((classStats.studentsNeedingHelp / classStats.totalStudents) * 100).toFixed(1)}% of class`
+                : 'Students requiring support'
+              }
             </p>
           </CardContent>
         </Card>
@@ -284,6 +394,12 @@ export default function ClassProfilePage() {
           <CardTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5 text-blue-600" />
             Students ({classDetails.students.length})
+            {classDetails.students.filter(s => s.needsHelp).length > 0 && (
+              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                {classDetails.students.filter(s => s.needsHelp).length} need help
+              </Badge>
+            )}
           </CardTitle>
           <CardDescription>
             Students enrolled in this class
@@ -298,22 +414,73 @@ export default function ClassProfilePage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {classDetails.students.map((student) => (
-                <div key={student.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                  <Avatar>
-                    <AvatarFallback className="bg-blue-100 text-blue-800">
-                      {getUserInitials(student.username)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{student.username}</div>
-                    <div className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      <span className="truncate">{student.email}</span>
+                <div 
+                  key={student.id} 
+                  className={`flex flex-col gap-3 p-4 border rounded-lg transition-colors ${
+                    student.needsHelp 
+                      ? 'border-orange-200 bg-orange-50' 
+                      : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar>
+                      <AvatarFallback className={
+                        student.needsHelp 
+                          ? "bg-orange-100 text-orange-800" 
+                          : "bg-blue-100 text-blue-800"
+                      }>
+                        {getUserInitials(student.username)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate flex items-center gap-2">
+                        {student.username}
+                        {student.needsHelp && (
+                          <AlertCircle className="h-4 w-4 text-orange-600" />
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Mail className="h-3 w-3" />
+                        <span className="truncate">{student.email}</span>
+                      </div>
                     </div>
+                    <Badge className={getRoleColor(student.customRole)}>
+                      {student.customRole}
+                    </Badge>
                   </div>
-                  <Badge className={getRoleColor(student.customRole)}>
-                    {student.customRole}
-                  </Badge>
+                  
+                  {student.needsHelp && student.helpInfo && (
+                    <div className="border-t border-orange-200 pt-3 space-y-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <AlertTriangle className={`h-4 w-4 ${getHelpSeverityColor(student.helpInfo.severity)}`} />
+                        <span className="font-medium">{student.helpInfo.severity} Priority</span>
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>{formatHelpDuration(student.helpInfo.daysNeedingHelp)}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="text-sm text-muted-foreground">
+                        <div className="font-medium text-gray-700 mb-1">Reasons:</div>
+                        <div>{formatReasons(student.helpInfo.reasons)}</div>
+                      </div>
+                      
+                      <div className="flex gap-4 text-xs text-muted-foreground">
+                        <span>Overdue: {student.helpInfo.overdueAssignments}</span>
+                        <span>Avg Score: {student.helpInfo.averageScore.toFixed(1)}%</span>
+                        <span>Completion: {student.helpInfo.completionRate.toFixed(1)}%</span>
+                      </div>
+                      
+                      {student.helpInfo.teacherNotes && (
+                        <div className="text-sm">
+                          <div className="font-medium text-gray-700 mb-1">Teacher Notes:</div>
+                          <div className="text-muted-foreground italic">
+                            {student.helpInfo.teacherNotes}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

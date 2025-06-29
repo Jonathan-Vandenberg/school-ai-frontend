@@ -671,7 +671,7 @@ model StudentsNeedingHelp {
   classes             StudentsNeedingHelpClass[]
   teachers            StudentsNeedingHelpTeacher[]
   
-  @@unique([studentId, isResolved])
+  @@unique([studentId])
   @@map("students_needing_help")
 }
 

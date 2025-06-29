@@ -49,7 +49,12 @@ async function checkStudentPerformance() {
         select: {
           id: true,
           topic: true,
-          dueDate: true
+          dueDate: true,
+          questions: {
+            select: {
+              id: true
+            }
+          }
         }
       })
 
@@ -65,6 +70,7 @@ async function checkStudentPerformance() {
         },
         select: {
           assignmentId: true,
+          questionId: true,
           isComplete: true,
           isCorrect: true
         }
@@ -72,10 +78,25 @@ async function checkStudentPerformance() {
 
       console.log(`  🏃 Total progress records: ${progresses.length}`)
 
-      // Calculate completed assignments
-      const completedAssignments = new Set(
-        progresses.filter(p => p.isComplete).map(p => p.assignmentId)
-      ).size
+      // Calculate which assignments are truly completed (all questions answered)
+      const completedAssignmentIds = new Set<string>()
+      
+      for (const assignment of assignments) {
+        const assignmentProgresses = progresses.filter(p => 
+          p.assignmentId === assignment.id && p.isComplete
+        )
+        
+        // Count unique questions answered for this assignment
+        const answeredQuestions = new Set(assignmentProgresses.map(p => p.questionId))
+        const totalQuestions = assignment.questions.length
+        
+        // Assignment is complete if all questions have been answered
+        if (totalQuestions > 0 && answeredQuestions.size >= totalQuestions) {
+          completedAssignmentIds.add(assignment.id)
+        }
+      }
+      
+      const completedAssignments = completedAssignmentIds.size
 
       const completionRate = assignments.length > 0 ? 
         (completedAssignments / assignments.length) * 100 : 0
@@ -103,7 +124,7 @@ async function checkStudentPerformance() {
       // Show assignments details
       console.log('  📋 Assignment details:')
       assignments.slice(0, 3).forEach(a => {
-        const isCompleted = progresses.some(p => p.assignmentId === a.id && p.isComplete)
+        const isCompleted = completedAssignmentIds.has(a.id)
         console.log(`    - ${a.topic || 'Untitled'}: ${isCompleted ? '✅' : '❌'} ${a.dueDate ? `(due: ${a.dueDate.toLocaleDateString()})` : ''}`)
       })
       if (assignments.length > 3) {
