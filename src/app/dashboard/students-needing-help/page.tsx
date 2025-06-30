@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Users, Clock, AlertTriangle, BookOpen, BarChart3, User } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { StudentHelpCard } from "@/components/students/student-help-card"
+import { ArrowLeft, Users, Clock, AlertTriangle, BookOpen, BarChart3 } from "lucide-react"
 import Link from "next/link"
 
 interface StudentNeedingHelp {
@@ -51,134 +53,28 @@ interface ClassGroup {
   teacherNames: string[]
 }
 
-const SeverityBadge = ({ severity }: { severity: string }) => {
-  const variants = {
-    CRITICAL: "destructive",
-    WARNING: "secondary", 
-    RECENT: "default"
-  } as const
 
-  const colors = {
-    CRITICAL: "text-red-700 bg-red-50 border-red-200",
-    WARNING: "text-orange-700 bg-orange-50 border-orange-200",
-    RECENT: "text-blue-700 bg-blue-50 border-blue-200"
-  }
-
-  return (
-    <Badge 
-      variant={variants[severity as keyof typeof variants] || "default"}
-      className={colors[severity as keyof typeof colors]}
-    >
-      {severity.toLowerCase()}
-    </Badge>
-  )
-}
-
-const StudentCard = ({ student }: { student: StudentNeedingHelp }) => {
-  return (
-    <Card className="transition-all hover:shadow-md">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <User className="h-4 w-4" />
-            {student.student.username}
-          </CardTitle>
-          <SeverityBadge severity={student.severity} />
-        </div>
-        <CardDescription className="text-sm">
-          Needing help for {student.daysNeedingHelp} days
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <div className="font-medium text-muted-foreground">Completion Rate</div>
-            <div className="text-lg font-semibold text-red-600">
-              {student.completionRate.toFixed(1)}%
-            </div>
-          </div>
-          <div>
-            <div className="font-medium text-muted-foreground">Average Score</div>
-            <div className="text-lg font-semibold text-orange-600">
-              {student.averageScore.toFixed(1)}%
-            </div>
-          </div>
-        </div>
-        
-        <div>
-          <div className="font-medium text-muted-foreground text-sm mb-1">Issues</div>
-          <div className="flex flex-wrap gap-1">
-            {student.reasons.map((reason, index) => (
-              <Badge key={index} variant="outline" className="text-xs">
-                {reason}
-              </Badge>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <div className="font-medium text-muted-foreground text-sm mb-1">Overdue Assignments</div>
-          <div className="flex items-center gap-1 text-red-600">
-            <BookOpen className="h-4 w-4" />
-            <span className="font-semibold">{student.overdueAssignments}</span>
-          </div>
-        </div>
-
-        {student.teacherNotes && (
-          <div>
-            <div className="font-medium text-muted-foreground text-sm mb-1">Teacher Notes</div>
-            <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
-              {student.teacherNotes}
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-const ClassSection = ({ classGroup }: { classGroup: ClassGroup }) => {
-  const criticalCount = classGroup.students.filter(s => s.severity === 'CRITICAL').length
-  const warningCount = classGroup.students.filter(s => s.severity === 'WARNING').length
-  const recentCount = classGroup.students.filter(s => s.severity === 'RECENT').length
-
-  return (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="text-xl flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          {classGroup.className}
-        </CardTitle>
-        <CardDescription className="flex items-center gap-4">
-          <span>
-            Teachers: {classGroup.teacherNames.join(", ")}
-          </span>
-          <span>•</span>
-          <span className="flex items-center gap-2">
-            {criticalCount > 0 && <Badge variant="destructive">{criticalCount} Critical</Badge>}
-            {warningCount > 0 && <Badge variant="secondary">{warningCount} Warning</Badge>}
-            {recentCount > 0 && <Badge variant="default">{recentCount} Recent</Badge>}
-          </span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {classGroup.students.map((student) => (
-            <StudentCard key={student.id} student={student} />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
 export default function StudentsNeedingHelpPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [students, setStudents] = useState<StudentNeedingHelp[]>([])
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([])
+  const [selectedClassId, setSelectedClassId] = useState<string>("all")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Get filtered students based on selected class
+  const filteredStudents = selectedClassId === "all" 
+    ? students 
+    : students.filter(student => 
+        student.classes.some(({ class: cls }) => cls.id === selectedClassId)
+      )
+
+  // Get selected class info
+  const selectedClass = selectedClassId === "all" 
+    ? null 
+    : classGroups.find(group => group.classId === selectedClassId)
 
   useEffect(() => {
     if (status === "loading") return
@@ -384,7 +280,52 @@ export default function StudentsNeedingHelpPage() {
         </Card>
       </div>
 
-      {/* Class Groups */}
+      {/* Class Filter Dropdown */}
+      {totalStudents > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Filter by Class
+            </CardTitle>
+            <CardDescription>
+              Select a class to view students needing help, or view all classes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+              <SelectTrigger className="w-full md:w-[300px]">
+                <SelectValue placeholder="Select a class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes ({students.length} students)</SelectItem>
+                {classGroups.map((classGroup) => (
+                  <SelectItem key={classGroup.classId} value={classGroup.classId}>
+                    {classGroup.className} ({classGroup.students.length} students)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Selected Class Info */}
+      {selectedClass && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {selectedClass.className}
+            </CardTitle>
+            <CardDescription>
+              Teachers: {selectedClass.teacherNames.join(", ")} • {filteredStudents.length} students needing help
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
+      {/* Students Grid */}
       {totalStudents === 0 ? (
         <Card>
           <CardHeader>
@@ -394,12 +335,37 @@ export default function StudentsNeedingHelpPage() {
             </CardDescription>
           </CardHeader>
         </Card>
+      ) : filteredStudents.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>No Students in Selected Class</CardTitle>
+            <CardDescription>
+              No students in this class currently need help.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       ) : (
-        <div className="space-y-6">
-          {classGroups.map((classGroup) => (
-            <ClassSection key={classGroup.classId} classGroup={classGroup} />
-          ))}
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {selectedClassId === "all" ? "All Students" : selectedClass?.className} 
+              ({filteredStudents.length} students)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredStudents
+                .sort((a, b) => {
+                  // Sort by severity (Critical > Warning > Recent)
+                  const severityOrder = { CRITICAL: 0, WARNING: 1, RECENT: 2 }
+                  return severityOrder[a.severity] - severityOrder[b.severity]
+                })
+                .map((student) => (
+                  <StudentHelpCard key={student.id} student={student} />
+                ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

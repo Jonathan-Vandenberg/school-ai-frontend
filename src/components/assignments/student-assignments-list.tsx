@@ -303,7 +303,7 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
                     {assignment.dueDate && (
                       <div className="flex items-center space-x-1">
                         <Clock className="h-3 w-3" />
-                        <span className={`${new Date(assignment.dueDate) < new Date() ? 'text-red-600 font-medium' : ''}`}>
+                        <span className={`${new Date(assignment.dueDate) < new Date() && !progress?.isFullyCompleted ? 'text-red-600 font-medium' : ''}`}>
                           Due {format(new Date(assignment.dueDate), "MMM d, yyyy 'at' h:mm a")}
                         </span>
                       </div>

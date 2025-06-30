@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
+import { StudentHelpCard } from '@/components/students/student-help-card'
 import { 
   ArrowLeft,
   School,
@@ -419,32 +420,25 @@ export default function ClassProfilePage() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {classDetails.students.map((student) => (
-                <div 
-                  key={student.id} 
-                  className={`flex flex-col gap-3 p-4 border rounded-lg transition-colors ${
-                    student.needsHelp 
-                      ? 'border-orange-200 bg-orange-50' 
-                      : 'border-gray-200 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
+              {classDetails.students
+                .filter(student => student.needsHelp)
+                .map((student) => (
+                  <StudentHelpCard key={student.id} student={student} />
+                ))}
+              {classDetails.students
+                .filter(student => !student.needsHelp)
+                .map((student) => (
+                  <div 
+                    key={student.id} 
+                    className="flex items-center gap-3 p-4 border rounded-lg bg-white"
+                  >
                     <Avatar>
-                      <AvatarFallback className={
-                        student.needsHelp 
-                          ? "bg-orange-100 text-orange-800" 
-                          : "bg-blue-100 text-blue-800"
-                      }>
+                      <AvatarFallback className="bg-blue-100 text-blue-800">
                         {getUserInitials(student.username)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate flex items-center gap-2">
-                        {student.username}
-                        {student.needsHelp && (
-                          <AlertCircle className="h-4 w-4 text-orange-600" />
-                        )}
-                      </div>
+                      <div className="font-medium truncate">{student.username}</div>
                       <div className="text-sm text-muted-foreground flex items-center gap-1">
                         <Mail className="h-3 w-3" />
                         <span className="truncate">{student.email}</span>
@@ -454,41 +448,7 @@ export default function ClassProfilePage() {
                       {student.customRole}
                     </Badge>
                   </div>
-                  
-                  {student.needsHelp && student.helpInfo && (
-                    <div className="border-t border-orange-200 pt-3 space-y-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <AlertTriangle className={`h-4 w-4 ${getHelpSeverityColor(student.helpInfo.severity)}`} />
-                        <span className="font-medium">{student.helpInfo.severity} Priority</span>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          <span>{formatHelpDuration(student.helpInfo.daysNeedingHelp)}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground">
-                        <div className="font-medium text-gray-700 mb-1">Reasons:</div>
-                        <div>{formatReasons(student.helpInfo.reasons)}</div>
-                      </div>
-                      
-                      <div className="flex gap-4 text-xs text-muted-foreground">
-                        <span>Overdue: {student.helpInfo.overdueAssignments}</span>
-                        <span>Avg Score: {student.helpInfo.averageScore.toFixed(1)}%</span>
-                        <span>Completion: {student.helpInfo.completionRate.toFixed(1)}%</span>
-                      </div>
-                      
-                      {student.helpInfo.teacherNotes && (
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-700 mb-1">Teacher Notes:</div>
-                          <div className="text-muted-foreground italic">
-                            {student.helpInfo.teacherNotes}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+                ))}
             </div>
           )}
         </CardContent>

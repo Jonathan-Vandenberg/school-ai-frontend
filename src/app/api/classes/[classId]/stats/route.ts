@@ -21,13 +21,14 @@ export async function GET(
       where: {
         id: classId,
         OR: [
-          ...(session.user.customRole === 'ADMIN' ? [{}] : []),
           ...(session.user.customRole === 'TEACHER' ? [{
             users: {
               some: {
                 userId: session.user.id
               }
             }
+          }] : []),...(session.user.customRole === 'ADMIN' ? [{
+            id: classId
           }] : []),
           ...(session.user.customRole === 'STUDENT' ? [{
             users: {

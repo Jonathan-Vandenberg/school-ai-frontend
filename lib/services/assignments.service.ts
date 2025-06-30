@@ -1192,7 +1192,8 @@ export class AssignmentsService {
       console.log(`[STATS] Statistics update completed successfully`)
 
       // Update help status based on completion and performance
-      await AssignmentsService.updateStudentHelpStatus(studentId, assignmentId, completionPercentage, accuracy, tx)
+      const { StudentsNeedingHelpService } = await import('./students-needing-help.service')
+      await StudentsNeedingHelpService.updateStudentHelpStatus(studentId, assignmentId, completionPercentage, accuracy, tx)
 
       return {
         success: true,
@@ -1280,159 +1281,7 @@ export class AssignmentsService {
     }
   }
 
-  /**
-   * Update student help status based on assignment completion and performance
-   */
-  static async updateStudentHelpStatus(
-    studentId: string, 
-    assignmentId: string, 
-    completionPercentage: number, 
-    accuracy: number, 
-    tx?: any
-  ) {
-    try {
-      const db = tx || prisma
-      const currentDate = new Date()
 
-      // Get student and assignment details
-      const [student, assignment] = await Promise.all([
-        db.user.findUnique({
-          where: { id: studentId },
-          select: { id: true, username: true, email: true }
-        }),
-        db.assignment.findUnique({
-          where: { id: assignmentId },
-          select: { 
-            id: true, 
-            topic: true, 
-            teacherId: true,
-            classes: {
-              include: {
-                class: {
-                  select: { id: true }
-                }
-              }
-            }
-          }
-        })
-      ])
-
-      if (!student || !assignment) {
-        return
-      }
-
-      // Get student's classes
-      const studentClasses = await db.userClass.findMany({
-        where: { userId: studentId },
-        select: { classId: true }
-      })
-      const classIds = studentClasses.map((uc: { classId: string }) => uc.classId)
-
-      // Get student's overall statistics for accurate analysis
-      const studentStats = await db.studentStats.findUnique({
-        where: { studentId: studentId },
-        select: { 
-          averageScore: true, 
-          completionRate: true,
-          completedAssignments: true,
-          totalAssignments: true
-        }
-      })
-
-      // Use overall statistics instead of single assignment performance
-      const overallAverageScore = studentStats?.averageScore || 0
-      const overallCompletionRate = studentStats?.completionRate || 0
-
-      // Determine if student needs help based on OVERALL completion and score
-      const reasons: string[] = []
-      let needsHelp = false
-
-      // Check if student has low overall completion rate
-      if (overallCompletionRate < 50) {
-        reasons.push('Low completion rate on assignments')
-        needsHelp = true
-      }
-      
-      // Check if student has low overall accuracy (even if completing assignments)
-      if (overallAverageScore < 50) {
-        reasons.push('Low accuracy on completed assignments')
-        needsHelp = true
-      }
-
-      // Get existing help record (there can only be one per student now)
-      const existingRecord = await db.studentsNeedingHelp.findUnique({
-        where: { studentId: studentId }
-      })
-
-      if (needsHelp) {
-        if (existingRecord) {
-          // Update existing record
-          await db.studentsNeedingHelp.update({
-            where: { id: existingRecord.id },
-            data: {
-              reasons: reasons,
-              daysNeedingHelp: Math.max(1, Math.ceil((currentDate.getTime() - existingRecord.needsHelpSince.getTime()) / (1000 * 60 * 60 * 24))),
-              averageScore: overallAverageScore,
-              completionRate: overallCompletionRate,
-              severity: 'RECENT',
-              isResolved: false,
-              resolvedAt: null,
-              updatedAt: currentDate
-            }
-          })
-        } else {
-          // Create new record
-          const record = await db.studentsNeedingHelp.create({
-            data: {
-              studentId: studentId,
-              reasons: reasons,
-              needsHelpSince: currentDate,
-              daysNeedingHelp: 1,
-              overdueAssignments: 0,
-              averageScore: overallAverageScore,
-              completionRate: overallCompletionRate,
-              severity: 'RECENT',
-              isResolved: false
-            }
-          })
-
-          // Link to classes
-          for (const classId of classIds) {
-            await db.studentsNeedingHelpClass.create({
-              data: {
-                studentNeedingHelpId: record.id,
-                classId: classId
-              }
-            })
-          }
-
-          // Link to teacher
-          if (assignment.teacherId) {
-            await db.studentsNeedingHelpTeacher.create({
-              data: {
-                studentNeedingHelpId: record.id,
-                teacherId: assignment.teacherId
-              }
-            })
-          }
-        }
-
-        console.log(`[HELP] Student ${student.username} needs help: ${reasons.join(', ')} (overall completion: ${overallCompletionRate}%, overall accuracy: ${overallAverageScore}%)`)
-      } else if (overallCompletionRate >= 50 && overallAverageScore >= 50) {
-        // Student's overall performance is good, remove help record if it exists
-        if (existingRecord) {
-          await db.studentsNeedingHelp.delete({
-            where: { id: existingRecord.id }
-          })
-          console.log(`[HELP] Removed help status for ${student.username} - good overall performance (completion: ${overallCompletionRate}%, accuracy: ${overallAverageScore}%)`)
-        }
-      }
-
-    } catch (error) {
-      console.error(`Error updating help status for student ${studentId}:`, error)
-      // Don't throw error to avoid breaking the assignment submission
-    }
-  }
 
 
 }
