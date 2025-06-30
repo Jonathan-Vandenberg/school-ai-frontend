@@ -175,7 +175,13 @@ export default function ClassProfilePage() {
 
   const formatReasons = (reasons: string[]) => {
     if (!Array.isArray(reasons) || reasons.length === 0) return 'General support needed'
-    return reasons.join(', ')
+    return (
+      <ul className="list-disc list-inside space-y-1">
+        {reasons.map((reason, index) => (
+          <li key={index} className="text-sm">{reason}</li>
+        ))}
+      </ul>
+    )
   }
 
   if (!session?.user) {

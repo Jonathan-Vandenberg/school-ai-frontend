@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import { isAdmin } from '@/lib/auth'
 import { 
   getScheduledTasksHealth, 
   taskManager,
@@ -18,11 +15,6 @@ import {
 // GET /api/admin/scheduled-tasks - Get scheduled tasks status and health
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user || !isAdmin(session.user.role)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')
 
@@ -52,7 +44,7 @@ export async function GET(request: NextRequest) {
           health: taskHealth,
           upcomingAssignments: upcomingAssignments.slice(0, 5), // Next 5 scheduled
           recentSnapshots,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         })
     }
   } catch (error) {
@@ -67,11 +59,6 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/scheduled-tasks - Perform scheduled task operations
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user || !isAdmin(session.user.role)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
-
     const body = await request.json()
     const { action, taskKey, snapshotType } = body
 

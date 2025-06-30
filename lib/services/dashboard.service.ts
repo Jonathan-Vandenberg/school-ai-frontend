@@ -134,14 +134,24 @@ export class DashboardService {
       })
     ])
 
-    // Handle null case by providing defaults
+    // If no historical stats exist at all, calculate live stats
     if (!schoolStats) {
+      console.log('No school statistics found, calculating live metrics...')
+      
+      const [totalStudents, totalTeachers, totalClasses, totalAssignments, activeAssignments] = await Promise.all([
+        prisma.user.count({ where: { customRole: 'STUDENT' } }),
+        prisma.user.count({ where: { customRole: 'TEACHER' } }),
+        prisma.class.count(),
+        prisma.assignment.count(),
+        prisma.assignment.count({ where: { isActive: true } })
+      ])
+      
       return {
-        totalStudents: 0,
-        totalTeachers: 0,
-        totalClasses: 0,
-        totalAssignments: 0,
-        activeAssignments: 0,
+        totalStudents,
+        totalTeachers,
+        totalClasses,
+        totalAssignments,
+        activeAssignments,
         averageCompletionRate: 0,
         averageScore: 0,
         dailyActiveStudents: 0,

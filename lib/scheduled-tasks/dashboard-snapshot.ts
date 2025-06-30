@@ -1,231 +1,58 @@
 import cron from 'node-cron'
 import { prisma, withTransaction, DatabaseError } from '../db'
+import { StatisticsService } from '../services/statistics.service'
 
 /**
  * Dashboard snapshot scheduled task
- * Creates snapshots of dashboard metrics once per day at 6 AM
+ * Creates snapshots of dashboard metrics every hour using pre-calculated statistics
+ * Optimized to use existing statistics instead of heavy real-time calculations
  */
 export function createDashboardSnapshotTask() {
   console.log('Registering dashboard snapshot task...')
   
-  // Schedule the task to run once per day at 6 AM
-  const task = cron.schedule('0 6 * * *', async () => {
+  // Schedule the task to run every hour (more reasonable than every minute)
+  const task = cron.schedule('0 * * * *', async () => {
+    const now = new Date()
+    const timestamp = now.toISOString()
+    console.log(`\n📸 [${timestamp}] CRON: Starting hourly dashboard snapshot...`)
+    
     try {
-      console.log('Running daily dashboard snapshot task...')
-      
       await withTransaction(async (tx) => {
-        // Get current metrics
-        const classes = await tx.class.findMany({
-          include: {
-            users: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    customRole: true,
-                  },
-                },
-              },
-            },
-            assignments: {
-              include: {
-                assignment: {
-                  select: {
-                    id: true,
-                    type: true,
-                    questions: {
-                      select: {
-                        id: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        })
+        // Use pre-calculated school statistics instead of heavy calculations
+        const schoolStats = await StatisticsService.getSchoolStatistics()
         
-        const teachers = await tx.user.findMany({
-          where: {
-            customRole: 'TEACHER',
-          },
-          select: {
-            id: true,
-          },
-        })
+        // Get basic counts efficiently
+        const [totalClasses, totalTeachers, totalStudents, totalAssignments] = await Promise.all([
+          tx.class.count(),
+          tx.user.count({ where: { customRole: 'TEACHER' } }),
+          tx.user.count({ where: { customRole: 'STUDENT' } }),
+          tx.assignment.count({ where: { publishedAt: { not: null } } }),
+        ])
         
-        const students = await tx.user.findMany({
-          where: {
-            customRole: 'STUDENT',
-          },
-          include: {
-            classes: {
-              include: {
-                class: {
-                  include: {
-                    assignments: {
-                      include: {
-                        assignment: {
-                          select: {
-                            id: true,
-                            type: true,
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            assignmentsAssigned: {
-              include: {
-                assignment: {
-                  select: {
-                    id: true,
-                    type: true,
-                  },
-                },
-              },
-            },
-            progresses: {
-              include: {
-                assignment: {
-                  select: {
-                    id: true,
-                  },
-                },
-                question: {
-                  select: {
-                    id: true,
-                  },
-                },
-              },
-            },
-          },
-        })
+        console.log(`📈 [${timestamp}] Dashboard metrics: ${totalStudents} students, ${totalTeachers} teachers, ${totalClasses} classes, ${totalAssignments} assignments`)
         
-        // Calculate basic metrics
-        const totalClasses = classes.length
-        const totalTeachers = teachers.length
-        const totalStudents = students.length
-        
-        // Calculate assignment metrics
-        const uniqueAssignments = new Set()
-        const classAssignmentsSet = new Set()
-        const individualAssignmentsSet = new Set()
-        
-        // Add class assignments
-        classes.forEach((classItem: any) => {
-          classItem.assignments.forEach((classAssignment: any) => {
-            const assignment = classAssignment.assignment
-            uniqueAssignments.add(assignment.id)
-            classAssignmentsSet.add(assignment.id)
-          })
-        })
-        
-        // Add individual assignments
-        students.forEach((student: any) => {
-          student.assignmentsAssigned.forEach((userAssignment: any) => {
-            const assignment = userAssignment.assignment
-            uniqueAssignments.add(assignment.id)
-            individualAssignmentsSet.add(assignment.id)
-          })
-        })
-        
-        const totalAssignments = uniqueAssignments.size
-        const classAssignments = classAssignmentsSet.size
-        const individualAssignments = individualAssignmentsSet.size
-        
-        // Process student metrics
-        let studentsNeedingAttention = 0
-        
-        const processedStudents = students.map((student: any) => {
-          // Create a set of assigned assignments for this student
-          const assignedAssignments = new Set()
-          
-          // Add class assignments
-          student.classes.forEach((userClass: any) => {
-            userClass.class.assignments.forEach((classAssignment: any) => {
-              assignedAssignments.add(classAssignment.assignment.id)
-            })
-          })
-          
-          // Add individual assignments
-          student.assignmentsAssigned.forEach((userAssignment: any) => {
-            assignedAssignments.add(userAssignment.assignment.id)
-          })
-          
-          // Get progress data for the student
-          const studentProgress = student.progresses
-          
-          // Track individual question progress
-          let totalQuestions = 0
-          let completedQuestions = 0
-          let correctQuestions = 0
-          
-          // Track assignment-level completion
-          const assignmentCompletionMap = new Map()
-          
-          studentProgress.forEach((progress: any) => {
-            if (!progress.assignment) return
-            
-            const assignmentId = progress.assignment.id
-            if (assignedAssignments.has(assignmentId)) {
-              // Count this as a question
-              totalQuestions++
-              
-              // If the question is complete, count it
-              if (progress.isComplete) {
-                completedQuestions++
-                
-                // If the question is also correct, count that too
-                if (progress.isCorrect) {
-                  correctQuestions++
-                }
-              }
-              
-              // Track assignment completion
-              const currentComplete = assignmentCompletionMap.get(assignmentId) || false
-              assignmentCompletionMap.set(assignmentId, currentComplete || progress.isComplete)
+        // Get assignment type breakdown
+        const [classAssignments, individualAssignments] = await Promise.all([
+          tx.assignment.count({ 
+            where: { 
+              publishedAt: { not: null },
+              type: 'CLASS',
             }
-          })
-          
-          // Count completed assignments for the completion rate
-          const completedAssignments = Array.from(assignmentCompletionMap.values()).filter(Boolean).length
-          const totalAssignmentsForStudent = assignedAssignments.size
-          
-          // Calculate rates
-          const completionRate = totalAssignmentsForStudent > 0 ? (completedAssignments / totalAssignmentsForStudent) * 100 : 0
-          const successRate = completedQuestions > 0 ? (correctQuestions / completedQuestions) * 100 : 0
-          
-          const needsAttention = (completedAssignments > 0 && successRate < 70) || 
-                                (totalAssignmentsForStudent > 0 && completionRate < 70)
-          
-          if (needsAttention) {
-            studentsNeedingAttention++
-          }
-          
-          return {
-            completionRate,
-            successRate,
-            totalAssignments: totalAssignmentsForStudent,
-            completedAssignments,
-          }
+          }),
+          tx.assignment.count({ 
+            where: { 
+              publishedAt: { not: null },
+              type: 'INDIVIDUAL',
+            }
+          }),
+        ])
+        
+        // Get students needing help count (already calculated by the help task)
+        const studentsNeedingAttention = await tx.studentsNeedingHelp.count({
+          where: { isResolved: false }
         })
         
-        // Calculate average completion and success rates
-        const studentsWithAssignments = processedStudents.filter((s: any) => s.totalAssignments > 0)
-        
-        let averageCompletionRate = 0
-        let averageSuccessRate = 0
-        
-        if (studentsWithAssignments.length > 0) {
-          const totalCompletionRate = studentsWithAssignments.reduce((acc: number, s: any) => acc + s.completionRate, 0)
-          const totalSuccessRate = studentsWithAssignments.reduce((acc: number, s: any) => acc + s.successRate, 0)
-          
-          averageCompletionRate = totalCompletionRate / studentsWithAssignments.length
-          averageSuccessRate = totalSuccessRate / studentsWithAssignments.length
-        }
+        console.log(`🚨 [${timestamp}] Students needing attention: ${studentsNeedingAttention}`)
         
         // Count recent activities (last 24 hours)
         const oneDayAgo = new Date()
@@ -242,11 +69,15 @@ export function createDashboardSnapshotTask() {
           },
         })
         
+        // Use pre-calculated statistics for completion and success rates
+        const averageCompletionRate = schoolStats?.averageCompletionRate || 0
+        const averageSuccessRate = schoolStats?.averageScore || 0
+        
         // Create the snapshot
         const snapshot = await tx.dashboardSnapshot.create({
           data: {
             timestamp: new Date(),
-            snapshotType: 'daily',
+            snapshotType: 'daily', // Keep as daily since that's the valid enum value
             totalClasses,
             totalTeachers,
             totalStudents,
@@ -261,11 +92,11 @@ export function createDashboardSnapshotTask() {
           },
         })
         
-        console.log(`Created dashboard snapshot: ${snapshot.id}`)
+        console.log(`📸 [${timestamp}] Created dashboard snapshot: ${snapshot.id}`)
         
-        // Clean up old snapshots (keep 365 days)
+        // Clean up old snapshots (keep last 30 days for hourly snapshots)
         const oldestToKeep = new Date()
-        oldestToKeep.setDate(oldestToKeep.getDate() - 365)
+        oldestToKeep.setDate(oldestToKeep.getDate() - 30)
         
         const deletedSnapshots = await tx.dashboardSnapshot.deleteMany({
           where: {
@@ -276,16 +107,16 @@ export function createDashboardSnapshotTask() {
         })
         
         if (deletedSnapshots.count > 0) {
-          console.log(`Cleaned up ${deletedSnapshots.count} old dashboard snapshots`)
+          console.log(`🧹 [${timestamp}] Cleaned up ${deletedSnapshots.count} old dashboard snapshots`)
         }
-        
-        console.log('Dashboard snapshot task completed successfully')
       })
+      
+      console.log(`✅ [${timestamp}] CRON: Dashboard snapshot completed successfully\n`)
     } catch (error) {
-      console.error('Error in dashboard snapshot task:', error)
+      console.error(`❌ [${timestamp}] Error in dashboard snapshot task:`, error)
       
       if (error instanceof DatabaseError) {
-        console.error('Database error during dashboard snapshot:', error.cause)
+        console.error('🔌 Database error during dashboard snapshot:', error.cause)
       }
     }
   })

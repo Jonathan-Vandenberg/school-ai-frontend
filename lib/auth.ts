@@ -22,6 +22,7 @@ declare module 'next-auth' {
       email: string
       username: string
       role: UserRole
+      customRole: UserRole
       customImage?: string
     }
   }
@@ -30,6 +31,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     role: UserRole
+    customRole: UserRole
     username: string
     customImage?: string
   }
@@ -93,6 +95,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.role = user.customRole
+        token.customRole = user.customRole
         token.username = user.username
         token.customImage = user.customImage
       }
@@ -102,6 +105,7 @@ export const authOptions: NextAuthOptions = {
       if (token) {
         session.user.id = token.sub!
         session.user.role = token.role as UserRole
+        session.user.customRole = token.customRole as UserRole
         session.user.username = token.username as string
         session.user.customImage = token.customImage as string
       }

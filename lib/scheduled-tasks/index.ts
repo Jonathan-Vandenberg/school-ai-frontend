@@ -1,6 +1,7 @@
 import { createPublishScheduledAssignmentsTask } from './publish-scheduled-assignments'
 import { createDashboardSnapshotTask } from './dashboard-snapshot'
 import { createStudentsNeedingHelpTask } from './update-students-needing-help'
+import { createStatisticsUpdateTask } from './update-statistics'
 
 interface ScheduledTask {
   name: string
@@ -26,7 +27,15 @@ class ScheduledTaskManager {
         isActive: true,
       })
 
-      // Start dashboard snapshot task (runs daily at 6 AM)
+      // Start statistics update task (runs every hour)
+      const statisticsTask = createStatisticsUpdateTask()
+      this.tasks.set('update-statistics', {
+        name: 'Update Statistics',
+        task: statisticsTask,
+        isActive: true,
+      })
+
+      // Start dashboard snapshot task (runs every hour, optimized)
       const snapshotTask = createDashboardSnapshotTask()
       this.tasks.set('dashboard-snapshot', {
         name: 'Dashboard Snapshot',
@@ -34,7 +43,7 @@ class ScheduledTaskManager {
         isActive: true,
       })
 
-      // Start students needing help analysis task (runs every hour)
+      // Start students needing help analysis task (runs every 10 minutes)
       const studentsHelpTask = createStudentsNeedingHelpTask()
       this.tasks.set('students-needing-help', {
         name: 'Students Needing Help Analysis',
@@ -171,17 +180,9 @@ export async function bootstrapScheduledTasks(): Promise<void> {
   try {
     await scheduledTaskManager.startAllTasks()
     
-    // Graceful shutdown handling
-    const shutdownHandler = () => {
-      console.log('\n📋 Received shutdown signal, cleaning up scheduled tasks...')
-      scheduledTaskManager.stopAllTasks()
-      process.exit(0)
-    }
-
-    process.on('SIGINT', shutdownHandler)
-    process.on('SIGTERM', shutdownHandler)
-    process.on('SIGUSR2', shutdownHandler) // For nodemon
-
+    // Note: Graceful shutdown handling is removed for Edge Runtime compatibility
+    // In production deployments, the container orchestrator handles graceful shutdown
+    
   } catch (error) {
     console.error('Failed to bootstrap scheduled tasks:', error)
     throw error

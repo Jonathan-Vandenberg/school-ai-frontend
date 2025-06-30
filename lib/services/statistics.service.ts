@@ -757,12 +757,24 @@ export class StatisticsService {
 
   /**
    * Get school statistics for dashboard (fast read from pre-aggregated data)
+   * Falls back to most recent stats if today's data doesn't exist
    */
   static async getSchoolStatistics(date: Date = new Date()) {
     const dateKey = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-    return await prisma.schoolStats.findUnique({
+    
+    // Try to get today's stats first
+    let stats = await prisma.schoolStats.findUnique({
       where: { date: dateKey }
     })
+    
+    // If today's stats don't exist, get the most recent stats
+    if (!stats) {
+      stats = await prisma.schoolStats.findFirst({
+        orderBy: { date: 'desc' }
+      })
+    }
+    
+    return stats
   }
 
   /**

@@ -1,5 +1,37 @@
 import { StatisticsService } from '../services/statistics.service'
 import { prisma } from '../db'
+import cron from 'node-cron'
+
+/**
+ * Scheduled Statistics Update Task
+ * 
+ * This task runs hourly to keep statistics up-to-date:
+ * 1. Update school-wide statistics
+ * 2. Update class statistics for all classes
+ * 3. Clean up old performance metrics
+ * 
+ * This replaces expensive real-time calculations with 
+ * efficient pre-aggregated statistics updates.
+ */
+export function createStatisticsUpdateTask() {
+  console.log('Registering statistics update task...')
+  
+  // Schedule the task to run every hour
+  const task = cron.schedule('0 * * * *', async () => {
+    const now = new Date()
+    const timestamp = now.toISOString()
+    console.log(`\n📊 [${timestamp}] CRON: Starting hourly statistics update...`)
+    
+    try {
+      await updateDailyStatistics()
+      console.log(`✅ [${timestamp}] CRON: Statistics update completed successfully\n`)
+    } catch (error) {
+      console.error(`❌ [${timestamp}] Error in scheduled statistics update:`, error)
+    }
+  })
+
+  return task
+}
 
 /**
  * Daily Statistics Update Task

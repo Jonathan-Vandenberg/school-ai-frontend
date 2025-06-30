@@ -27,11 +27,8 @@ export async function bootstrap(): Promise<void> {
   } catch (error) {
     console.error('❌ Application bootstrap failed:', error)
     
-    // In production, you might want to exit the process
-    if (process.env.NODE_ENV === 'production') {
-      console.error('💥 Critical startup failure, exiting...')
-      process.exit(1)
-    }
+    // Note: process.exit() removed for Edge Runtime compatibility
+    // In production, the deployment platform handles process management
     
     throw error
   }

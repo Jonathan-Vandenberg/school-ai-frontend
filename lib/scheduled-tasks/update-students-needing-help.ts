@@ -5,16 +5,18 @@ import { StudentsNeedingHelpService } from '../services/students-needing-help.se
 /**
  * Students Needing Help update scheduled task
  * Analyzes student performance and updates the StudentsNeedingHelp table
- * Runs every hour to keep data fresh
+ * Runs every 10 minutes for responsive testing
  */
 export function createStudentsNeedingHelpTask() {
   console.log('Registering students needing help update task...')
   
-  // Schedule the task to run every hour
-  const task = cron.schedule('0 * * * *', async () => {
+  // Schedule the task to run every 10 minutes for responsive testing
+  const task = cron.schedule('*/10 * * * *', async () => {
+    const now = new Date()
+    const timestamp = now.toISOString()
+    console.log(`\n👥 [${timestamp}] CRON: Starting students needing help analysis...`)
+    
     try {
-      console.log('Running students needing help analysis task...')
-      
       await withTransaction(async (tx) => {
         const currentDate = new Date()
         
@@ -30,7 +32,7 @@ export function createStudentsNeedingHelpTask() {
           }
         })
 
-        console.log(`Analyzing ${students.length} students...`)
+        console.log(`🔍 [${timestamp}] Analyzing ${students.length} students for help needs...`)
         let studentsNeedingHelp = 0
         let studentsResolved = 0
 
@@ -41,22 +43,26 @@ export function createStudentsNeedingHelpTask() {
             if (analysis.needsHelp) {
               await createOrUpdateHelpRecord(student, analysis, currentDate, tx)
               studentsNeedingHelp++
+              console.log(`   🚨 ${student.username}: ${analysis.reasons.join(', ')}`)
             } else {
               await markStudentAsResolved(student.id, tx)
               studentsResolved++
             }
           } catch (error) {
-            console.error(`Error analyzing student ${student.username}:`, error)
+            console.error(`❌ Error analyzing student ${student.username}:`, error)
           }
         }
 
-        console.log(`Students needing help analysis completed:`)
-        console.log(`- Students flagged for help: ${studentsNeedingHelp}`)
-        console.log(`- Students resolved: ${studentsResolved}`)
+        console.log(`📊 [${timestamp}] Students needing help analysis completed:`)
+        console.log(`   🚨 Students flagged for help: ${studentsNeedingHelp}`)
+        console.log(`   ✅ Students resolved: ${studentsResolved}`)
+        console.log(`   📈 Total students analyzed: ${students.length}`)
       })
     } catch (error) {
-      console.error('Error in students needing help task:', error)
+      console.error(`❌ [${timestamp}] Error in students needing help task:`, error)
     }
+    
+    console.log(`✅ [${timestamp}] CRON: Students needing help analysis completed\n`)
   })
 
   return task
@@ -266,28 +272,58 @@ async function createOrUpdateHelpRecord(
   currentDate: Date,
   tx: any
 ): Promise<void> {
-  const existingRecord = await tx.studentsNeedingHelp.findFirst({
+  // First, check if ANY record exists for this student (resolved or not)
+  const existingRecord = await tx.studentsNeedingHelp.findUnique({
     where: { 
-      studentId: student.id,
-      isResolved: false 
+      studentId: student.id
     }
   })
 
   if (existingRecord) {
-    // Update existing record
+    // Update existing record (reactivate if it was resolved)
     await tx.studentsNeedingHelp.update({
-      where: { id: existingRecord.id },
+      where: { studentId: student.id },
       data: {
         reasons: analysis.reasons,
+        needsHelpSince: analysis.needsHelpSince,
         daysNeedingHelp: analysis.daysNeedingHelp,
         overdueAssignments: analysis.overdueAssignments,
         averageScore: analysis.averageScore,
         completionRate: analysis.completionRate,
         severity: analysis.severity,
-        isResolved: false,
+        isResolved: false, // Reactivate if was resolved
+        resolvedAt: null,   // Clear resolved date
         updatedAt: currentDate
       }
     })
+
+    // Update class and teacher associations if needed
+    // Remove existing associations
+    await tx.studentsNeedingHelpClass.deleteMany({
+      where: { studentNeedingHelpId: existingRecord.id }
+    })
+    await tx.studentsNeedingHelpTeacher.deleteMany({
+      where: { studentNeedingHelpId: existingRecord.id }
+    })
+
+    // Add new associations
+    for (const classId of analysis.classIds) {
+      await tx.studentsNeedingHelpClass.create({
+        data: {
+          studentNeedingHelpId: existingRecord.id,
+          classId: classId
+        }
+      })
+    }
+
+    for (const teacherId of analysis.teacherIds) {
+      await tx.studentsNeedingHelpTeacher.create({
+        data: {
+          studentNeedingHelpId: existingRecord.id,
+          teacherId: teacherId
+        }
+      })
+    }
   } else {
     // Create new record
     const record = await tx.studentsNeedingHelp.create({

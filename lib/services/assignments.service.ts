@@ -1328,23 +1328,7 @@ export class AssignmentsService {
       })
       const classIds = studentClasses.map((uc: { classId: string }) => uc.classId)
 
-      // Determine if student needs help based on completion and score
-      const reasons: string[] = []
-      let needsHelp = false
-
-      // Check if assignment is completed but with low score
-      if (completionPercentage >= 100 && accuracy < 50) {
-        reasons.push('Low accuracy on completed assignments')
-        needsHelp = true
-      }
-      
-      // Check if assignment has low completion rate
-      if (completionPercentage < 50) {
-        reasons.push('Low completion rate on assignments')
-        needsHelp = true
-      }
-
-      // Get student's overall statistics for accurate averages
+      // Get student's overall statistics for accurate analysis
       const studentStats = await db.studentStats.findUnique({
         where: { studentId: studentId },
         select: { 
@@ -1358,6 +1342,22 @@ export class AssignmentsService {
       // Use overall statistics instead of single assignment performance
       const overallAverageScore = studentStats?.averageScore || 0
       const overallCompletionRate = studentStats?.completionRate || 0
+
+      // Determine if student needs help based on OVERALL completion and score
+      const reasons: string[] = []
+      let needsHelp = false
+
+      // Check if student has low overall completion rate
+      if (overallCompletionRate < 50) {
+        reasons.push('Low completion rate on assignments')
+        needsHelp = true
+      }
+      
+      // Check if student has low overall accuracy (even if completing assignments)
+      if (overallAverageScore < 50) {
+        reasons.push('Low accuracy on completed assignments')
+        needsHelp = true
+      }
 
       // Get existing help record (there can only be one per student now)
       const existingRecord = await db.studentsNeedingHelp.findUnique({

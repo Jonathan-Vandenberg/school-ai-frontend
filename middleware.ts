@@ -1,6 +1,6 @@
-import { withAuth } from 'next-auth/middleware'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 
 // Define protected routes and their required roles
 const protectedRoutes = {
@@ -18,82 +18,40 @@ const protectedRoutes = {
   '/api/tools': ['ADMIN', 'TEACHER'],
 } as const
 
-export default withAuth(
-  function middleware(req: NextRequest & { nextauth: { token: any } }) {
-    const { pathname } = req.nextUrl
-    const token = req.nextauth.token
+export async function middleware(request: NextRequest) {
+  const token = await getToken({ req: request })
+  const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
+  const isApiAuthRoute = request.nextUrl.pathname.startsWith('/api/auth')
 
-    // Check if route requires specific roles
-    const matchedRoute = Object.keys(protectedRoutes).find(route => 
-      pathname.startsWith(route)
-    )
-
-    if (matchedRoute) {
-      const requiredRoles = protectedRoutes[matchedRoute as keyof typeof protectedRoutes]
-      const userRole = token?.role
-
-      if (!userRole || !requiredRoles.includes(userRole)) {
-        // Redirect to unauthorized page or login
-        const url = req.nextUrl.clone()
-        url.pathname = '/unauthorized'
-        return NextResponse.redirect(url)
-      }
-    }
-
-    // Protect dashboard routes - only admins and teachers can access
-    if (pathname.startsWith('/dashboard')) {
-      if (!token?.role || !['ADMIN'].includes(token.role)) {
-        // Redirect unauthorized users to their profile
-        return NextResponse.redirect(new URL('/profile', req.url))
-      }
-    }
-
-    // Allow access to profile page for authenticated users
-    if (pathname.startsWith('/profile')) {
-      if (!token) {
-        return NextResponse.redirect(new URL('/auth/signin', req.url))
-      }
-    }
-
+  // Allow auth pages and API auth routes
+  if (isAuthPage || isApiAuthRoute) {
     return NextResponse.next()
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        const { pathname } = req.nextUrl
-
-        // Allow access to auth pages without token
-        if (pathname.startsWith('/auth/')) {
-          return true
-        }
-
-        // Allow access to public pages
-        if (pathname === '/' || pathname.startsWith('/public')) {
-          return true
-        }
-
-        // Require token for protected routes
-        return !!token
-      }
-    }
   }
-)
+
+  // Allow access to the init endpoint
+  if (request.nextUrl.pathname === '/api/init') {
+    return NextResponse.next()
+  }
+
+  // Redirect to signin if no token
+  if (!token) {
+    const signInUrl = new URL('/auth/signin', request.url)
+    signInUrl.searchParams.set('callbackUrl', request.url)
+    return NextResponse.redirect(signInUrl)
+  }
+
+  return NextResponse.next()
+}
 
 export const config = {
   matcher: [
-    '/admin/:path*',
-    '/teachers/:path*',
-    '/students/:path*',
-    '/classes/:path*',
-    '/assignments/:path*',
-    '/tools/:path*',
-    '/api/admin/:path*',
-    '/api/teachers/:path*',
-    '/api/students/:path*',
-    '/api/classes/:path*',
-    '/api/assignments/:path*',
-    '/api/tools/:path*',
-    '/dashboard/:path*',
-    '/profile/:path*',
-  ]
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (public directory)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 } 

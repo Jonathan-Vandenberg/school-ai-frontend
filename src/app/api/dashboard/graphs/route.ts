@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     // For now, allow admin and teacher access
     // We can add more specific role checking later if needed
-    if (!isAdmin(session.user.role) && session.user.role !== 'TEACHER') {
+    if (!isAdmin(session.user.customRole) && session.user.customRole !== 'TEACHER') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

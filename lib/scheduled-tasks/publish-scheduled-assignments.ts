@@ -10,9 +10,11 @@ export function createPublishScheduledAssignmentsTask() {
   
   // Schedule the task to run every minute
   const task = cron.schedule('* * * * *', async () => {
+    const now = new Date()
+    const timestamp = now.toISOString()
+    console.log(`\n🕐 [${timestamp}] CRON: Starting scheduled assignment publication check...`)
+    
     try {
-      const now = new Date()
-      
       // Use transaction to ensure data integrity
       await withTransaction(async (tx) => {
         // Find all published assignments with isActive=false and a scheduledPublishAt date in the past
@@ -39,7 +41,7 @@ export function createPublishScheduledAssignmentsTask() {
         })
         
         if (assignmentsToActivate.length > 0) {
-          console.log(`Activating ${assignmentsToActivate.length} scheduled assignments`)
+          console.log(`🎯 [${timestamp}] FOUND ${assignmentsToActivate.length} assignments ready for activation!`)
           
           // Activate each assignment
           for (const assignment of assignmentsToActivate) {
@@ -61,25 +63,27 @@ export function createPublishScheduledAssignmentsTask() {
               },
             })
             
-            console.log(`Activated assignment: ${assignment.id} - ${assignment.topic}`)
+            console.log(`   ✅ Activated: "${assignment.topic}" (ID: ${assignment.id})`)
           }
           
-          console.log(`Successfully activated ${assignmentsToActivate.length} assignments`)
+          console.log(`🎉 [${timestamp}] Successfully activated ${assignmentsToActivate.length} assignments!`)
         } else {
           // Only log this every 10 minutes to avoid spam
           if (now.getMinutes() % 10 === 0) {
-            console.log('No assignments to activate at this time')
+            console.log(`💤 [${timestamp}] No assignments ready for activation at this time`)
           }
         }
       })
     } catch (error) {
-      console.error('Error in scheduled assignment activation task:', error)
+      console.error(`❌ [${timestamp}] Error in scheduled assignment activation:`, error)
       
       // If it's a database error, we might want to retry or alert
       if (error instanceof DatabaseError) {
-        console.error('Database error during assignment activation:', error.cause)
+        console.error('🔌 Database error during assignment activation:', error.cause)
       }
     }
+    
+    console.log(`✅ [${timestamp}] CRON: Assignment publication check completed\n`)
   })
 
   return task
