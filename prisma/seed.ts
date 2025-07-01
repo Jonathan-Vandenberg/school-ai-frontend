@@ -8,116 +8,78 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, saltRounds)
 }
 
-async function main() {
-  console.log('🌱 Seeding database...')
+async function clearDatabase() {
+  console.log('🧹 Clearing database...')
+  
+  // Delete in order to respect foreign key constraints
+  await prisma.studentsNeedingHelpTeacher.deleteMany()
+  await prisma.studentsNeedingHelpClass.deleteMany()
+  await prisma.studentsNeedingHelp.deleteMany()
+  await prisma.dashboardSnapshot.deleteMany()
+  await prisma.schoolStats.deleteMany()
+  await prisma.classStatsDetailed.deleteMany()
+  await prisma.teacherStats.deleteMany()
+  await prisma.studentStats.deleteMany()
+  await prisma.assignmentStats.deleteMany()
+  await prisma.performanceMetric.deleteMany()
+  await prisma.activityLog.deleteMany()
+  await prisma.studentAssignmentProgress.deleteMany()
+  await prisma.question.deleteMany()
+  await prisma.evaluationSettings.deleteMany()
+  await prisma.userAssignment.deleteMany()
+  await prisma.classAssignment.deleteMany()
+  await prisma.assignment.deleteMany()
+  await prisma.userClass.deleteMany()
+  await prisma.class.deleteMany()
+  await prisma.language.deleteMany()
+  await prisma.studentSprite.deleteMany()
+  await prisma.spriteSet.deleteMany()
+  await prisma.assignmentGroup.deleteMany()
+  await prisma.assignmentCategory.deleteMany()
+  await prisma.tool.deleteMany()
+  await prisma.statsClass.deleteMany()
+  await prisma.uploadFile.deleteMany()
+  await prisma.uploadFolder.deleteMany()
+  await prisma.rolePermission.deleteMany()
+  await prisma.permission.deleteMany()
+  await prisma.role.deleteMany()
+  await prisma.user.deleteMany()
+  
+  console.log('✅ Database cleared successfully!')
+}
 
-  // Create languages first
-  const englishLanguage = await prisma.language.upsert({
-    where: { id: 'english' },
-    update: {},
-    create: {
-      id: 'english',
-      language: 'ENGLISH',
-      code: 'en',
-      publishedAt: new Date(),
-    },
-  })
+async function main() {
+  console.log('🌱 Starting database seed...')
+  
+  // Clear the entire database first
+  await clearDatabase()
+  
+  console.log('👤 Creating admin user...')
+  
+  // Hash the admin password
+  const adminPassword = await hashPassword('admin')
 
   // Create admin user
-  const adminPassword = await hashPassword('admin123')
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@jis.ai' },
-    update: {},
-    create: {
+  const admin = await prisma.user.create({
+    data: {
       username: 'admin',
-      email: 'admin@jis.ai',
+      email: 'admin@school.com',
       password: adminPassword,
       customRole: 'ADMIN',
       confirmed: true,
       blocked: false,
-      phone: '+1234567890',
-      address: 'Tokyo, Japan',
     },
-  })
-
-  // Create teacher users
-  const teacherPassword = await hashPassword('teacher123')
-  const teacher1 = await prisma.user.upsert({
-    where: { email: 'teacher1@jis.ai' },
-    update: {},
-    create: {
-      username: 'teacher_johnson',
-      email: 'teacher1@jis.ai',
-      password: teacherPassword,
-      customRole: 'TEACHER',
-      confirmed: true,
-      blocked: false,
-      phone: '+1234567891',
-      address: 'Tokyo, Japan',
-    },
-  })
-
-  const teacher2 = await prisma.user.upsert({
-    where: { email: 'teacher2@jis.ai' },
-    update: {},
-    create: {
-      username: 'teacher_smith',
-      email: 'teacher2@jis.ai',
-      password: teacherPassword,
-      customRole: 'TEACHER',
-      confirmed: true,
-      blocked: false,
-      phone: '+1234567892',
-      address: 'Tokyo, Japan',
-    },
-  })
-
-  // Create student users
-  const studentPassword = await hashPassword('student123')
-  const students = []
-  
-  for (let i = 1; i <= 5; i++) {
-    const student = await prisma.user.upsert({
-      where: { email: `student${i}@jis.ai` },
-      update: {},
-      create: {
-        username: `student${i}`,
-        email: `student${i}@jis.ai`,
-        password: studentPassword,
-        customRole: 'STUDENT',
-        confirmed: true,
-        blocked: i === 3 ? true : false, // Block one student for testing
-        phone: `+123456789${i}`,
-        address: 'Tokyo, Japan',
-        isPlayGame: true,
-      },
-    })
-    students.push(student)
-  }
-
-  // Create a test class
-  const testClass = await prisma.class.create({
-    data: {
-      name: 'English 101',
-      publishedAt: new Date(),
-    },
-  })
-
-  // Assign users to the class
-  await prisma.userClass.createMany({
-    data: [
-      { userId: teacher1.id, classId: testClass.id },
-      { userId: students[0].id, classId: testClass.id },
-      { userId: students[1].id, classId: testClass.id },
-      { userId: students[3].id, classId: testClass.id }, // Skip blocked student
-    ],
   })
 
   console.log('✅ Database seeded successfully!')
-  console.log(`👤 Admin: admin@jis.ai / admin123`)
-  console.log(`👨‍🏫 Teacher: teacher1@jis.ai / teacher123`)
-  console.log(`👨‍🎓 Students: student1@jis.ai / student123 (and student2, student4, student5)`)
-  console.log(`🚫 Blocked Student: student3@jis.ai / student123`)
+  console.log('')
+  console.log('📋 Admin User Created:')
+  console.log('👑 Admin:')
+  console.log('   Username: admin')
+  console.log('   Email: admin@school.com')
+  console.log('   Password: admin')
+  console.log('')
+  console.log('🚀 You can now log in with these credentials!')
 }
 
 main()

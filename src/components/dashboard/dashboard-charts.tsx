@@ -35,7 +35,8 @@ import {
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, TrendingDown, Users, BookOpen, Target, Clock, GraduationCap, Activity, CheckCircle, AlertCircle, BarChart3, Calendar } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { TrendingUp, TrendingDown, Users, BookOpen, Target, Clock, GraduationCap, Activity, CheckCircle, AlertCircle, BarChart3, Calendar, RefreshCw } from "lucide-react"
 
 // Types for dashboard data
 interface DashboardSnapshot {
@@ -58,19 +59,20 @@ interface DashboardData {
   currentMetrics: {
     totalStudents: number
     totalAssignments: number
+    completedStudents: number
+    inProgressStudents: number
+    notStartedStudents: number
     averageCompletionRate: number
     averageScore: number
-    dailyActiveStudents: number
     studentsNeedingHelp: number
     totalTeachers: number
     totalClasses: number
     activeAssignments: number
     scheduledAssignments: number
     completedAssignments: number
-    totalQuestions: number
+    totalQuestionOpportunities: number
     totalAnswers: number
     totalCorrectAnswers: number
-    dailyActiveTeachers: number
   }
   snapshots: DashboardSnapshot[]
   changes: {
@@ -119,22 +121,18 @@ const pieChartConfig = {
   },
 } satisfies ChartConfig
 
-const engagementChartConfig = {
-  engagement: {
-    label: "Active Students",
-    color: "hsl(262, 83%, 58%)", // Purple
-  },
+const helpChartConfig = {
   help: {
-    label: "Need Help",
+    label: "Students Needing Help",
     color: "hsl(346, 77%, 49%)", // Red/pink
   },
 } satisfies ChartConfig
 
 // Utility functions
 const formatPercentage = (value: number) => `${value.toFixed(1)}%`
-const formatChange = (value: number, suffix = "") => {
+  const formatChange = (value: number, suffix = "", timeframe = "from last month") => {
   const sign = value >= 0 ? "+" : ""
-  return `${sign}${value.toFixed(1)}${suffix}`
+  return `${sign}${value.toFixed(1)}${suffix} ${timeframe}`
 }
 
 const getTrendIcon = (value: number) => {
@@ -159,6 +157,12 @@ export function DashboardCharts() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [realAssignmentStatus, setRealAssignmentStatus] = useState<{
+    completed: number;
+    inProgress: number;
+    notStarted: number;
+  } | null>(null)
 
   // Fetch dashboard data
   useEffect(() => {
@@ -184,6 +188,60 @@ export function DashboardCharts() {
 
     fetchDashboardData()
   }, [])
+
+  // Refresh dashboard data by clearing and recreating statistics
+  const refreshDashboard = async () => {
+    try {
+      setRefreshing(true)
+      setError(null)
+      
+      const response = await fetch('/api/dashboard/refresh', {
+        method: 'POST',
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh dashboard data')
+      }
+      
+      // Re-fetch dashboard data after refresh
+      const dashboardResponse = await fetch('/api/dashboard/graphs?type=overview')
+      if (!dashboardResponse.ok) {
+        throw new Error('Failed to fetch updated dashboard data')
+      }
+      
+      const result = await dashboardResponse.json()
+      setData(result)
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh dashboard')
+      console.error('Dashboard refresh error:', err)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  // Calculate assignment status distribution from existing school stats
+  useEffect(() => {
+    if (data?.currentMetrics) {
+      const { completedStudents, inProgressStudents, notStartedStudents } = data.currentMetrics
+      const total = completedStudents + inProgressStudents + notStartedStudents
+      
+      if (total > 0) {
+        setRealAssignmentStatus({
+          completed: Math.round((completedStudents / total) * 100),
+          inProgress: Math.round((inProgressStudents / total) * 100),
+          notStarted: Math.round((notStartedStudents / total) * 100)
+        })
+      } else {
+        // Fallback when no data exists
+        setRealAssignmentStatus({
+          completed: 0,
+          inProgress: 0,
+          notStarted: 100
+        })
+      }
+    }
+  }, [data])
 
   if (loading) {
     return <ChartSkeleton />
@@ -222,50 +280,95 @@ export function DashboardCharts() {
       assignments: data.currentMetrics?.totalAssignments || 0,
       completion: data.currentMetrics?.averageCompletionRate || 0,
       success: data.currentMetrics?.averageScore || 0,
-      engagement: data.currentMetrics?.dailyActiveStudents || 0,
+      engagement: 0, // Removed daily active students tracking
       help: data.currentMetrics?.studentsNeedingHelp || 0,
     }]
     trendData.push(...fallbackData)
   }
 
-  // Calculate trends from snapshots data
+  // Calculate trends from snapshots data (compare with ~30 days ago or oldest available)
   const calculateTrend = (currentValue: number, snapshotField: keyof DashboardSnapshot) => {
     if (snapshotsArray.length < 2) return 0
     
-    const oldestSnapshot = snapshotsArray[0]
-    const oldValue = oldestSnapshot[snapshotField] as number
+    // Try to find a snapshot from ~30 days ago
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    let compareSnapshot = snapshotsArray.find(snapshot => 
+      new Date(snapshot.timestamp) <= thirtyDaysAgo
+    )
     
+    // If no snapshot from 30 days ago, use the oldest available
+    if (!compareSnapshot) {
+      compareSnapshot = snapshotsArray[snapshotsArray.length - 1] // Last item (oldest due to desc order)
+    }
+    
+    const oldValue = compareSnapshot[snapshotField] as number
     return currentValue - oldValue
   }
 
   const studentsTrend = calculateTrend(data.currentMetrics?.totalStudents || 0, 'totalStudents')
   const assignmentsTrend = calculateTrend(data.currentMetrics?.totalAssignments || 0, 'totalAssignments')
   const completionTrend = calculateTrend(data.currentMetrics?.averageCompletionRate || 0, 'averageCompletionRate')
+  const needingHelpTrend = calculateTrend(data.currentMetrics?.studentsNeedingHelp || 0, 'studentsNeedingAttention')
 
-  // Pie chart data for completion status with safety checks
-  const completionRate = data.currentMetrics?.averageCompletionRate || 0
-  const completionData = [
+  // Pie chart data using real assignment status
+  const completionData = realAssignmentStatus ? [
     {
       name: "Completed",
-      value: completionRate,
+      value: realAssignmentStatus.completed,
       fill: "var(--color-completed)",
     },
     {
       name: "In Progress",
-      value: Math.max(0, Math.min(100 - completionRate, 30)),
+      value: realAssignmentStatus.inProgress,
       fill: "var(--color-inProgress)",
     },
     {
       name: "Not Started", 
-      value: Math.max(0, 100 - completionRate - Math.min(30, 100 - completionRate)),
+      value: realAssignmentStatus.notStarted,
       fill: "var(--color-notStarted)",
     },
+  ] : [
+    {
+      name: "Loading",
+      value: 100,
+      fill: "var(--color-notStarted)",
+    }
   ]
 
-  return (
+      return (
     <div className="space-y-6">
+      {/* Dashboard Header with Refresh Button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold tracking-tight">Dashboard Overview</h2>
+        <Button 
+          onClick={refreshDashboard}
+          disabled={refreshing || loading}
+          variant="outline"
+          className="gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Refreshing...' : 'Refresh Data'}
+        </Button>
+      </div>
+
       {/* Overview Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => window.location.href = '/dashboard/students-needing-help'}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Students Needing Help</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.currentMetrics?.studentsNeedingHelp || 0}</div>
+            <div className="flex items-center text-xs text-muted-foreground">
+              {getTrendIcon(needingHelpTrend)}
+              <span className="ml-1">
+                {formatChange(needingHelpTrend)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Students</CardTitle>
@@ -276,7 +379,7 @@ export function DashboardCharts() {
             <div className="flex items-center text-xs text-muted-foreground">
               {getTrendIcon(studentsTrend)}
               <span className="ml-1">
-                {formatChange(studentsTrend)} from last month
+                {formatChange(studentsTrend)}
               </span>
             </div>
           </CardContent>
@@ -292,7 +395,7 @@ export function DashboardCharts() {
             <div className="flex items-center text-xs text-muted-foreground">
               {getTrendIcon(assignmentsTrend)}
               <span className="ml-1">
-                {formatChange(assignmentsTrend)} from last month
+                {formatChange(assignmentsTrend)}
               </span>
             </div>
           </CardContent>
@@ -310,22 +413,9 @@ export function DashboardCharts() {
             <div className="flex items-center text-xs text-muted-foreground">
               {getTrendIcon(completionTrend)}
               <span className="ml-1">
-                {formatChange(completionTrend, "%")} from last month
+                {formatChange(completionTrend, "%")}
               </span>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => window.location.href = '/dashboard/students-needing-help'}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Students Needing Help</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.currentMetrics?.studentsNeedingHelp || 0}</div>
-            <Badge variant={(data.currentMetrics?.studentsNeedingHelp || 0) <= 5 ? "default" : "destructive"}>
-              {(data.currentMetrics?.studentsNeedingHelp || 0) <= 5 ? "Good" : "Needs Attention"}
-            </Badge>
           </CardContent>
         </Card>
       </div>
@@ -406,7 +496,10 @@ export function DashboardCharts() {
                 <PieChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent hideLabel />}
+                    content={<ChartTooltipContent 
+                      hideLabel 
+                      formatter={(value, name) => [`${name}: ${value}%`]}
+                    />}
                   />
                   <Pie
                     data={completionData}
@@ -485,14 +578,14 @@ export function DashboardCharts() {
           </CardContent>
         </Card>
 
-        {/* Student Support Bar Chart */}
+        {/* Students Needing Help Bar Chart */}
         <Card className="md:col-span-1 lg:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-semibold">Student Support</CardTitle>
-            <CardDescription className="text-xs text-muted-foreground">Engagement vs students needing help</CardDescription>
+            <CardTitle className="text-lg font-semibold">Students Needing Help</CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">Students requiring attention over time</CardDescription>
           </CardHeader>
           <CardContent className="pb-0">
-            <ChartContainer config={engagementChartConfig} className="h-[250px] sm:h-[300px] w-full">
+            <ChartContainer config={helpChartConfig} className="h-[250px] sm:h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   accessibilityLayer
@@ -523,11 +616,6 @@ export function DashboardCharts() {
                     content={<ChartTooltipContent />}
                   />
                   <Bar 
-                    dataKey="engagement" 
-                    fill="var(--color-engagement)" 
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar 
                     dataKey="help" 
                     fill="var(--color-help)" 
                     radius={[4, 4, 0, 0]}
@@ -547,7 +635,7 @@ export function DashboardCharts() {
         </div>
         
         {/* Academic Overview */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Classes</CardTitle>
@@ -567,28 +655,6 @@ export function DashboardCharts() {
             <CardContent>
               <div className="text-2xl font-bold">{data.currentMetrics?.totalTeachers || 0}</div>
               <p className="text-xs text-muted-foreground">Educators in system</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Daily Active Teachers</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{data.currentMetrics?.dailyActiveTeachers || 0}</div>
-              <p className="text-xs text-muted-foreground">Teachers active today</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Daily Active Students</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{data.currentMetrics?.dailyActiveStudents || 0}</div>
-              <p className="text-xs text-muted-foreground">Students active today</p>
             </CardContent>
           </Card>
         </div>
@@ -628,14 +694,20 @@ export function DashboardCharts() {
             </CardContent>
           </Card>
 
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Average Score</CardTitle>
-              <Target className="h-4 w-4 text-purple-500" />
+              <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+              <Target className="h-4 w-4 text-emerald-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatPercentage(data.currentMetrics?.averageScore || 0)}</div>
-              <p className="text-xs text-muted-foreground">School-wide performance</p>
+              <div className="text-2xl font-bold">
+                {data.currentMetrics?.totalAnswers ? 
+                  formatPercentage((data.currentMetrics.totalCorrectAnswers / data.currentMetrics.totalAnswers) * 100) : 
+                  "0.0%"
+                }
+              </div>
+              <p className="text-xs text-muted-foreground">Answer accuracy rate</p>
             </CardContent>
           </Card>
         </div>
@@ -644,12 +716,12 @@ export function DashboardCharts() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Questions</CardTitle>
+              <CardTitle className="text-sm font-medium">Question Opportunities</CardTitle>
               <BookOpen className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{data.currentMetrics?.totalQuestions || 0}</div>
-              <p className="text-xs text-muted-foreground">Questions created</p>
+              <div className="text-2xl font-bold">{data.currentMetrics?.totalQuestionOpportunities || 0}</div>
+              <p className="text-xs text-muted-foreground">Total possible responses</p>
             </CardContent>
           </Card>
 
@@ -677,17 +749,17 @@ export function DashboardCharts() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
-              <Target className="h-4 w-4 text-emerald-500" />
+              <CardTitle className="text-sm font-medium">Response Rate</CardTitle>
+              <Activity className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {data.currentMetrics?.totalAnswers ? 
-                  formatPercentage((data.currentMetrics.totalCorrectAnswers / data.currentMetrics.totalAnswers) * 100) : 
+                {data.currentMetrics?.totalQuestionOpportunities ? 
+                  formatPercentage((data.currentMetrics.totalAnswers / data.currentMetrics.totalQuestionOpportunities) * 100) : 
                   "0.0%"
                 }
               </div>
-              <p className="text-xs text-muted-foreground">Overall accuracy</p>
+              <p className="text-xs text-muted-foreground">Student engagement rate</p>
             </CardContent>
           </Card>
         </div>

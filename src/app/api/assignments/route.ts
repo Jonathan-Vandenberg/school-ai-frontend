@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const { creationType, ...data } = body;
 
     if (creationType === 'video') {
-      // Get default English language if languageId is empty
+      // Get default English language if languageId is empty or not provided
       let languageId = data.languageId;
       if (!languageId || languageId.trim() === '') {
         const englishLanguage = await prisma.language.findFirst({
@@ -52,19 +52,15 @@ export async function POST(request: NextRequest) {
         
         if (englishLanguage) {
           languageId = englishLanguage.id;
-        } else {
-          return NextResponse.json({
-            success: false,
-            error: 'No English language found. Please specify a languageId.',
-          }, { status: 400 });
         }
+        // If no English language found, languageId remains undefined/null - this is now allowed
       }
 
       // Validate required fields for video assignment
       const videoSchema = z.object({
         topic: z.string().min(1, 'Topic is required'),
         videoUrl: z.string().url('Valid video URL is required'),
-        languageId: z.string().min(1, 'Language is required'),
+        languageId: z.string().optional().nullable(), // Made optional
         questions: z.array(z.object({
           text: z.string().min(1, 'Question text is required'),
           answer: z.string().min(1, 'Answer is required'),
@@ -120,7 +116,7 @@ export async function POST(request: NextRequest) {
       const standardSchema = z.object({
         topic: z.string().min(1, 'Topic is required'),
         type: z.enum(['CLASS', 'INDIVIDUAL']),
-        languageId: z.string().min(1, 'Language is required'),
+        languageId: z.string().optional().nullable(), // Made optional
         classIds: z.array(z.string()).optional(),
         studentIds: z.array(z.string()).optional(),
         color: z.string().optional(),

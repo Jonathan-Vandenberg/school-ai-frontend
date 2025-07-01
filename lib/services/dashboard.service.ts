@@ -38,9 +38,16 @@ export interface CurrentMetrics {
   totalClasses: number
   totalAssignments: number
   activeAssignments: number
+  scheduledAssignments: number
+  completedAssignments: number
+  completedStudents: number
+  inProgressStudents: number
+  notStartedStudents: number
   averageCompletionRate: number
   averageScore: number
-  dailyActiveStudents: number
+  totalQuestionOpportunities: number // Question opportunities (questions × students)
+  totalAnswers: number
+  totalCorrectAnswers: number
   studentsNeedingHelp: number
 }
 
@@ -152,9 +159,16 @@ export class DashboardService {
         totalClasses,
         totalAssignments,
         activeAssignments,
+        scheduledAssignments: 0,
+        completedAssignments: 0,
+        completedStudents: 0,
+        inProgressStudents: 0,
+        notStartedStudents: 0,
         averageCompletionRate: 0,
         averageScore: 0,
-        dailyActiveStudents: 0,
+        totalQuestionOpportunities: 0,
+        totalAnswers: 0,
+        totalCorrectAnswers: 0,
         studentsNeedingHelp: studentsNeedingHelpCount
       }
     }
@@ -165,9 +179,16 @@ export class DashboardService {
       totalClasses: schoolStats.totalClasses,
       totalAssignments: schoolStats.totalAssignments,
       activeAssignments: schoolStats.activeAssignments,
+      scheduledAssignments: schoolStats.scheduledAssignments,
+      completedAssignments: schoolStats.completedAssignments,
+      completedStudents: schoolStats.completedStudents,
+      inProgressStudents: schoolStats.inProgressStudents,
+      notStartedStudents: schoolStats.notStartedStudents,
       averageCompletionRate: schoolStats.averageCompletionRate,
       averageScore: schoolStats.averageScore,
-      dailyActiveStudents: schoolStats.dailyActiveStudents,
+      totalQuestionOpportunities: schoolStats.totalQuestions, // Note: school stats stores as totalQuestions but represents opportunities
+      totalAnswers: schoolStats.totalAnswers,
+      totalCorrectAnswers: schoolStats.totalCorrectAnswers,
       studentsNeedingHelp: studentsNeedingHelpCount
     }
   }
@@ -355,8 +376,7 @@ export class DashboardService {
     const changes = weekOldSnapshot ? {
       studentChange: currentMetrics.totalStudents - (weekOldSnapshot.totalStudents || 0),
       assignmentChange: currentMetrics.totalAssignments - (weekOldSnapshot.totalAssignments || 0),
-      completionChange: currentMetrics.averageCompletionRate - (weekOldSnapshot.averageCompletionRate || 0),
-      activityChange: currentMetrics.dailyActiveStudents
+      completionChange: currentMetrics.averageCompletionRate - (weekOldSnapshot.averageCompletionRate || 0)
     } : null
 
     return {

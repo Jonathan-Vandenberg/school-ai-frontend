@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { AuthService, AuthenticatedUser, NotFoundError, ForbiddenError, ValidationError } from './auth.service'
 import { ActivityLogService } from './activity-log.service'
+import { StatisticsService } from './statistics.service'
 import { hashPassword } from '../auth'
 import { withTransaction } from '../db'
 
@@ -150,6 +151,11 @@ export class UsersService {
           userId: currentUser.id,
         },
       })
+
+      // Initialize student statistics if this is a student
+      if (user.customRole === 'STUDENT') {
+        await StatisticsService.initializeStudentStatistics(user.id, tx)
+      }
 
       return user as UserWithDetails
     })

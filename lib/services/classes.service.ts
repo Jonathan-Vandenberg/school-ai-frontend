@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { AuthService, AuthenticatedUser, NotFoundError, ForbiddenError, ValidationError } from './auth.service'
 import { ActivityLogService } from './activity-log.service'
+import { StatisticsService } from './statistics.service'
 import { withTransaction } from '../db'
 
 const prisma = new PrismaClient()
@@ -125,7 +126,7 @@ export class ClassesService {
       throw new ValidationError('One or more selected teachers not found or invalid')
     }
 
-    return withTransaction(async (tx) => {
+    const result = await withTransaction(async (tx) => {
       const newClass = await tx.class.create({
         data: {
           name: classData.name,
@@ -162,6 +163,11 @@ export class ClassesService {
             classId: newClass.id,
           }))
         })
+
+        // Update statistics for each student added to the class
+        for (const studentId of classData.studentIds) {
+          await StatisticsService.handleStudentAddedToClass(studentId, newClass.id, tx)
+        }
       }
 
       // Log the activity using the comprehensive ActivityLogService
@@ -187,8 +193,15 @@ export class ClassesService {
         console.error('Failed to log class creation activity:', logError)
       }
 
-      return newClass as ClassWithDetails
+      return { newClass, studentCount: classData.studentIds?.length || 0 }
     })
+
+    // If students were added, update school statistics to reflect changes in metrics
+    if (result.studentCount > 0) {
+      await StatisticsService.updateSchoolStatistics()
+    }
+
+    return result.newClass as ClassWithDetails
   }
 
   /**
@@ -374,7 +387,7 @@ export class ClassesService {
       }
     }
 
-    return withTransaction(async (tx) => {
+    const result = await withTransaction(async (tx) => {
       // Track what changed for activity logging
       const changedFields: string[] = []
       const logDetails: any = {
@@ -459,10 +472,28 @@ export class ClassesService {
               classId,
             }))
           })
+
+          // Update statistics for newly added students
+          for (const studentId of addedStudents) {
+            await StatisticsService.handleStudentAddedToClass(studentId, classId, tx)
+          }
         }
 
         changedFields.push('userAssignments')
       }
+
+      return { updatedClass, addedStudents, addedTeachers, removedStudents, removedTeachers, changedFields, logDetails }
+    })
+
+    const { updatedClass, addedStudents, addedTeachers, removedStudents, removedTeachers, changedFields, logDetails } = result
+
+    // If students were added, update school statistics to reflect changes in metrics
+    if (addedStudents.length > 0) {
+      await StatisticsService.updateSchoolStatistics()
+    }
+
+    // Continue with activity logging (outside transaction)
+    await withTransaction(async (tx) => {
 
       // Log general class update if basic fields changed
       if (changedFields.length > 0) {
@@ -576,6 +607,8 @@ export class ClassesService {
 
     return updatedClass as ClassWithDetails
     })
+
+    return updatedClass as ClassWithDetails
   }
 
   /**
@@ -763,10 +796,12 @@ export class ClassesService {
       throw new ValidationError('One or more users not found')
     }
 
-    await withTransaction(async (tx) => {
+    const result = await withTransaction(async (tx) => {
       // Create user-class assignments (upsert to handle duplicates)
+      const newlyAddedStudents: string[] = []
+      
       for (const userId of userData.userIds) {
-        await tx.userClass.upsert({
+        const upsertResult = await tx.userClass.upsert({
           where: {
             userId_classId: {
               userId,
@@ -779,8 +814,37 @@ export class ClassesService {
             classId,
           },
         })
+
+        // Check if this is a student and if they were newly added
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { customRole: true }
+        })
+
+        if (user?.customRole === 'STUDENT') {
+          // Check if this was a new assignment (not an update)
+          const existingAssignment = await tx.userClass.findFirst({
+            where: { userId, classId }
+          })
+          
+          if (existingAssignment) {
+            newlyAddedStudents.push(userId)
+          }
+        }
       }
+
+      // Update statistics for newly added students
+      for (const studentId of newlyAddedStudents) {
+        await StatisticsService.handleStudentAddedToClass(studentId, classId, tx)
+      }
+
+      return { newlyAddedStudents }
     })
+
+    // If students were added, update school statistics to reflect changes in metrics
+    if (result.newlyAddedStudents.length > 0) {
+      await StatisticsService.updateSchoolStatistics()
+    }
   }
 
   /**

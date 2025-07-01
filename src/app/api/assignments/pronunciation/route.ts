@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const currentUser = await AuthService.getAuthenticatedUser();
     const body = await request.json();
 
-    // Get default English language if languageId is empty
+    // Get default English language if languageId is empty or not provided
     let languageId = body.languageId;
     if (!languageId || languageId.trim() === '') {
       const englishLanguage = await prisma.language.findFirst({
@@ -29,18 +29,14 @@ export async function POST(request: NextRequest) {
       
       if (englishLanguage) {
         languageId = englishLanguage.id;
-      } else {
-        return NextResponse.json({
-          success: false,
-          error: 'No English language found. Please specify a languageId.',
-        }, { status: 400 });
       }
+      // If no English language found, languageId remains undefined/null - this is now allowed
     }
 
     // Validate required fields for pronunciation assignment
     const pronunciationSchema = z.object({
       topic: z.string().min(1, 'Topic is required'),
-      languageId: z.string().min(1, 'Language is required'),
+      languageId: z.string().optional().nullable(), // Made optional
       languageAssessmentType: z.enum(['SCRIPTED_US', 'SCRIPTED_UK', 'UNSCRIPTED_US', 'UNSCRIPTED_UK', 'PRONUNCIATION_US', 'PRONUNCIATION_UK']),
       classIds: z.array(z.string()).optional(),
       studentIds: z.array(z.string()).optional(),

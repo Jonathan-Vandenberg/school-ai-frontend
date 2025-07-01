@@ -59,7 +59,7 @@ export interface CreateAssignmentData {
   languageAssessmentType?: 'SCRIPTED_US' | 'SCRIPTED_UK' | 'UNSCRIPTED_US' | 'UNSCRIPTED_UK' | 'PRONUNCIATION_US' | 'PRONUNCIATION_UK'
   isIELTS?: boolean
   context?: string
-  languageId: string
+  languageId?: string | null
   classIds?: string[] // For class assignments
   studentIds?: string[] // For individual assignments
   evaluationSettings?: {
@@ -201,13 +201,16 @@ export class AssignmentsService {
 
     const { classIds, studentIds, evaluationSettings, ...assignmentFields } = assignmentData
 
-    // Validate language exists
-    const language = await prisma.language.findUnique({
-      where: { id: assignmentData.languageId }
-    })
+    // Validate language exists (only if languageId is provided)
+    let language = null
+    if (assignmentData.languageId) {
+      language = await prisma.language.findUnique({
+        where: { id: assignmentData.languageId }
+      })
 
-    if (!language) {
-      throw new ValidationError('Language not found')
+      if (!language) {
+        throw new ValidationError('Language not found')
+      }
     }
 
     // Validate class assignments are for classes where user is teacher (unless admin)
@@ -297,8 +300,8 @@ export class AssignmentsService {
           createdBy: currentUser.customRole,
           creatorId: currentUser.id,
           creatorUsername: currentUser.username,
-          language: language.language,
-          languageCode: language.code,
+          language: language?.language || 'No language specified',
+          languageCode: language?.code || 'none',
           classCount: classIds?.length || 0,
           studentCount: studentIds?.length || 0,
           isScheduled: !!assignmentData.scheduledPublishAt,
@@ -870,13 +873,16 @@ export class AssignmentsService {
       analysisResult,
     } = data;
 
-    // Validate language exists
-    const language = await prisma.language.findUnique({
-      where: { id: languageId }
-    })
+    // Validate language exists (only if languageId is provided)
+    let language = null
+    if (languageId) {
+      language = await prisma.language.findUnique({
+        where: { id: languageId }
+      })
 
-    if (!language) {
-      throw new ValidationError('Language not found')
+      if (!language) {
+        throw new ValidationError('Language not found')
+      }
     }
 
     return withTransaction(async (tx) => {
@@ -903,7 +909,7 @@ export class AssignmentsService {
           topic,
           videoUrl,
           videoTranscript: videoTranscript || '',
-          languageId,
+          languageId: languageId || undefined, // Convert null to undefined for Prisma
           teacherId: currentUser.id,
           type: assignToEntireClass ? 'CLASS' : 'INDIVIDUAL',
           color: color || '#3B82F6',
@@ -995,8 +1001,8 @@ export class AssignmentsService {
           createdBy: currentUser.customRole,
           creatorId: currentUser.id,
           creatorUsername: currentUser.username,
-          language: language.language,
-          languageCode: language.code,
+          language: language?.language || 'No language specified',
+          languageCode: language?.code || 'none',
           classCount: classIds?.length || 0,
           studentCount: studentIds?.length || 0,
           isScheduled: !!scheduledPublishAt,
@@ -1232,7 +1238,16 @@ export class AssignmentsService {
             include: {
               class: {
                 include: {
-                  users: { select: { userId: true } }
+                  users: { 
+                    select: { 
+                      userId: true,
+                      user: {
+                        select: {
+                          customRole: true
+                        }
+                      }
+                    } 
+                  }
                 }
               }
             }
@@ -1249,9 +1264,11 @@ export class AssignmentsService {
       // 1. Initialize assignment statistics record
       await StatisticsService.updateAssignmentStatistics(assignmentId, '', false, false, tx)
 
-      // 2. Get all affected students
+      // 2. Get all affected students (only actual students, not teachers)
       const classStudentIds = assignment.classes.flatMap((ac: any) => 
-        ac.class.users.map((u: any) => u.userId)
+        ac.class.users
+          .filter((u: any) => u.user?.customRole === 'STUDENT') // Only include students, not teachers
+          .map((u: any) => u.userId)
       )
       const individualStudentIds = assignment.students.map((s: any) => s.userId)
       const allStudentIds = [...new Set([...classStudentIds, ...individualStudentIds])]
@@ -1291,7 +1308,7 @@ export interface CreateVideoAssignmentDto {
   videoUrl: string;
   videoTranscript?: string;
   hasTranscript?: boolean;
-  languageId: string;
+  languageId?: string | null;
   questions: { question: string; answer: string }[];
   classIds: string[];
   studentIds?: string[];

@@ -8,39 +8,39 @@ datasource db {
 }
 
 model User {
-  id                          String                      @id @default(cuid())
-  username                    String                      @unique
-  email                       String                      @unique
+  id                          String                       @id @default(cuid())
+  username                    String                       @unique
+  email                       String                       @unique
   provider                    String?
   password                    String?
   resetPasswordToken          String?
   confirmationToken           String?
-  confirmed                   Boolean                     @default(false)
-  blocked                     Boolean                     @default(false)
+  confirmed                   Boolean                      @default(false)
+  blocked                     Boolean                      @default(false)
   customRole                  UserRole
   address                     String?
   customImage                 String?
   phone                       String?
-  isPlayGame                  Boolean?                    @default(false)
-  theme                       String?                     @default("system")
+  isPlayGame                  Boolean?                     @default(false)
+  theme                       String?                      @default("system")
   averageScoreOfCompleted     Float?
-  totalAssignments            Int?                        @default(0)
-  totalAssignmentsCompleted   Int?                        @default(0)
+  totalAssignments            Int?                         @default(0)
+  totalAssignmentsCompleted   Int?                         @default(0)
   averageCompletionPercentage Float?
-  createdAt                   DateTime                    @default(now())
-  updatedAt                   DateTime                    @updatedAt
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
   roleId                      String?
   activityLogs                ActivityLog[]
-  assignmentsCreated          Assignment[]                @relation("TeacherAssignments")
+  assignmentsCreated          Assignment[]                 @relation("TeacherAssignments")
   progresses                  StudentAssignmentProgress[]
   studentSprites              StudentSprite?
+  studentStats                StudentStats?
+  needsHelpRecords            StudentsNeedingHelp?
+  teacherNotifications        StudentsNeedingHelpTeacher[] @relation("TeacherNotifications")
+  teacherStats                TeacherStats?
   assignmentsAssigned         UserAssignment[]
   classes                     UserClass[]
-  role                        Role?                       @relation(fields: [roleId], references: [id])
-  studentStats                StudentStats?
-  teacherStats                TeacherStats?
-  needsHelpRecords            StudentsNeedingHelp[]
-  teacherNotifications        StudentsNeedingHelpTeacher[] @relation("TeacherNotifications")
+  role                        Role?                        @relation(fields: [roleId], references: [id])
 
   @@map("users")
 }
@@ -79,17 +79,17 @@ model RolePermission {
 }
 
 model Class {
-  id           String            @id @default(cuid())
-  name         String
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  publishedAt  DateTime?
-  activityLogs ActivityLog[]
-  assignments  ClassAssignment[]
-  statsClasses StatsClass?
-  users        UserClass[]
-  detailedStats ClassStatsDetailed?
+  id                  String                     @id @default(cuid())
+  name                String
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  publishedAt         DateTime?
+  activityLogs        ActivityLog[]
+  assignments         ClassAssignment[]
+  detailedStats       ClassStatsDetailed?
+  statsClasses        StatsClass?
   studentsNeedingHelp StudentsNeedingHelpClass[]
+  users               UserClass[]
 
   @@map("classes")
 }
@@ -140,6 +140,7 @@ model Assignment {
   languageId              String?
   dueDate                 DateTime?
   activityLogs            ActivityLog[]
+  stats                   AssignmentStats?
   language                Language?                   @relation(fields: [languageId], references: [id])
   teacher                 User?                       @relation("TeacherAssignments", fields: [teacherId], references: [id])
   classes                 ClassAssignment[]
@@ -147,7 +148,6 @@ model Assignment {
   questions               Question[]
   progresses              StudentAssignmentProgress[]
   students                UserAssignment[]
-  stats                   AssignmentStats?
 
   @@map("assignments")
 }
@@ -330,133 +330,128 @@ model StatsClass {
   @@map("stats_classes")
 }
 
-// Pre-aggregated assignment statistics for scalable performance
 model AssignmentStats {
-  id                      String     @id @default(cuid())
-  assignmentId            String     @unique
-  totalStudents           Int        @default(0)
-  completedStudents       Int        @default(0)
-  inProgressStudents      Int        @default(0)
-  notStartedStudents      Int        @default(0)
-  completionRate          Float      @default(0.0)
-  averageScore            Float      @default(0.0)
-  totalQuestions          Int        @default(0)
-  totalAnswers            Int        @default(0)
-  totalCorrectAnswers     Int        @default(0)
-  accuracyRate            Float      @default(0.0)
-  lastUpdated             DateTime   @default(now())
-  createdAt               DateTime   @default(now())
-  updatedAt               DateTime   @updatedAt
-  assignment              Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  id                  String     @id @default(cuid())
+  assignmentId        String     @unique
+  totalStudents       Int        @default(0)
+  completedStudents   Int        @default(0)
+  inProgressStudents  Int        @default(0)
+  notStartedStudents  Int        @default(0)
+  completionRate      Float      @default(0.0)
+  averageScore        Float      @default(0.0)
+  totalQuestions      Int        @default(0)
+  totalAnswers        Int        @default(0)
+  totalCorrectAnswers Int        @default(0)
+  accuracyRate        Float      @default(0.0)
+  lastUpdated         DateTime   @default(now())
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  assignment          Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
 
   @@map("assignment_stats")
 }
 
-// Pre-aggregated student statistics for individual performance tracking
 model StudentStats {
-  id                      String   @id @default(cuid())
-  studentId               String   @unique
-  totalAssignments        Int      @default(0)
-  completedAssignments    Int      @default(0)
-  inProgressAssignments   Int      @default(0)
-  notStartedAssignments   Int      @default(0)
-  averageScore            Float    @default(0.0)
-  totalQuestions          Int      @default(0)
-  totalAnswers            Int      @default(0)
-  totalCorrectAnswers     Int      @default(0)
-  accuracyRate            Float    @default(0.0)
-  completionRate          Float    @default(0.0)
-  lastActivityDate        DateTime?
-  lastUpdated             DateTime @default(now())
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  student                 User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(cuid())
+  studentId             String    @unique
+  totalAssignments      Int       @default(0)
+  completedAssignments  Int       @default(0)
+  inProgressAssignments Int       @default(0)
+  notStartedAssignments Int       @default(0)
+  averageScore          Float     @default(0.0)
+  totalQuestions        Int       @default(0)
+  totalAnswers          Int       @default(0)
+  totalCorrectAnswers   Int       @default(0)
+  accuracyRate          Float     @default(0.0)
+  completionRate        Float     @default(0.0)
+  lastActivityDate      DateTime?
+  lastUpdated           DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  student               User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@map("student_stats")
 }
 
-// Pre-aggregated teacher statistics for teacher performance tracking
 model TeacherStats {
-  id                      String   @id @default(cuid())
-  teacherId               String   @unique
-  totalAssignments        Int      @default(0)
-  totalClasses            Int      @default(0)
-  totalStudents           Int      @default(0)
-  averageClassCompletion  Float    @default(0.0)
-  averageClassScore       Float    @default(0.0)
-  totalQuestions          Int      @default(0)
-  activeAssignments       Int      @default(0)
-  scheduledAssignments    Int      @default(0)
-  lastUpdated             DateTime @default(now())
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  teacher                 User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  id                     String   @id @default(cuid())
+  teacherId              String   @unique
+  totalAssignments       Int      @default(0)
+  totalClasses           Int      @default(0)
+  totalStudents          Int      @default(0)
+  averageClassCompletion Float    @default(0.0)
+  averageClassScore      Float    @default(0.0)
+  totalQuestions         Int      @default(0)
+  activeAssignments      Int      @default(0)
+  scheduledAssignments   Int      @default(0)
+  lastUpdated            DateTime @default(now())
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  teacher                User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
   @@map("teacher_stats")
 }
 
-// Enhanced class statistics with more detailed metrics
 model ClassStatsDetailed {
-  id                      String   @id @default(cuid())
-  classId                 String   @unique
-  totalStudents           Int      @default(0)
-  totalAssignments        Int      @default(0)
-  averageCompletion       Float    @default(0.0)
-  averageScore            Float    @default(0.0)
-  totalQuestions          Int      @default(0)
-  totalAnswers            Int      @default(0)
-  totalCorrectAnswers     Int      @default(0)
-  accuracyRate            Float    @default(0.0)
-  activeStudents          Int      @default(0)
-  studentsNeedingHelp     Int      @default(0)
-  lastActivityDate        DateTime?
-  lastUpdated             DateTime @default(now())
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  class                   Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  id                  String    @id @default(cuid())
+  classId             String    @unique
+  totalStudents       Int       @default(0)
+  totalAssignments    Int       @default(0)
+  averageCompletion   Float     @default(0.0)
+  averageScore        Float     @default(0.0)
+  totalQuestions      Int       @default(0)
+  totalAnswers        Int       @default(0)
+  totalCorrectAnswers Int       @default(0)
+  accuracyRate        Float     @default(0.0)
+  activeStudents      Int       @default(0)
+  studentsNeedingHelp Int       @default(0)
+  lastActivityDate    DateTime?
+  lastUpdated         DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  class               Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
 
   @@map("class_stats_detailed")
 }
 
-// School-wide daily statistics for dashboard and analytics
 model SchoolStats {
-  id                      String   @id @default(cuid())
-  date                    DateTime @unique
-  totalUsers              Int      @default(0)
-  totalTeachers           Int      @default(0)
-  totalStudents           Int      @default(0)
-  totalClasses            Int      @default(0)
-  totalAssignments        Int      @default(0)
-  activeAssignments       Int      @default(0)
-  scheduledAssignments    Int      @default(0)
-  completedAssignments    Int      @default(0)
-  averageCompletionRate   Float    @default(0.0)
-  averageScore            Float    @default(0.0)
-  totalQuestions          Int      @default(0)
-  totalAnswers            Int      @default(0)
-  totalCorrectAnswers     Int      @default(0)
-  dailyActiveStudents     Int      @default(0)
-  dailyActiveTeachers     Int      @default(0)
-  studentsNeedingHelp     Int      @default(0)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  date                  DateTime @unique
+  totalUsers            Int      @default(0)
+  totalTeachers         Int      @default(0)
+  totalStudents         Int      @default(0)
+  totalClasses          Int      @default(0)
+  totalAssignments      Int      @default(0)
+  activeAssignments     Int      @default(0)
+  scheduledAssignments  Int      @default(0)
+  completedAssignments  Int      @default(0)
+  averageCompletionRate Float    @default(0.0)
+  averageScore          Float    @default(0.0)
+  totalQuestions        Int      @default(0)
+  totalAnswers          Int      @default(0)
+  totalCorrectAnswers   Int      @default(0)
+  studentsNeedingHelp   Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  completedStudents     Int      @default(0)
+  inProgressStudents    Int      @default(0)
+  notStartedStudents    Int      @default(0)
 
   @@map("school_stats")
 }
 
-// Performance metrics for specific time periods (hourly, daily, weekly)
 model PerformanceMetric {
-  id              String              @id @default(cuid())
-  metricType      PerformanceMetricType
-  entityType      EntityType
-  entityId        String
-  timeFrame       TimeFrame
-  date            DateTime
-  hour            Int?                // For hourly metrics
-  value           Float
-  additionalData  Json?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id             String                @id @default(cuid())
+  metricType     PerformanceMetricType
+  entityType     EntityType
+  entityId       String
+  timeFrame      TimeFrame
+  date           DateTime
+  hour           Int?
+  value          Float
+  additionalData Json?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
   @@index([entityType, entityId, timeFrame, date])
   @@map("performance_metrics")
@@ -521,6 +516,50 @@ model UploadFolder {
   children  UploadFolder[] @relation("FolderHierarchy")
 
   @@map("upload_folders")
+}
+
+model StudentsNeedingHelp {
+  id                 String                       @id @default(cuid())
+  studentId          String                       @unique
+  reasons            Json
+  needsHelpSince     DateTime
+  lastUpdated        DateTime                     @default(now()) @updatedAt
+  isResolved         Boolean                      @default(false)
+  resolvedAt         DateTime?
+  overdueAssignments Int                          @default(0)
+  averageScore       Float                        @default(0.0)
+  completionRate     Float                        @default(0.0)
+  daysNeedingHelp    Int                          @default(0)
+  severity           String                       @default("MODERATE")
+  teacherNotes       String?
+  actionsTaken       Json?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+  student            User                         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classes            StudentsNeedingHelpClass[]
+  teachers           StudentsNeedingHelpTeacher[]
+
+  @@map("students_needing_help")
+}
+
+model StudentsNeedingHelpClass {
+  studentNeedingHelpId String
+  classId              String
+  class                Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentNeedingHelp   StudentsNeedingHelp @relation(fields: [studentNeedingHelpId], references: [id], onDelete: Cascade)
+
+  @@id([studentNeedingHelpId, classId])
+  @@map("students_needing_help_classes")
+}
+
+model StudentsNeedingHelpTeacher {
+  studentNeedingHelpId String
+  teacherId            String
+  studentNeedingHelp   StudentsNeedingHelp @relation(fields: [studentNeedingHelpId], references: [id], onDelete: Cascade)
+  teacher              User                @relation("TeacherNotifications", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@id([studentNeedingHelpId, teacherId])
+  @@map("students_needing_help_teachers")
 }
 
 enum UserRole {
@@ -645,54 +684,4 @@ enum TimeFrame {
   DAILY
   WEEKLY
   MONTHLY
-}
-
-// Students requiring assistance tracking
-model StudentsNeedingHelp {
-  id                  String   @id @default(cuid())
-  studentId           String
-  reasons             Json     // Array of reasons why student needs help
-  needsHelpSince      DateTime // When they first needed help
-  lastUpdated         DateTime @default(now()) @updatedAt
-  isResolved          Boolean  @default(false)
-  resolvedAt          DateTime?
-  overdueAssignments  Int      @default(0)
-  averageScore        Float    @default(0.0)
-  completionRate      Float    @default(0.0)
-  daysNeedingHelp     Int      @default(0)
-  severity            String   @default("MODERATE") // CRITICAL, HIGH, MODERATE, LOW
-  teacherNotes        String?
-  actionsTaken        Json?    // Array of actions taken to help student
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
-  // Relations
-  student             User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classes             StudentsNeedingHelpClass[]
-  teachers            StudentsNeedingHelpTeacher[]
-  
-  @@unique([studentId])
-  @@map("students_needing_help")
-}
-
-// Junction table for StudentsNeedingHelp and Classes
-model StudentsNeedingHelpClass {
-  studentNeedingHelpId String
-  classId              String
-  studentNeedingHelp   StudentsNeedingHelp @relation(fields: [studentNeedingHelpId], references: [id], onDelete: Cascade)
-  class                Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
-  
-  @@id([studentNeedingHelpId, classId])
-  @@map("students_needing_help_classes")
-}
-
-// Junction table for StudentsNeedingHelp and Teachers
-model StudentsNeedingHelpTeacher {
-  studentNeedingHelpId String
-  teacherId            String
-  studentNeedingHelp   StudentsNeedingHelp @relation(fields: [studentNeedingHelpId], references: [id], onDelete: Cascade)
-  teacher              User                @relation("TeacherNotifications", fields: [teacherId], references: [id], onDelete: Cascade)
-  
-  @@id([studentNeedingHelpId, teacherId])
-  @@map("students_needing_help_teachers")
 }
