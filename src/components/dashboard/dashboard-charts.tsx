@@ -129,10 +129,10 @@ const helpChartConfig = {
 } satisfies ChartConfig
 
 // Utility functions
-const formatPercentage = (value: number) => `${value.toFixed(1)}%`
+const formatPercentage = (value: number) => `${Math.round(value)}%`
   const formatChange = (value: number, suffix = "", timeframe = "from last month") => {
   const sign = value >= 0 ? "+" : ""
-  return `${sign}${value.toFixed(1)}${suffix} ${timeframe}`
+  return `${sign}${Math.round(value)}${suffix} ${timeframe}`
 }
 
 const getTrendIcon = (value: number) => {
