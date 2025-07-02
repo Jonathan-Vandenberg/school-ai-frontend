@@ -40,6 +40,11 @@ model User {
   teacherStats                TeacherStats?
   assignmentsAssigned         UserAssignment[]
   classes                     UserClass[]
+  quizzesCreated              Quiz[]                       @relation("TeacherQuizzes")
+  quizzesAssigned             QuizStudent[]                @relation("StudentQuizzes")
+  quizSubmissions             QuizSubmission[]             @relation("StudentQuizSubmissions")
+  liveSessions                QuizLiveSession[]            @relation("TeacherLiveSessions")
+  liveProgress                QuizLiveStudentProgress[]    @relation("StudentLiveProgress")
   role                        Role?                        @relation(fields: [roleId], references: [id])
 
   @@map("users")
@@ -90,6 +95,7 @@ model Class {
   statsClasses        StatsClass?
   studentsNeedingHelp StudentsNeedingHelpClass[]
   users               UserClass[]
+  quizzes             QuizClass[]
 
   @@map("classes")
 }
@@ -201,6 +207,160 @@ model Question {
   @@map("questions")
 }
 
+model Quiz {
+  id                   String                    @id @default(cuid())
+  title                String
+  topic                String
+  description          String?
+  numberOfQuestions    Int
+  numberOfOptions      Int                       @default(4)
+  isAIGenerated        Boolean                   @default(false)
+  isActive             Boolean                   @default(true)
+  timeLimitMinutes     Int?                      // Quiz time limit in minutes
+  isLiveSession        Boolean                   @default(false)
+  liveSessionStartedAt DateTime?
+  liveSessionEndedAt   DateTime?
+  scheduledPublishAt   DateTime?
+  dueDate              DateTime?
+  // Teacher restart functionality
+  currentSession       Int                       @default(1) // Current session number
+  allowMultipleSessions Boolean                  @default(false) // Allow teacher to restart quiz
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  publishedAt          DateTime?
+  teacherId            String
+  teacher              User                      @relation("TeacherQuizzes", fields: [teacherId], references: [id])
+  questions            QuizQuestion[]
+  classes              QuizClass[]
+  students             QuizStudent[]
+  submissions          QuizSubmission[]
+  activityLogs         ActivityLog[]             @relation("QuizActivityLogs")
+  liveSessions         QuizLiveSession[]
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id            String       @id @default(cuid())
+  question      String
+  correctAnswer String
+  explanation   String?
+  imageUrl      String?      // URL to uploaded image for the question
+  order         Int
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  quizId        String
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options       QuizOption[]
+  submissions   QuizAnswer[]
+
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id         String       @id @default(cuid())
+  text       String
+  isCorrect  Boolean      @default(false)
+  order      Int
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  questionId String
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_options")
+}
+
+model QuizClass {
+  quizId  String
+  classId String
+  quiz    Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  class   Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@id([quizId, classId])
+  @@map("quiz_classes")
+}
+
+model QuizStudent {
+  quizId  String
+  userId  String
+  quiz    Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user    User   @relation("StudentQuizzes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([quizId, userId])
+  @@map("quiz_students")
+}
+
+model QuizSubmission {
+  id            String       @id @default(cuid())
+  sessionNumber Int          @default(1) // Which session/run of the quiz this submission is for
+  score         Float        @default(0)
+  totalScore    Float        @default(0)
+  percentage    Float        @default(0)
+  isCompleted   Boolean      @default(false)
+  startedAt     DateTime     @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  quizId        String
+  studentId     String
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student       User         @relation("StudentQuizSubmissions", fields: [studentId], references: [id], onDelete: Cascade)
+  answers       QuizAnswer[]
+
+  @@unique([quizId, studentId, sessionNumber])
+  @@map("quiz_submissions")
+}
+
+model QuizAnswer {
+  id           String         @id @default(cuid())
+  answer       String
+  isCorrect    Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  submissionId String
+  questionId   String
+  submission   QuizSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question     QuizQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, questionId])
+  @@map("quiz_answers")
+}
+
+model QuizLiveSession {
+  id                String                    @id @default(cuid())
+  startedAt         DateTime                  @default(now())
+  endedAt           DateTime?
+  timeLimitMinutes  Int?
+  isActive          Boolean                   @default(true)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  quizId            String
+  teacherId         String
+  quiz              Quiz                      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  teacher           User                      @relation("TeacherLiveSessions", fields: [teacherId], references: [id])
+  studentProgress   QuizLiveStudentProgress[]
+
+  @@map("quiz_live_sessions")
+}
+
+model QuizLiveStudentProgress {
+  id              String          @id @default(cuid())
+  currentQuestion Int             @default(1)
+  questionsAnswered Int           @default(0)
+  isCompleted     Boolean         @default(false)
+  joinedAt        DateTime        @default(now())
+  lastActivity    DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  sessionId       String
+  studentId       String
+  session         QuizLiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student         User            @relation("StudentLiveProgress", fields: [studentId], references: [id])
+
+  @@unique([sessionId, studentId])
+  @@map("quiz_live_student_progress")
+}
+
 model StudentAssignmentProgress {
   id                         String     @id @default(cuid())
   isComplete                 Boolean    @default(false)
@@ -231,9 +391,11 @@ model ActivityLog {
   userId       String?
   classId      String?
   assignmentId String?
+  quizId       String?
   assignment   Assignment?     @relation(fields: [assignmentId], references: [id])
   class        Class?          @relation(fields: [classId], references: [id])
   user         User?           @relation(fields: [userId], references: [id])
+  quiz         Quiz?           @relation("QuizActivityLogs", fields: [quizId], references: [id])
 
   @@map("activity_logs")
 }
@@ -346,7 +508,7 @@ model AssignmentStats {
   lastUpdated         DateTime   @default(now())
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
-  assignment          Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignment          Assignment   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
 
   @@map("assignment_stats")
 }

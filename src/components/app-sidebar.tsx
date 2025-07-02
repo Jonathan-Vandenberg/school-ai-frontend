@@ -111,6 +111,12 @@ const navItems: NavItem[] = [
     roles: ['ADMIN', 'TEACHER']
   },
   {
+    title: 'Activities',
+    href: '/activities',
+    icon: Award,
+    roles: ['ADMIN', 'TEACHER', 'STUDENT']
+  },
+  {
     title: 'Classes',
     href: '/dashboard/classes',
     icon: School,
