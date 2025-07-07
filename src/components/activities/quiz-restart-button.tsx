@@ -20,7 +20,7 @@ export function QuizRestartButton({ quizId, quizTitle, currentSession }: QuizRes
   };
 
   return (
-    <>
+    <div>
       <Button 
         onClick={() => setShowRestartDialog(true)}
         variant="outline" 
@@ -38,6 +38,6 @@ export function QuizRestartButton({ quizId, quizTitle, currentSession }: QuizRes
         currentSession={currentSession}
         onRestart={handleRestart}
       />
-    </>
+    </div>
   );
 } 

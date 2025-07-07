@@ -31,7 +31,8 @@ export async function GET(
             id: true,
             title: true,
             topic: true,
-            numberOfQuestions: true
+            numberOfQuestions: true,
+            currentSession: true
           }
         }
       }
@@ -41,11 +42,12 @@ export async function GET(
       return NextResponse.json({ error: 'No live session found' }, { status: 404 });
     }
 
-    // Get all student submissions for this quiz
+    // Get only student submissions for the most recent session
     const submissions = await prisma.quizSubmission.findMany({
       where: {
         quizId: quizId,
-        isCompleted: true
+        isCompleted: true,
+        sessionNumber: liveSession.quiz.currentSession // Only current session
       },
       include: {
         student: {

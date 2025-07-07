@@ -56,16 +56,17 @@ export async function POST(
       return NextResponse.json({ error: 'Quiz not found or access denied' }, { status: 404 });
     }
 
-    // Check if student already has a submission (unless it's a live session where retakes might be allowed)
+    // Check if student already has a submission for the current session
     const existingSubmission = await prisma.quizSubmission.findFirst({
       where: {
         quizId: quizId,
-        studentId: session.user.id
+        studentId: session.user.id,
+        sessionNumber: quiz.currentSession // Only check current session
       }
     });
 
-    if (existingSubmission && !isLiveSession) {
-      return NextResponse.json({ error: 'Quiz already completed' }, { status: 400 });
+    if (existingSubmission && existingSubmission.isCompleted) {
+      return NextResponse.json({ error: 'Quiz already completed for this session' }, { status: 400 });
     }
 
     // Calculate score
@@ -96,8 +97,8 @@ export async function POST(
 
     // Create or update submission
     let submission;
-    if (existingSubmission && isLiveSession) {
-      // Update existing submission for live sessions
+    if (existingSubmission) {
+      // Update existing submission (if it exists but wasn't completed)
       submission = await prisma.quizSubmission.update({
         where: { id: existingSubmission.id },
         data: {
@@ -116,11 +117,12 @@ export async function POST(
         }
       });
     } else {
-      // Create new submission
+      // Create new submission for the current session
       submission = await prisma.quizSubmission.create({
         data: {
           quizId: quizId,
           studentId: session.user.id,
+          sessionNumber: quiz.currentSession, // Use current session number
           isCompleted: true,
           completedAt: new Date(),
           percentage: percentage,

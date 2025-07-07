@@ -59,6 +59,78 @@ export async function GET(
       return NextResponse.json({ error: "No active live session" }, { status: 404 });
     }
 
+    // Check if session has expired and auto-end if necessary
+    if (liveSession.timeLimitMinutes && liveSession.timeLimitMinutes > 0) {
+      const sessionStartTime = new Date(liveSession.startedAt).getTime();
+      const sessionDuration = liveSession.timeLimitMinutes * 60 * 1000; // Convert to milliseconds
+      const currentTime = Date.now();
+      
+      if (currentTime > sessionStartTime + sessionDuration) {
+        // Session has expired - automatically end it
+        await prisma.$transaction(async (tx) => {
+          // Update quiz status
+          await tx.quiz.update({
+            where: { id: quizId },
+            data: {
+              isLiveSession: false,
+              liveSessionEndedAt: new Date()
+            }
+          });
+
+          // End the expired live session
+          await tx.quizLiveSession.update({
+            where: { id: liveSession.id },
+            data: {
+              isActive: false,
+              endedAt: new Date()
+            }
+          });
+
+          // Auto-submit any incomplete submissions for students who were taking the quiz in this session
+          const incompleteSubmissions = await tx.quizSubmission.findMany({
+            where: {
+              quizId: quizId,
+              sessionNumber: quiz.currentSession, // Only current session
+              isCompleted: false
+            }
+          });
+
+          for (const submission of incompleteSubmissions) {
+            // Calculate final score based on current answers
+            const answers = await tx.quizAnswer.findMany({
+              where: { submissionId: submission.id },
+              include: {
+                question: {
+                  include: {
+                    options: true
+                  }
+                }
+              }
+            });
+
+            const correctAnswers = answers.filter(answer => answer.isCorrect).length;
+            const percentage = submission.totalScore > 0 ? (correctAnswers / submission.totalScore) * 100 : 0;
+
+            // Mark submission as completed with time expiration
+            await tx.quizSubmission.update({
+              where: { id: submission.id },
+              data: {
+                isCompleted: true,
+                completedAt: new Date(),
+                percentage: percentage,
+                score: correctAnswers
+              }
+            });
+          }
+        });
+
+        return NextResponse.json({ 
+          error: "Live session has expired and been automatically ended",
+          expired: true 
+        }, { status: 410 }); // 410 Gone - resource no longer available
+      }
+    }
+
     // Format response
     const formattedSession = {
       id: liveSession.id,
@@ -171,7 +243,7 @@ export async function POST(
         data: {
           quizId: quizId,
           teacherId: session.user.id,
-          timeLimitMinutes: timeLimitMinutes || quiz.timeLimitMinutes,
+          timeLimitMinutes: timeLimitMinutes || quiz.timeLimitMinutes || 30, // Default to 30 minutes if no limit set
           isActive: true
         }
       });

@@ -21,6 +21,7 @@ import {
 import { format } from "date-fns";
 import Link from "next/link";
 import { QuizResultsButton } from "@/components/activities/quiz-results-button";
+import { QuizHistoricalResultsButton } from "@/components/activities/quiz-historical-results-button";
 import { QuizRestartButton } from "@/components/activities/quiz-restart-button";
 
 interface QuizDetailsPageProps {
@@ -247,6 +248,54 @@ export default async function QuizDetailsPage({ params }: QuizDetailsPageProps) 
 
           {/* Sidebar */}
           <div className="space-y-6">
+                        {/* Quick Actions */}
+                        <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {hasSubmissions ? (
+                    <>
+                      <QuizResultsButton quizId={quiz.id} />
+                      <QuizHistoricalResultsButton quizId={quiz.id} />
+                    </>
+                  ) : (
+                    <div className="text-sm text-muted-foreground p-2 bg-gray-50 rounded-lg">
+                      No submissions yet. Results will appear after students complete the quiz.
+                    </div>
+                  )}
+                  <Link href={`/activities/quiz/${quiz.id}/live`}>
+                    <Button variant="outline" className="w-full justify-start">
+                      <Eye className="h-4 w-4 mr-2" />
+                      Live Session
+                    </Button>
+                  </Link>
+                  {hasSubmissions ? (
+                    <div className="pt-2">
+                      <QuizRestartButton 
+                        quizId={quiz.id}
+                        quizTitle={quiz.title}
+                        currentSession={quiz.currentSession}
+                      />
+                    </div>
+                  ) : <div></div>}
+                  <Button variant="outline" className="w-full justify-start">
+                    <Users className="h-4 w-4 mr-2" />
+                    Manage Students
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Schedule Changes
+                  </Button>
+                  <Button variant="destructive" className="w-full justify-start">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Delete Quiz
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            
             {/* Assigned Classes */}
             <Card>
               <CardHeader>
@@ -288,49 +337,6 @@ export default async function QuizDetailsPage({ params }: QuizDetailsPageProps) 
                 </CardContent>
               </Card>
             )}
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {hasSubmissions ? (
-                    <QuizResultsButton quizId={quiz.id} />
-                  ) : (
-                    <div className="text-sm text-muted-foreground p-2 bg-gray-50 rounded-lg">
-                      No submissions yet. Results will appear after students complete the quiz.
-                    </div>
-                  )}
-                  <Link href={`/activities/quiz/${quiz.id}/live`}>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Eye className="h-4 w-4 mr-2" />
-                      Live Session
-                    </Button>
-                  </Link>
-                  {hasSubmissions && (
-                    <QuizRestartButton 
-                      quizId={quiz.id}
-                      quizTitle={quiz.title}
-                      currentSession={quiz.currentSession}
-                    />
-                  )}
-                  <Button variant="outline" className="w-full justify-start">
-                    <Users className="h-4 w-4 mr-2" />
-                    Manage Students
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Schedule Changes
-                  </Button>
-                  <Button variant="destructive" className="w-full justify-start">
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    Delete Quiz
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Creation Info */}
             <Card>

@@ -70,17 +70,19 @@ export async function GET(
         return NextResponse.json({ error: 'Quiz not found or access denied' }, { status: 404 });
       }
 
-      // Get existing submission
+      // Get existing submission for the current session only
       const existingSubmission = await prisma.quizSubmission.findFirst({
         where: {
           quizId: quizId,
-          studentId: session.user.id
+          studentId: session.user.id,
+          sessionNumber: quiz.currentSession // Only check submissions for the current session
         },
         select: {
           id: true,
           isCompleted: true,
           percentage: true,
-          completedAt: true
+          completedAt: true,
+          sessionNumber: true
         }
       });
 

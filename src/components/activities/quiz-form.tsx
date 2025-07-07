@@ -339,6 +339,10 @@ export function QuizForm({ data }: QuizFormProps) {
     setFormMessage(null);
 
     try {
+      // DEBUG: Log the form values
+      console.log('🐛 Form values before submission:', JSON.stringify(values, null, 2));
+      console.log('🐛 timeLimitMinutes specifically:', values.timeLimitMinutes, typeof values.timeLimitMinutes);
+      
       const actualQuestions = useAI ? generatedQuestions : values.questions;
       
       // Calculate numberOfQuestions from actual questions array
@@ -354,6 +358,9 @@ export function QuizForm({ data }: QuizFormProps) {
         questions: actualQuestions,
         isAIGenerated: useAI,
       };
+      
+      // DEBUG: Log the final data being sent
+      console.log('🐛 Final quiz data being sent:', JSON.stringify(quizData, null, 2));
 
       const response = await fetch('/api/activities/quiz/create', {
         method: 'POST',
@@ -597,8 +604,11 @@ export function QuizForm({ data }: QuizFormProps) {
                           type="number"
                           placeholder="30"
                           {...field}
-                          value={field.value || ""}
-                          onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                          value={field.value !== null && field.value !== undefined ? field.value : ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            field.onChange(value ? parseInt(value) : null);
+                          }}
                           className="w-32"
                         />
                         <span className="text-sm text-muted-foreground">minutes</span>
@@ -987,33 +997,52 @@ export function QuizForm({ data }: QuizFormProps) {
                       <FormField
                         control={form.control}
                         name={`questions.${index}.correctAnswer`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Correct Answer</FormLabel>
-                            <FormControl>
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select the correct answer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Array.from({ length: numberOfOptions }).map((_, optionIndex) => {
-                                    const optionValue = form.getValues(`questions.${index}.options.${optionIndex}`);
-                                    return (
-                                      <SelectItem 
-                                        key={optionIndex} 
-                                        value={optionValue || `option-${optionIndex}`}
-                                        disabled={!optionValue}
-                                      >
-                                        {optionValue || `Option ${optionIndex + 1}`}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          // Watch the current question's options for reactive updates
+                          const currentOptions = form.watch(`questions.${index}.options`) || [];
+                          
+                          return (
+                            <FormItem>
+                              <FormLabel>Correct Answer</FormLabel>
+                              <FormControl>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select the correct answer" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: numberOfOptions }).map((_, optionIndex) => {
+                                      const optionValue = currentOptions[optionIndex] || '';
+                                      const hasValue = optionValue && optionValue.trim();
+                                      
+                                      // Only render SelectItem if there's actual content
+                                      if (!hasValue) {
+                                        return (
+                                          <SelectItem 
+                                            key={optionIndex} 
+                                            value={`__empty_option_${optionIndex}__`}
+                                            disabled={true}
+                                          >
+                                            Option {optionIndex + 1} (empty)
+                                          </SelectItem>
+                                        );
+                                      }
+                                      
+                                      return (
+                                        <SelectItem 
+                                          key={optionIndex} 
+                                          value={optionValue}
+                                        >
+                                          {optionValue}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
 
                       <FormField

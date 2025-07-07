@@ -11,11 +11,16 @@ export async function POST(request: NextRequest) {
     // Parse request body
     const body = await request.json();
     
+    // DEBUG: Log the incoming request body
+    console.log('🐛 Quiz creation request body:', JSON.stringify(body, null, 2));
+    console.log('🐛 timeLimitMinutes specifically:', body.timeLimitMinutes, typeof body.timeLimitMinutes);
+    
     // Validate required fields
     const {
       title,
       topic,
       description,
+      timeLimitMinutes,
       numberOfOptions,
       classIds,
       studentIds,
@@ -77,6 +82,7 @@ export async function POST(request: NextRequest) {
       title: title.trim(),
       topic: topic.trim(),
       description: description?.trim(),
+      timeLimitMinutes,
       numberOfQuestions,
       numberOfOptions,
       classIds,

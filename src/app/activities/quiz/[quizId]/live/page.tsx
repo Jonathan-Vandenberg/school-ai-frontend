@@ -25,6 +25,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Separator } from "@/components/ui/separator";
 import { QuizLeaderboard } from "@/components/activities/quiz-leaderboard";
+import { CountdownTimer } from "@/components/ui/countdown-timer";
 
 interface Quiz {
   id: string;
@@ -106,6 +107,13 @@ export default function QuizLivePage() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
 
+  // Redirect students to leaderboard page
+  useEffect(() => {
+    if (session?.user?.customRole === 'STUDENT') {
+      router.push(`/activities/quiz/${quizId}/leaderboard`);
+    }
+  }, [session?.user?.customRole, router, quizId]);
+
   // Fetch quiz data
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -138,6 +146,17 @@ export default function QuizLivePage() {
         if (response.ok) {
           const data = await response.json();
           setLiveSessionData(data);
+        } else if (response.status === 410) {
+          // Session has expired and been automatically ended by server
+          const errorData = await response.json();
+          if (errorData.expired) {
+            console.info('Live session automatically expired and ended');
+            // Update UI to reflect session ended
+            setQuiz(prev => prev ? { ...prev, isLiveSession: false, liveSessionStartedAt: null } : null);
+            setLiveSessionData(null);
+            setTimeRemaining(null);
+            setShowLeaderboard(false);
+          }
         }
       } catch (error) {
         console.error('Error polling live session:', error);
@@ -177,13 +196,16 @@ export default function QuizLivePage() {
   const startSession = async () => {
     setIsStarting(true);
     try {
+      // Use quiz time limit or default to 30 minutes if none set
+      const timeLimitToUse = quiz?.timeLimitMinutes || 30;
+      
       const response = await fetch(`/api/activities/quiz/${quizId}/live-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          timeLimitMinutes: quiz?.timeLimitMinutes,
+          timeLimitMinutes: timeLimitToUse,
         }),
       });
 
@@ -294,7 +316,10 @@ export default function QuizLivePage() {
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span className="text-sm">
-              {quiz.classes.map(qc => qc.class.name).join(", ")}
+              {quiz.classes && quiz.classes.length > 0 
+                ? quiz.classes.map(qc => qc.class.name).join(", ")
+                : "Classes not available"
+              }
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -367,12 +392,19 @@ export default function QuizLivePage() {
                       Session {quiz.currentSession}
                     </Badge>
                   )}
-                  {timeRemaining !== null && (
-                    <div className="flex items-center gap-2 text-lg font-mono">
+                  {liveSessionData?.liveSession?.timeLimitMinutes && liveSessionData.liveSession.timeLimitMinutes > 0 ? (
+                    <CountdownTimer
+                      startedAt={liveSessionData.liveSession.startedAt}
+                      timeLimitMinutes={liveSessionData.liveSession.timeLimitMinutes}
+                      isActive={liveSessionData.liveSession.isActive}
+                      className="text-lg font-mono"
+                      warningThreshold={300}
+                      onTimeUp={() => endSession()}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 text-lg">
                       <Clock className="h-4 w-4" />
-                      <span className={timeRemaining < 300 ? "text-red-500" : ""}>
-                        {formatTime(timeRemaining)}
-                      </span>
+                      <span className="font-mono">No Time Limit</span>
                     </div>
                   )}
                 </div>
@@ -387,7 +419,10 @@ export default function QuizLivePage() {
               </div>
               
               <div className="text-sm text-muted-foreground">
-                Session started at {new Date(quiz.liveSessionStartedAt!).toLocaleTimeString()}
+                Session started at {quiz.liveSessionStartedAt 
+                  ? new Date(quiz.liveSessionStartedAt).toLocaleTimeString()
+                  : "Unknown time"
+                }
               </div>
             </div>
           )}

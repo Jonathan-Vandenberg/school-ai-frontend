@@ -19,7 +19,8 @@ import {
   Trophy
 } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { QuizCardActions } from "@/components/activities/quiz-card-actions";
+import { LiveQuizzesSection } from "@/components/activities/live-quizzes-section";
+import { TeacherQuizCard } from "@/components/activities/teacher-quiz-card";
 
 const activityTypes = [
   {
@@ -133,6 +134,15 @@ export default async function ActivitiesPage() {
               select: { name: true }
             }
           }
+        },
+        liveSessions: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            timeLimitMinutes: true,
+            startedAt: true,
+            isActive: true
+          }
         }
       },
       orderBy: {
@@ -149,8 +159,8 @@ export default async function ActivitiesPage() {
 
     const classIds = userClasses.map(uc => uc.classId);
 
-    // Get live quizzes first
-    liveQuizzes = await prisma.quiz.findMany({
+    // Get live quizzes first - filter out expired sessions
+    const allLiveQuizzes = await prisma.quiz.findMany({
       where: {
         isLiveSession: true,
         isActive: true,
@@ -180,6 +190,21 @@ export default async function ActivitiesPage() {
         }
       },
       orderBy: { liveSessionStartedAt: 'desc' }
+    });
+
+    // Filter out expired live sessions on the server side
+    liveQuizzes = allLiveQuizzes.filter(quiz => {
+      const liveSession = quiz.liveSessions[0];
+      if (!liveSession?.timeLimitMinutes || liveSession.timeLimitMinutes <= 0) {
+        return true; // No time limit, keep it
+      }
+      
+      const sessionStartTime = new Date(liveSession.startedAt).getTime();
+      const sessionDuration = liveSession.timeLimitMinutes * 60 * 1000;
+      const elapsed = Date.now() - sessionStartTime;
+      const remaining = Math.max(0, sessionDuration - elapsed);
+      
+      return remaining > 0; // Only keep sessions that haven't expired
     });
 
     // Get all available quizzes
@@ -229,67 +254,7 @@ export default async function ActivitiesPage() {
 
       {/* Live Activities Section (Students Only) */}
       {userRole === 'STUDENT' && liveQuizzes.length > 0 && (
-        <div className="mb-12">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-              <h2 className="text-2xl font-semibold text-red-600">LIVE NOW</h2>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {liveQuizzes.map((quiz: any) => (
-              <Card key={quiz.id} className="border-red-200 bg-red-50 hover:shadow-lg transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg leading-tight text-red-800">{quiz.title}</CardTitle>
-                      <CardDescription className="mt-1 text-red-600">{quiz.topic}</CardDescription>
-                    </div>
-                    <Badge className="bg-red-500 text-white animate-pulse">
-                      LIVE
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-4 text-sm text-red-600">
-                    <div className="flex items-center gap-1">
-                      <HelpCircle className="h-4 w-4" />
-                      <span>{quiz._count.questions} questions</span>
-                    </div>
-                    {quiz.liveSessions[0]?.timeLimitMinutes && (
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        <span>{quiz.liveSessions[0].timeLimitMinutes} min</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="text-sm text-red-600">
-                    <span className="font-medium">Teacher: </span>
-                    {quiz.teacher.username}
-                  </div>
-                  
-                  <div className="text-sm text-red-600">
-                    <span className="font-medium">Classes: </span>
-                    {quiz.classes.map((qc: any) => qc.class.name).join(", ")}
-                  </div>
-                  
-                  <div className="pt-2">
-                    <Button asChild className="w-full bg-red-600 hover:bg-red-700" size="sm">
-                      <Link href={`/activities/quiz/${quiz.id}/take`}>
-                        <Play className="h-4 w-4 mr-2" />
-                        Join Live Quiz
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          
-          <Separator className="mt-8" />
-        </div>
+        <LiveQuizzesSection liveQuizzes={liveQuizzes} />
       )}
 
       {/* Student Available Activities */}
@@ -382,75 +347,9 @@ export default async function ActivitiesPage() {
         </div>
       )}
 
-      {/* Teacher's My Quizzes Section */}
-      {(userRole === 'TEACHER' || userRole === 'ADMIN') && myQuizzes.length > 0 && (
-        <div className="mb-12">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-semibold">My Quizzes</h2>
-              <p className="text-muted-foreground">Your recently created quizzes</p>
-            </div>
-            <Button variant="outline" asChild>
-              <Link href="/activities/quiz">View All Quizzes</Link>
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {myQuizzes.map((quiz) => (
-              <Card key={quiz.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg leading-tight">{quiz.title}</CardTitle>
-                      <CardDescription className="mt-1">{quiz.topic}</CardDescription>
-                    </div>
-                    <Badge variant={quiz.isActive ? "default" : "secondary"}>
-                      {quiz.isActive ? "Active" : "Draft"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <HelpCircle className="h-4 w-4" />
-                      <span>{quiz._count.questions} questions</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      <span>{quiz._count.submissions} submissions</span>
-                    </div>
-                  </div>
-                  
-                  {quiz.classes.length > 0 && (
-                    <div className="text-sm text-muted-foreground">
-                      <span className="font-medium">Classes: </span>
-                      {quiz.classes.map((qc: any) => qc.class.name).join(", ")}
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    <span>Created {new Date(quiz.createdAt).toLocaleDateString()}</span>
-                  </div>
-                  
-                  <QuizCardActions 
-                    quizId={quiz.id} 
-                    quizTitle={quiz.title}
-                    currentSession={quiz.currentSession}
-                    hasSubmissions={quiz._count.submissions > 0}
-                  />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          
-          <Separator className="mt-8" />
-        </div>
-      )}
-
       {/* Create New Activity Section - Teachers/Admins Only */}
       {(userRole === 'TEACHER' || userRole === 'ADMIN') && (
-        <>
+        <div className="mb-12">
           <div className="mb-8">
             <h2 className="text-2xl font-semibold mb-2">Create New Activity</h2>
             <p className="text-muted-foreground">Choose the type of activity you want to create for your students</p>
@@ -478,8 +377,32 @@ export default async function ActivitiesPage() {
               );
             })}
           </div>
-        </>
+        </div>
       )}
+
+      {/* Teacher's My Quizzes Section */}
+      {(userRole === 'TEACHER' || userRole === 'ADMIN') && myQuizzes.length > 0 && (
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-semibold">My Quizzes</h2>
+              <p className="text-muted-foreground">Your recently created quizzes</p>
+            </div>
+            <Button variant="outline" asChild>
+              <Link href="/activities/quiz">View All Quizzes</Link>
+            </Button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {myQuizzes.map((quiz) => (
+              <TeacherQuizCard key={quiz.id} quiz={quiz} />
+            ))}
+          </div>
+          
+          <Separator className="mt-8" />
+        </div>
+      )}
+
       
       {/* Empty state for students with no activities */}
       {userRole === 'STUDENT' && liveQuizzes.length === 0 && studentQuizzes.length === 0 && (
