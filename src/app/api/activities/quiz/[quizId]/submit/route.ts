@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { StatisticsService } from '@/lib/services/statistics.service';
 
 export async function POST(
   request: NextRequest,
@@ -162,6 +163,18 @@ export async function POST(
           lastActivity: new Date()
         }
       });
+    }
+
+    // Update student statistics to include quiz completion
+    try {
+      await StatisticsService.updateStudentQuizStatistics(
+        session.user.id,
+        quizId,
+        quiz.currentSession
+      );
+    } catch (error) {
+      console.error('Error updating student quiz statistics:', error);
+      // Don't fail the entire request if stats update fails
     }
 
     // Log the activity

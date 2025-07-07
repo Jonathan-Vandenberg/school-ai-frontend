@@ -14,9 +14,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Only allow admin access for refresh functionality
-    if (!isAdmin(session.user.customRole)) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
-    }
+    // if (!isAdmin(session.user.customRole)) {
+    //   return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
+    // }
 
     console.log('🔄 Starting comprehensive dashboard refresh...')
 

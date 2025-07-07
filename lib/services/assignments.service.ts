@@ -1193,7 +1193,7 @@ export class AssignmentsService {
       await StatisticsService.updateAssignmentStatistics(assignmentId, studentId, isCorrect, true, tx)
       
       console.log(`[STATS] Updating student statistics for student ${studentId}, assignment ${assignmentId}`)
-      await StatisticsService.updateStudentStatistics(studentId, assignmentId, isCorrect, true, tx)
+      await StatisticsService.updateStudentStatistics(studentId, assignmentId, isCorrect, true, tx, questionId)
       
       console.log(`[STATS] Statistics update completed successfully`)
 
