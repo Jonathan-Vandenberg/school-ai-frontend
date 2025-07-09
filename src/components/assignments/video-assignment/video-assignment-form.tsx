@@ -32,6 +32,7 @@ import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,6 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { VideoAssignmentPreview } from "./video-assignment-preview";
-import { useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
@@ -108,6 +108,8 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     },
   });
 
+
+
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "questions"
@@ -121,10 +123,19 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
   useEffect(() => {
     const checkVideoTranscript = async () => {
       if (!videoUrl || !z.string().url().safeParse(videoUrl).success) {
-        setVideoHasTranscript(null);
-        setTranscriptContent(null);
-        setTranscriptLanguage(null);
-        setImprovedQuestions([]);
+        // Only reset if we don't have saved transcript data
+        if (!sessionStorage.getItem('assignment-transcript-content')) {
+          setVideoHasTranscript(null);
+          setTranscriptContent(null);
+          setTranscriptLanguage(null);
+          setImprovedQuestions([]);
+        }
+        return;
+      }
+
+      // Skip API call if we already have transcript data for this URL from restoration
+      if (transcriptContent !== null || videoHasTranscript !== null) {
+        console.log('Skipping transcript check - data already available');
         return;
       }
 
@@ -164,7 +175,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     }, 500); // Reduced debounce time for better responsiveness
 
     return () => clearTimeout(debounceId);
-  }, [videoUrl, form]);
+  }, [videoUrl, form, transcriptContent, videoHasTranscript]);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -269,6 +280,25 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     if (improvedQuestions.length === 0) return;
     replace(improvedQuestions);
     setFormMessage({ type: 'success', message: 'All suggested questions have been applied.' });
+  };
+
+
+
+  // Check if preview is available - all required fields for API evaluation
+  const isPreviewAvailable = () => {
+    const data = currentFormData;
+    
+    // Basic required fields
+    if (!data.topic?.trim() || !data.videoUrl?.trim()) {
+      return false;
+    }
+    
+    // Must have at least one complete question
+    const hasValidQuestions = data.questions && 
+      data.questions.length > 0 && 
+      data.questions.some(q => q.text?.trim() && q.answer?.trim());
+    
+    return hasValidQuestions;
   };
 
   async function onSubmit(values: VideoFormValues) {
@@ -789,40 +819,50 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
         )}
 
         <div className="flex justify-end gap-4">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button type="button" variant="outline">
-                <Eye className="mr-2 h-4 w-4" />
-                Preview
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl">
-              <DialogHeader>
-                <DialogTitle>Assignment Preview</DialogTitle>
-                <DialogDescription>
-                  This is how the assignment will appear to students.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="max-h-[70vh] overflow-y-auto p-4">
-                <VideoAssignmentPreview
-                  topic={currentFormData.topic}
-                  videoUrl={currentFormData.videoUrl}
-                  questions={currentFormData.questions}
-                />
-              </div>
-              <DialogFooter>
-                  <DialogClose asChild>
-                    <Button type="button" variant="secondary">
-                      Close
-                    </Button>
-                  </DialogClose>
-                </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <div className="flex flex-col items-end gap-2">
+            {!isPreviewAvailable() && (
+              <p className="text-xs text-muted-foreground">
+                Preview requires: topic, video URL, and at least one complete question
+              </p>
+            )}
+            <div className="flex gap-4">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    disabled={!isPreviewAvailable()}
+                    title={!isPreviewAvailable() ? "Please fill in topic, video URL, and at least one complete question to preview" : "Preview assignment as students will experience it"}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Preview
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] p-0">
+                  <div className="flex flex-col h-full max-h-[90vh]">
+                    <div className="flex items-center justify-between p-6 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-shrink-0">
+                      <div>
+                        <DialogTitle className="text-lg font-semibold">Preview Assignment</DialogTitle>
+                        <DialogDescription>Experience the assignment as your students will</DialogDescription>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6">
+                      <VideoAssignmentPreview
+                        topic={currentFormData.topic}
+                        videoUrl={currentFormData.videoUrl}
+                        questions={currentFormData.questions}
+                        transcriptContent={transcriptContent}
+                      />
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Creating..." : "Create Assignment"}
-          </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Assignment"}
+              </Button>
+            </div>
+          </div>
         </div>
       </form>
     </Form>

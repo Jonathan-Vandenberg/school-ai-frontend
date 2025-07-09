@@ -29,16 +29,6 @@ interface EvaluationRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user
-    const currentUser = await AuthService.getAuthenticatedUser()
-    
-    if (currentUser.customRole !== 'STUDENT') {
-      return NextResponse.json({
-        success: false,
-        error: 'Only students can submit answers'
-      }, { status: 403 })
-    }
-
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({
         success: false,
@@ -49,7 +39,6 @@ export async function POST(request: NextRequest) {
     const body: EvaluationRequest = await request.json()
     const { 
       answer, 
-      videoUrl, 
       question, 
       rules = [], 
       feedbackSettings = {},

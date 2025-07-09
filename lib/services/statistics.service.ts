@@ -1006,57 +1006,32 @@ export class StatisticsService {
   }
 
   private static async _incrementStudentAssignmentCountWithTx(tx: any, studentId: string) {
-      // Calculate the actual total activities (assignments + quizzes) for this student
-      const [assignmentCount, quizCount] = await Promise.all([
-        tx.assignment.count({
-          where: {
-            isActive: true,
-            OR: [
-              {
-                students: {
-                  some: { userId: studentId }
-                }
-              },
-              {
-                classes: {
-                  some: {
-                    class: {
-                      users: {
-                        some: { userId: studentId }
+      // Calculate the actual total ASSIGNMENTS ONLY for this student
+      const assignmentCount = await tx.assignment.count({
+        where: {
+          OR: [
+            {
+              students: {
+                some: { userId: studentId }
+              }
+            },
+            {
+              classes: {
+                some: {
+                  class: {
+                    users: {
+                      some: { 
+                        userId: studentId,
+                        user: { customRole: 'STUDENT' }
                       }
                     }
                   }
                 }
               }
-            ]
-          }
-        }),
-        tx.quiz.count({
-          where: {
-            isActive: true,
-            OR: [
-              {
-                students: {
-                  some: { userId: studentId }
-                }
-              },
-              {
-                classes: {
-                  some: {
-                    class: {
-                      users: {
-                        some: { userId: studentId }
-                      }
-                    }
-                  }
-                }
-              }
-            ]
-          }
-        })
-      ])
-
-      const totalActivities = assignmentCount + quizCount
+            }
+          ]
+        }
+      })
 
       // Get or create student stats
       let studentStats = await tx.studentStats.findUnique({
@@ -1064,14 +1039,14 @@ export class StatisticsService {
       })
 
       if (!studentStats) {
-        // Initialize stats for new student
+        // Initialize stats for new student - ASSIGNMENTS ONLY
         studentStats = await tx.studentStats.create({
           data: {
             studentId,
-            totalAssignments: totalActivities, // Include both assignments and quizzes
+            totalAssignments: assignmentCount, // Only count assignments, not quizzes
             completedAssignments: 0,
             inProgressAssignments: 0,
-            notStartedAssignments: totalActivities,
+            notStartedAssignments: assignmentCount,
             averageScore: 0.0,
             totalQuestions: 0,
             totalAnswers: 0,
@@ -1081,17 +1056,17 @@ export class StatisticsService {
           }
         })
       } else {
-        // Update with actual activity count (not just increment)
+        // Update with actual assignment count (not quiz count)
         studentStats = await tx.studentStats.update({
           where: { studentId },
           data: {
-            totalAssignments: totalActivities, // Include both assignments and quizzes
+            totalAssignments: assignmentCount, // Only count assignments, not quizzes
             lastUpdated: new Date()
           }
         })
       }
 
-      // Recalculate completion rate using the actual total
+      // Recalculate completion rate using assignments only
       const completionRate = studentStats.totalAssignments > 0 
         ? (studentStats.completedAssignments / studentStats.totalAssignments) * 100 
         : 0
@@ -1774,64 +1749,40 @@ export class StatisticsService {
     })
 
     if (!studentStats) {
-      // Initialize stats for new student - count all assignments AND quizzes
-      const [assignmentCount, quizCount] = await Promise.all([
-        tx.assignment.count({
-          where: {
-            OR: [
-              {
-                classes: {
-                  some: {
-                    class: {
-                      users: {
-                        some: { userId: studentId }
+      // Initialize stats for new student - count ASSIGNMENTS ONLY (not quizzes)
+      const assignmentCount = await tx.assignment.count({
+        where: {
+          OR: [
+            {
+              classes: {
+                some: {
+                  class: {
+                    users: {
+                      some: { 
+                        userId: studentId,
+                        user: { customRole: 'STUDENT' }
                       }
                     }
                   }
                 }
-              },
-              {
-                students: {
-                  some: { userId: studentId }
-                }
               }
-            ]
-          }
-        }),
-        tx.quiz.count({
-          where: {
-            isActive: true,
-            OR: [
-              {
-                classes: {
-                  some: {
-                    class: {
-                      users: {
-                        some: { userId: studentId }
-                      }
-                    }
-                  }
-                }
-              },
-              {
-                students: {
-                  some: { userId: studentId }
-                }
+            },
+            {
+              students: {
+                some: { userId: studentId }
               }
-            ]
-          }
-        })
-      ])
-
-      const totalActivities = assignmentCount + quizCount
+            }
+          ]
+        }
+      })
 
       studentStats = await tx.studentStats.create({
         data: {
           studentId,
-          totalAssignments: totalActivities, // Include both assignments and quizzes
+          totalAssignments: assignmentCount, // Only count assignments, not quizzes
           completedAssignments: isFirstTimeCompletion ? 1 : 0,
           inProgressAssignments: 0,
-          notStartedAssignments: totalActivities - (isFirstTimeCompletion ? 1 : 0),
+          notStartedAssignments: assignmentCount - (isFirstTimeCompletion ? 1 : 0),
           averageScore: 0.0,
           totalQuestions: 0,
           totalAnswers: 0,

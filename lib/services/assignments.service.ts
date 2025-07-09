@@ -746,12 +746,21 @@ export class AssignmentsService {
     currentUser: AuthenticatedUser,
     params: { status?: 'active' | 'completed' | 'scheduled' } = {}
   ): Promise<AssignmentWithDetails[]> {
-    const { status = 'active' } = params
+    const { status } = params
 
     let where: any = {}
 
     if (currentUser.customRole === 'TEACHER') {
       where.teacherId = currentUser.id
+      // For teachers, show ALL assignments (active and scheduled) by default
+      // They need to see the complete picture of their assignments
+      if (status === 'scheduled') {
+        where.isActive = false
+        where.scheduledPublishAt = { not: null }
+      } else if (status === 'active') {
+        where.isActive = true
+      }
+      // If no specific status filter provided, don't add any status filters (show all)
     } else if (currentUser.customRole === 'STUDENT') {
       where.OR = [
         {
@@ -771,14 +780,16 @@ export class AssignmentsService {
           }
         }
       ]
-    }
-
-    // Status-based filtering
-    if (status === 'active') {
-      where.isActive = true
-    } else if (status === 'scheduled') {
-      where.isActive = false
-      where.scheduledPublishAt = { not: null }
+      
+      // For students, still filter by status as before
+      // Default to active assignments if no status specified
+      if (status === 'scheduled') {
+        where.isActive = false
+        where.scheduledPublishAt = { not: null }
+      } else {
+        // Default behavior for students: only show active assignments
+        where.isActive = true
+      }
     }
 
     const assignments = await prisma.assignment.findMany({

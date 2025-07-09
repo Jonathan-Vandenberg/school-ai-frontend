@@ -12,6 +12,9 @@ import { z } from 'zod'
 export async function GET(request: NextRequest) {
   try {
     const currentUser = await AuthService.getAuthenticatedUser()
+    
+    // For teachers, fetch ALL assignments (active and scheduled) by default
+    // For students, fetch active assignments by default
     const assignments = await AssignmentsService.getMyAssignments(currentUser)
     
     return NextResponse.json(assignments)
