@@ -1,4 +1,5 @@
 import { VideoAssignmentForm } from "@/components/assignments/video-assignment/video-assignment-form";
+import { IELTSAssignmentCards } from "@/components/assignments/ielts-assignment/ielts-assignment-cards";
 import { ClassesService } from "../../../../lib/services/classes.service";
 import { AuthService } from "../../../../lib/services/auth.service";
 import { notFound, redirect } from "next/navigation";
@@ -56,14 +57,7 @@ export default async function CreateAssignmentPage({ searchParams }: CreateAssig
           </div>
         );
       case "ielts":
-        return (
-          <div className="container mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-4">Create IELTS Assignment</h1>
-            <p className="text-muted-foreground">
-              IELTS assignment creation is coming soon. Please check back later.
-            </p>
-          </div>
-        );
+        return <IELTSAssignmentCards data={formData} />;
       case "custom":
         return (
           <div className="container mx-auto p-6">

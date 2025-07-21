@@ -1,6 +1,12 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -13,18 +19,21 @@ import { AnswerFeedback } from "@/components/ui/answer-feedback";
 interface VideoAssignmentPreviewProps {
   topic: string;
   videoUrl: string;
-  questions: { text: string; answer: string; }[];
+  questions: { text: string; answer: string }[];
   transcriptContent?: string | null;
 }
 
 function getYouTubeVideoId(url: string) {
-  let videoId = '';
+  let videoId = "";
   try {
     const urlObj = new URL(url);
-    if (urlObj.hostname === 'youtu.be') {
+    if (urlObj.hostname === "youtu.be") {
       videoId = urlObj.pathname.slice(1);
-    } else if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtube.com') {
-      videoId = urlObj.searchParams.get('v') || '';
+    } else if (
+      urlObj.hostname === "www.youtube.com" ||
+      urlObj.hostname === "youtube.com"
+    ) {
+      videoId = urlObj.searchParams.get("v") || "";
     }
   } catch (e) {
     console.error("Invalid URL for YouTube video");
@@ -33,13 +42,29 @@ function getYouTubeVideoId(url: string) {
   return videoId;
 }
 
-export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptContent }: VideoAssignmentPreviewProps) {
+export function VideoAssignmentPreview({
+  topic,
+  videoUrl,
+  questions,
+  transcriptContent,
+}: VideoAssignmentPreviewProps) {
   const videoId = getYouTubeVideoId(videoUrl);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, { transcript: string; isCorrect: boolean; feedback: string; details: string; encouragement: string; }>>({});
+  const [answers, setAnswers] = useState<
+    Record<
+      number,
+      {
+        transcript: string;
+        isCorrect: boolean;
+        feedback: string;
+        details: string;
+        encouragement: string;
+      }
+    >
+  >({});
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [currentTranscript, setCurrentTranscript] = useState('');
+  const [currentTranscript, setCurrentTranscript] = useState("");
 
   // Submit transcript for evaluation (simulated for preview)
   const submitTranscript = async (transcript: string) => {
@@ -47,70 +72,65 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
 
     setIsEvaluating(true);
     setCurrentTranscript(transcript);
-    
+
     try {
       const currentQuestion = questions[currentIndex];
-      
+
       // Simulate AI evaluation for preview mode
-      const response = await fetch('/api/evaluate-video-answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+      const response = await fetch("/api/evaluate-video-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           answer: transcript,
           videoUrl: videoUrl,
           question: {
             question: currentQuestion.text,
-            answer: currentQuestion.answer
+            answer: currentQuestion.answer,
           },
           rules: [],
           feedbackSettings: {
             detailedFeedback: true,
-            encouragementEnabled: true
+            encouragementEnabled: true,
           },
           transcriptContent: transcriptContent,
           language: {
-            code: 'en-US',
-            name: 'English'
+            code: "en-US",
+            name: "English",
           },
-          topic: topic
+          topic: topic,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to evaluate answer');
+        throw new Error("Failed to evaluate answer");
       }
 
-      const { 
-        feedback, 
-        isCorrect,
-        details,
-        encouragement
-      } = await response.json();
-      
-      setAnswers(prev => ({
+      const { feedback, isCorrect, details, encouragement } =
+        await response.json();
+
+      setAnswers((prev) => ({
         ...prev,
         [currentIndex]: {
           transcript,
           isCorrect,
           feedback,
           details,
-          encouragement
-        }
+          encouragement,
+        },
       }));
-      
+
       setShowFeedback(true);
-      
     } catch (error) {
-      console.error('Error evaluating answer:', error);
-      setAnswers(prev => ({
+      console.error("Error evaluating answer:", error);
+      setAnswers((prev) => ({
         ...prev,
         [currentIndex]: {
           transcript,
           isCorrect: false,
-          feedback: 'Error processing your answer in preview mode.',
-          details: '',
-          encouragement: 'Keep practicing!'
-        }
+          feedback: "Error processing your answer in preview mode.",
+          details: "",
+          encouragement: "Keep practicing!",
+        },
       }));
       setShowFeedback(true);
     } finally {
@@ -127,30 +147,31 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
     audioLevel,
     isSpeaking,
     reset: resetRecorder,
-    clearProcessing
+    clearProcessing,
   } = useAudioRecorder({
-    languageCode: 'en-US',
+    languageCode: "en-US",
     onTranscriptionStart: () => {
       setShowFeedback(false);
-      setCurrentTranscript('');
+      setCurrentTranscript("");
     },
     onTranscriptionComplete: (transcript: string) => {
       submitTranscript(transcript);
     },
     onTranscriptionError: (error: Error) => {
-      console.error('Transcription error:', error);
-      setAnswers(prev => ({
+      console.error("Transcription error:", error);
+      setAnswers((prev) => ({
         ...prev,
         [currentIndex]: {
-          transcript: '',
+          transcript: "",
           isCorrect: false,
-          feedback: 'Voice recognition error. Please try again.',
-          details: '',
-          encouragement: 'Make sure your microphone is working and try speaking clearly.'
-        }
+          feedback: "Voice recognition error. Please try again.",
+          details: "",
+          encouragement:
+            "Make sure your microphone is working and try speaking clearly.",
+        },
       }));
       setShowFeedback(true);
-    }
+    },
   });
 
   const currentAnswer = answers[currentIndex];
@@ -160,11 +181,12 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
   // Calculate overall progress
   const completedQuestions = Object.keys(answers).length;
   const totalQuestions = questions.length;
-  const overallProgress = totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0;
+  const overallProgress =
+    totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0;
 
   const clearFeedbackState = () => {
     setShowFeedback(false);
-    setCurrentTranscript('');
+    setCurrentTranscript("");
   };
 
   const handleNext = () => {
@@ -184,7 +206,7 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
   };
 
   const retryCurrentQuestion = () => {
-    setAnswers(prev => {
+    setAnswers((prev) => {
       const newAnswers = { ...prev };
       delete newAnswers[currentIndex];
       return newAnswers;
@@ -197,7 +219,7 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
   const isProcessing = recorderIsProcessing || isEvaluating;
 
   return (
-    <div className="space-y-6"> 
+    <div className="space-y-6">
       {/* Progress Bar */}
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
@@ -211,7 +233,10 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
       <Card>
         <CardHeader>
           <CardTitle>{topic}</CardTitle>
-          <CardDescription>Watch the video below and answer the questions by speaking your responses.</CardDescription>
+          <CardDescription>
+            Watch the video below and answer the questions by speaking your
+            responses.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {videoId ? (
@@ -235,17 +260,23 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Question {currentIndex + 1} of {totalQuestions}</span>
+            <span>
+              Question {currentIndex + 1} of {totalQuestions}
+            </span>
             <div className="flex items-center gap-2">
               {isCurrentQuestionComplete && (
-                <Badge variant={isCurrentQuestionCorrect ? "default" : "destructive"} className="text-xs">
+                <Badge
+                  variant={isCurrentQuestionCorrect ? "default" : "destructive"}
+                  className="text-xs"
+                >
                   {isCurrentQuestionCorrect ? "Correct" : "Needs Improvement"}
                 </Badge>
               )}
             </div>
           </CardTitle>
           <CardDescription>
-            Speak your answer clearly. The system will record and evaluate your response.
+            Speak your answer clearly. The system will record and evaluate your
+            response.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -261,14 +292,14 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
                 disabled={isProcessing}
                 size="lg"
                 className={`w-20 h-20 rounded-full transition-all duration-200 ${
-                  isRecording 
-                    ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                    : 'bg-primary hover:bg-primary/90'
-                } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  isRecording
+                    ? "bg-red-500 hover:bg-red-600 animate-pulse"
+                    : "bg-primary hover:bg-primary/90"
+                } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <Mic className="h-8 w-8" />
               </Button>
-              
+
               {/* Audio Level Indicator */}
               {isRecording && (
                 <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
@@ -277,7 +308,7 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
                       <div
                         key={i}
                         className={`w-1 bg-white rounded-full transition-all duration-100 ${
-                          audioLevel > (i * 20) ? 'h-3' : 'h-1'
+                          audioLevel > i * 20 ? "h-3" : "h-1"
                         }`}
                       />
                     ))}
@@ -294,22 +325,23 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
                   {isSpeaking && <Volume2 className="h-4 w-4" />}
                 </div>
               )}
-              
+
               {isProcessing && (
                 <div className="flex items-center gap-2 text-blue-600">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
                   <span className="text-sm font-medium">
-                    {recorderIsProcessing ? "Processing speech..." : "Evaluating answer..."}
+                    {recorderIsProcessing
+                      ? "Processing speech..."
+                      : "Evaluating answer..."}
                   </span>
                 </div>
               )}
 
               {!isRecording && !isProcessing && (
                 <p className="text-sm text-muted-foreground">
-                  {isCurrentQuestionComplete 
-                    ? "Click the microphone to record a new answer" 
-                    : "Click the microphone to record your answer"
-                  }
+                  {isCurrentQuestionComplete
+                    ? "Click the microphone to record a new answer"
+                    : "Click the microphone to record your answer"}
                 </p>
               )}
             </div>
@@ -324,37 +356,37 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
             </div>
           )}
 
-                     {/* Answer Feedback */}
-           {showFeedback && currentAnswer && (
-             <div className="space-y-3">
-               <AnswerFeedback
-                 isCorrect={currentAnswer.isCorrect}
-                 feedback={currentAnswer.feedback}
-                 show={showFeedback}
-                 isProcessing={false}
-                 details={currentAnswer.details}
-                 encouragement={currentAnswer.encouragement}
-                 ruleEvaluation={{}}
-                 evaluationSettings={{
-                   detailedFeedback: true,
-                   encouragementEnabled: true
-                 }}
-                 userAnswer={currentAnswer.transcript}
-               />
-               <Button 
-                 variant="outline" 
-                 onClick={retryCurrentQuestion}
-                 className="w-full"
-               >
-                 Try Again
-               </Button>
-             </div>
-           )}
+          {/* Answer Feedback */}
+          {showFeedback && currentAnswer && (
+            <div className="space-y-3">
+              <AnswerFeedback
+                isCorrect={currentAnswer.isCorrect}
+                feedback={currentAnswer.feedback}
+                show={showFeedback}
+                isProcessing={false}
+                details={currentAnswer.details}
+                encouragement={currentAnswer.encouragement}
+                ruleEvaluation={{}}
+                evaluationSettings={{
+                  detailedFeedback: true,
+                  encouragementEnabled: true,
+                }}
+                userAnswer={currentAnswer.transcript}
+              />
+              <Button
+                variant="outline"
+                onClick={retryCurrentQuestion}
+                className="w-full"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
 
           {/* Navigation */}
           <div className="flex justify-between items-center pt-4 border-t">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handlePrevious}
               disabled={currentIndex === 0}
             >
@@ -365,7 +397,7 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
               Question {currentIndex + 1} of {totalQuestions}
             </div>
 
-            <Button 
+            <Button
               onClick={handleNext}
               disabled={currentIndex >= totalQuestions - 1}
             >
@@ -390,16 +422,25 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
           <CardContent>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="font-medium">Total Questions:</span> {totalQuestions}
+                <span className="font-medium">Total Questions:</span>{" "}
+                {totalQuestions}
               </div>
               <div>
-                <span className="font-medium">Completed:</span> {completedQuestions}
+                <span className="font-medium">Completed:</span>{" "}
+                {completedQuestions}
               </div>
               <div>
-                <span className="font-medium">Correct Answers:</span> {Object.values(answers).filter(a => a.isCorrect).length}
+                <span className="font-medium">Correct Answers:</span>{" "}
+                {Object.values(answers).filter((a) => a.isCorrect).length}
               </div>
               <div>
-                <span className="font-medium">Accuracy:</span> {Math.round((Object.values(answers).filter(a => a.isCorrect).length / completedQuestions) * 100)}%
+                <span className="font-medium">Accuracy:</span>{" "}
+                {Math.round(
+                  (Object.values(answers).filter((a) => a.isCorrect).length /
+                    completedQuestions) *
+                    100
+                )}
+                %
               </div>
             </div>
           </CardContent>
@@ -407,4 +448,4 @@ export function VideoAssignmentPreview({ topic, videoUrl, questions, transcriptC
       )}
     </div>
   );
-} 
+}
