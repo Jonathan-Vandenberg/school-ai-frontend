@@ -18,8 +18,16 @@ export default function AssignmentsPage() {
       if (!response.ok) {
         throw new Error('Failed to fetch assignments');
       }
-      const data = await response.json();
-      setAssignments(data);
+      const result = await response.json();
+      // Handle the new response format with success and data properties
+      if (result.success && result.data) {
+        setAssignments(result.data);
+      } else if (Array.isArray(result)) {
+        // Handle legacy response format
+        setAssignments(result);
+      } else {
+        setAssignments(result.data || []);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load assignments');
     } finally {

@@ -853,9 +853,9 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                 control={form.control}
                 name="dueDate"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
+                  <FormItem className="flex-col md:flex">
                     <FormLabel>Due Date & Time</FormLabel>
-                    <div className="flex gap-2">
+                    <div className="gap-2 flex-col space-y-4 md:space-y-0 md:flex-row">
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
@@ -900,7 +900,6 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                         </PopoverContent>
                       </Popover>
                       <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 opacity-50" />
                         <Input
                           type="time"
                           value={

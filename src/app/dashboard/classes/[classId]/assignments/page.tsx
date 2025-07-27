@@ -120,8 +120,16 @@ export default function ClassAssignmentsPage() {
 
       const response = await fetch(`/api/assignments?${params}`)
       if (response.ok) {
-        const data = await response.json()
-        setAssignments(data.data || [])
+        const result = await response.json()
+        // Handle the new response format with success and data properties
+        if (result.success && result.data) {
+          setAssignments(result.data)
+        } else if (Array.isArray(result)) {
+          // Handle legacy response format
+          setAssignments(result)
+        } else {
+          setAssignments(result.data || [])
+        }
       } else {
         setError('Failed to load assignments')
       }

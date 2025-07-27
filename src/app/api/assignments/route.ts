@@ -13,11 +13,47 @@ export async function GET(request: NextRequest) {
   try {
     const currentUser = await AuthService.getAuthenticatedUser()
     
-    // For teachers, fetch ALL assignments (active and scheduled) by default
-    // For students, fetch active assignments by default
-    const assignments = await AssignmentsService.getMyAssignments(currentUser)
+    // Extract query parameters
+    const { searchParams } = new URL(request.url)
+    const classId = searchParams.get('classId')
+    const search = searchParams.get('search')
+    const status = searchParams.get('status')
+    const typeParam = searchParams.get('type')
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '50')
+
+    // Validate type parameter
+    const validTypes = ['CLASS', 'INDIVIDUAL'] as const
+    const type = typeParam && validTypes.includes(typeParam as any) ? typeParam as 'CLASS' | 'INDIVIDUAL' : undefined
+
+    // If classId is provided, use listAssignments for filtering
+    if (classId) {
+      const result = await AssignmentsService.listAssignments(currentUser, {
+        classId,
+        search: search || undefined,
+        type,
+        isActive: status === 'PUBLISHED' ? true : status === 'DRAFT' ? false : undefined,
+        isScheduled: status === 'SCHEDULED' ? true : undefined,
+        page,
+        limit
+      })
+      
+      return NextResponse.json({
+        success: true,
+        data: result.assignments,
+        pagination: result.pagination
+      })
+    }
     
-    return NextResponse.json(assignments)
+    // Otherwise, use getMyAssignments for user-specific assignments
+    const assignments = await AssignmentsService.getMyAssignments(currentUser, {
+      status: status === 'PUBLISHED' ? 'active' : status === 'SCHEDULED' ? 'scheduled' : undefined
+    })
+    
+    return NextResponse.json({
+      success: true,
+      data: assignments
+    })
   } catch (error) {
     console.error('Error fetching assignments:', error)
     return NextResponse.json(
