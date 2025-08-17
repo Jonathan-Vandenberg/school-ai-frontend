@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: school-ai-postgres
@@ -10,62 +9,17 @@ services:
       POSTGRES_DB: school_ai
       POSTGRES_USER: school_ai_user
       POSTGRES_PASSWORD: school_ai_password
-      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data/pgdata
+      - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
-    networks:
-      - school-ai-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U school_ai_user -d school_ai"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # pgAdmin for database management
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: school-ai-pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@schoolai.local
-      PGADMIN_DEFAULT_PASSWORD: admin_password
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
-    ports:
-      - "5050:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-      - ./scripts/pgadmin-servers.json:/pgadmin4/servers.json:ro
-    networks:
-      - school-ai-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  # Redis for caching (optional, for future use)
-  redis:
-    image: redis:7-alpine
-    container_name: school-ai-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - school-ai-network
-    command: redis-server --appendonly yes --requirepass redis_password
-
 volumes:
   postgres_data:
-    driver: local
-  pgadmin_data:
-    driver: local
-  redis_data:
-    driver: local
-
-networks:
-  school-ai-network:
-    driver: bridge 
+    driver: local 

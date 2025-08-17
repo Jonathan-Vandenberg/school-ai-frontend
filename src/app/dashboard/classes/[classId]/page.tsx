@@ -423,14 +423,19 @@ export default function ClassProfilePage() {
               {classDetails.students
                 .filter(student => student.needsHelp)
                 .map((student) => (
-                  <StudentHelpCard key={student.id} student={student} />
+                  <StudentHelpCard 
+                    key={student.id} 
+                    student={student} 
+                    onClick={() => router.push(`/dashboard/students/${student.id}`)}
+                  />
                 ))}
               {classDetails.students
                 .filter(student => !student.needsHelp)
                 .map((student) => (
                   <div 
                     key={student.id} 
-                    className="flex items-center gap-3 p-4 border rounded-lg bg-white"
+                    className="flex items-center gap-3 p-4 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => router.push(`/dashboard/students/${student.id}`)}
                   >
                     <Avatar>
                       <AvatarFallback className="bg-blue-100 text-blue-800">

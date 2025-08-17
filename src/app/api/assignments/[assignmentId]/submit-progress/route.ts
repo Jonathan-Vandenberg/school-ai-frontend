@@ -6,7 +6,8 @@ import { AssignmentsService } from '../../../../../../lib/services/assignments.s
 interface SubmitProgressRequest {
   questionId: string
   isCorrect: boolean
-  transcript: string
+  result: any
+  type: 'VIDEO' | 'READING'
 }
 
 export async function POST(
@@ -23,21 +24,22 @@ export async function POST(
 
     const { assignmentId } = await params
     const body: SubmitProgressRequest = await request.json()
-    const { questionId, isCorrect, transcript } = body
+    const { questionId, isCorrect, result, type } = body
 
-    if (!questionId || typeof isCorrect !== 'boolean' || !transcript) {
+    if (!questionId || typeof isCorrect !== 'boolean' || !result || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const result = await AssignmentsService.submitStudentProgress(
+    const response = await AssignmentsService.submitStudentProgress(
       user.id,
       assignmentId,
       questionId,
       isCorrect,
-      transcript
+      result,
+      type
     )
 
-    return NextResponse.json(result)
+    return NextResponse.json(response)
 
   } catch (error) {
     return handleServiceError(error)

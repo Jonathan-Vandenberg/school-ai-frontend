@@ -133,7 +133,7 @@ export default function CalendarPage() {
         <h1 className="text-3xl font-bold">My Assignment Calendar</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar */}
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -188,22 +188,25 @@ export default function CalendarPage() {
                     </Badge>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <span className="capitalize">{assignment.type?.toLowerCase() || 'assignment'}</span>
-                      {assignment.dueDate && (
-                        <>
-                          <span>•</span>
-                          <span>Due {format(parseISO(assignment.dueDate), 'h:mm a')}</span>
-                        </>
-                      )}
+                  <div className="w-full flex items-center justify-around">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground w-full">
+                      <span className="capitalize rounded-md px-2 py-1 bg-primary/10 text-primary">{assignment.type?.toLowerCase() || 'assignment'}</span>
+                      <div className="flex flex-col items-center gap-1 w-full">
+                        {assignment.scheduledPublishAt && (
+                            <span className="font-bold">Start {format(parseISO(assignment.scheduledPublishAt), 'h:mm a')}</span>
+                        )}
+
+                        {assignment.dueDate && (
+                            <span className="font-bold">Due {format(parseISO(assignment.dueDate), 'h:mm a')} {format(assignment.dueDate, 'MMM d, yyyy')}</span>
+                        )}
+                      </div>
                     </div>
                     
-                    <Button asChild size="sm" variant="outline">
+                    {assignment.isActive && <Button asChild size="sm" variant="outline">
                       <Link href={`/assignments/${assignment.id}`}>
                         {assignment.progress.completed ? 'Review' : assignment.progress.hasStarted ? 'Continue' : 'Start'}
                       </Link>
-                    </Button>
+                    </Button>}
                   </div>
                   
                   {assignment.progress.hasStarted && (
@@ -264,18 +267,24 @@ export default function CalendarPage() {
                         {getAssignmentStatusText(assignment)}
                       </Badge>
                     </div>
-                    
-                    {date && (
-                      <p className="text-xs text-muted-foreground">
-                        Due {format(date, 'MMM d, yyyy')} at {format(date, 'h:mm a')}
-                      </p>
+
+                    {assignment.scheduledPublishAt && (
+                      <div className="text-xs text-muted-foreground">
+                         <span className="font-bold">START {format(new Date(assignment.scheduledPublishAt), 'h:mm a')}</span> {format(new Date(assignment.scheduledPublishAt), 'MMM d, yyyy')}
+                      </div>
                     )}
                     
-                    <Button asChild size="sm" className="w-full">
+                    {date && (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-bold">END {format(date, 'h:mm a')}</span> {format(date, 'MMM d, yyyy')}
+                      </div>
+                    )}
+                    
+                    {assignment.isActive && <Button asChild size="sm" className="w-full">
                       <Link href={`/assignments/${assignment.id}`}>
                         Start Assignment
                       </Link>
-                    </Button>
+                    </Button>}
                   </div>
                 )
               })}

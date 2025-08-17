@@ -36,39 +36,34 @@ export async function POST(request: NextRequest) {
     // Validate required fields for reading assignment
     const readingSchema = z.object({
       topic: z.string().min(1, 'Topic is required'),
-      context: z.string().min(1, 'Reading text/context is required'),
       languageId: z.string().optional().nullable(), // Made optional
       classIds: z.array(z.string()).optional(),
       studentIds: z.array(z.string()).optional(),
-      type: z.enum(['CLASS', 'INDIVIDUAL']),
-      scheduledPublishAt: z.string().optional(),
+      scheduledPublishAt: z.string().datetime().optional().nullable(),
+      dueDate: z.string().datetime().optional().nullable(),
       color: z.string().optional(),
-      vocabularyItems: z.array(z.any()).optional(),
-      isIELTS: z.boolean().optional(),
-      evaluationSettings: z.object({
-        type: z.literal('READING'),
-        customPrompt: z.string().optional(),
-        rules: z.any().optional(),
-        acceptableResponses: z.any().optional(),
-        feedbackSettings: z.any().optional(),
-      }).optional(),
+      questions: z.array(z.object({
+        text: z.string().min(1, 'Question text is required'),
+        title: z.string().optional().nullable(),
+      })).min(1, 'At least one question is required'),
     });
 
     const validatedData = readingSchema.parse({ ...body, languageId });
 
     // Create the reading assignment
-    const newAssignment = await AssignmentsService.createAssignment(currentUser, {
+    const newAssignment = await AssignmentsService.createReadingAssignment(currentUser, {
       topic: validatedData.topic,
-      type: validatedData.type,
       languageId: validatedData.languageId,
-      classIds: validatedData.classIds,
-      studentIds: validatedData.studentIds,
+      classIds: validatedData.classIds || [],
+      studentIds: validatedData.studentIds || [],
       color: validatedData.color,
-      vocabularyItems: validatedData.vocabularyItems,
       scheduledPublishAt: validatedData.scheduledPublishAt ? new Date(validatedData.scheduledPublishAt) : undefined,
-      context: validatedData.context,
-      isIELTS: validatedData.isIELTS,
-      evaluationSettings: validatedData.evaluationSettings,
+      dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : undefined,
+      questions: validatedData.questions.map(q => ({
+        text: q.text,
+        title: q.title || ''
+      })),
+      assignToEntireClass: validatedData.studentIds ? false : true,
     });
 
     return NextResponse.json({

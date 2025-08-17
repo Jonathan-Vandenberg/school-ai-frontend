@@ -31,6 +31,7 @@ import {
   BarChart3,
   CheckCheck
 } from 'lucide-react'
+import { ReadingAssignment } from '@/components/assignments/reading-assignment/reading-assignment-component'
 
 interface Assignment {
   id: string
@@ -220,12 +221,12 @@ export default function AssignmentDetailPage() {
     }
   }
 
-  const handleProgressUpdate = async (questionId: string, isCorrect: boolean, transcript: string) => {
+  const handleProgressUpdate = async (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING') => {
     try {
       const response = await fetch(`/api/assignments/${assignmentId}/submit-progress`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionId, isCorrect, transcript })
+        body: JSON.stringify({ questionId, isCorrect, result, type })
       })
 
       if (response.ok) {
@@ -540,10 +541,6 @@ export default function AssignmentDetailPage() {
                       <span className="text-sm text-muted-foreground">Questions</span>
                       <span className="font-medium">{assignment._count?.questions || 0}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Submissions</span>
-                      <span className="font-medium">{assignment._count?.progresses || 0}</span>
-                    </div>
                     <Separator />
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Created</span>
@@ -789,6 +786,18 @@ export default function AssignmentDetailPage() {
               videoUrl: assignment.videoUrl,
               videoTranscript: assignment.videoTranscript,
               language: assignment.language,
+              evaluationSettings: assignment.evaluationSettings,
+              questions: assignment.questions
+            }}
+            studentProgress={studentProgress}
+            onProgressUpdate={handleProgressUpdate}
+          />
+        ) : assignment.evaluationSettings?.type === 'READING' ? (
+          /* Reading Assignment Player */
+          <ReadingAssignment
+            assignment={{
+              id: assignment.id,
+              topic: assignment.topic,
               evaluationSettings: assignment.evaluationSettings,
               questions: assignment.questions
             }}

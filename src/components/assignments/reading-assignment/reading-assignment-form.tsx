@@ -47,25 +47,20 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
-import { VideoAssignmentPreview } from "./video-assignment-preview";
+// import { VideoAssignmentPreview } from "./video-assignment-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 
 const formSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
-  videoUrl: z.string().url("Please enter a valid YouTube URL"),
   questions: z
     .array(
       z.object({
         text: z.string().min(1, "Question text cannot be empty."),
-        answer: z.string().min(1, "Answer text cannot be empty."),
+        title: z.string().optional(),
       })
     )
     .min(1, "At least one question is required."),
@@ -78,15 +73,15 @@ const formSchema = z.object({
   languageId: z.string().optional(),
 });
 
-type VideoFormValues = z.infer<typeof formSchema>;
+type ReadingFormValues = z.infer<typeof formSchema>;
 
-interface VideoAssignmentFormProps {
+interface ReadingAssignmentFormProps {
   data: {
     classes: Class[];
   };
 }
 
-export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
+export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
   const router = useRouter();
   const { classes } = data;
   const [students, setStudents] = useState<User[]>([]);
@@ -99,30 +94,11 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     message: string;
   } | null>(null);
 
-  // State for video transcript checking
-  const [videoHasTranscript, setVideoHasTranscript] = useState<boolean | null>(
-    null
-  );
-  const [transcriptContent, setTranscriptContent] = useState<string | null>(
-    null
-  );
-  const [transcriptLanguage, setTranscriptLanguage] = useState<string | null>(
-    null
-  );
-  const [isCheckingTranscript, setIsCheckingTranscript] = useState(false);
-
-  // State for tracking assignment analysis
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [improvedQuestions, setImprovedQuestions] = useState<
-    { text: string; answer: string }[]
-  >([]);
-
-  const form = useForm<VideoFormValues>({
+  const form = useForm<ReadingFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       topic: "",
-      videoUrl: "",
-      questions: [{ text: "", answer: "" }],
+      questions: [{ text: "", title: "" }],
       classIds: [],
       studentIds: [],
       assignToEntireClass: true,
@@ -133,71 +109,13 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     },
   });
 
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "questions",
   });
 
   const selectedClasses = form.watch("classIds");
   const assignToEntireClass = form.watch("assignToEntireClass");
-  const videoUrl = form.watch("videoUrl");
-
-  // Check for video transcript when URL changes
-  useEffect(() => {
-    const checkVideoTranscript = async () => {
-      if (!videoUrl || !z.string().url().safeParse(videoUrl).success) {
-        // Only reset if we don't have saved transcript data
-        if (!sessionStorage.getItem("assignment-transcript-content")) {
-          setVideoHasTranscript(null);
-          setTranscriptContent(null);
-          setTranscriptLanguage(null);
-          setImprovedQuestions([]);
-        }
-        return;
-      }
-
-      // Skip API call if we already have transcript data for this URL from restoration
-      if (transcriptContent !== null || videoHasTranscript !== null) {
-        console.log("Skipping transcript check - data already available");
-        return;
-      }
-
-      setIsCheckingTranscript(true);
-      setImprovedQuestions([]); // Reset improved questions on new URL
-      setVideoHasTranscript(null); // Reset transcript state
-
-      try {
-        const response = await fetch("/api/check-video-transcript", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ videoUrl }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to check video transcript");
-        }
-
-        const data = await response.json();
-        setVideoHasTranscript(data.hasTranscript);
-        setTranscriptContent(data.transcriptContent);
-        setTranscriptLanguage(data.transcriptLang);
-        form.setValue("hasTranscript", data.hasTranscript);
-      } catch (error) {
-        console.error("Error checking transcript:", error);
-        setVideoHasTranscript(false);
-        setTranscriptContent(null);
-        setTranscriptLanguage(null);
-      } finally {
-        setIsCheckingTranscript(false);
-      }
-    };
-
-    const debounceId = setTimeout(() => {
-      checkVideoTranscript();
-    }, 500); // Reduced debounce time for better responsiveness
-
-    return () => clearTimeout(debounceId);
-  }, [videoUrl, form, transcriptContent, videoHasTranscript]);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -232,134 +150,12 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     fetchStudents();
   }, [selectedClasses, assignToEntireClass, form]);
 
-  // Function to analyze transcript and suggest questions
-  const suggestQuestionsFromTranscript = async () => {
-    if (!transcriptContent) {
-      setFormMessage({
-        type: "error",
-        message: "No transcript available to analyze.",
-      });
-      return;
-    }
-
-    setIsAnalyzing(true);
-    setFormMessage(null); // Clear previous messages
-
-    try {
-      const formData = form.getValues();
-
-      const response = await fetch("/api/analyze-video-assignment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          transcript: transcriptContent,
-          topic: formData.topic,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success && result.improvedQuestions?.questions) {
-        const newQuestions: { text: string; answer: string }[] =
-          result.improvedQuestions.questions;
-
-        const existingQuestionsSet = new Set(
-          improvedQuestions.map(
-            (q) =>
-              `${q.text.trim().toLowerCase()}-${q.answer.trim().toLowerCase()}`
-          )
-        );
-
-        const uniqueNewQuestions = newQuestions.filter((newQ) => {
-          const newQKey = `${newQ.text.trim().toLowerCase()}-${newQ.answer
-            .trim()
-            .toLowerCase()}`;
-          return !existingQuestionsSet.has(newQKey);
-        });
-
-        if (uniqueNewQuestions.length > 0) {
-          setImprovedQuestions((prev) => [...prev, ...uniqueNewQuestions]);
-          setFormMessage({
-            type: "success",
-            message: `Successfully generated ${uniqueNewQuestions.length} new questions.`,
-          });
-        } else {
-          setFormMessage({
-            type: "success",
-            message: "No new unique questions were found.",
-          });
-        }
-      } else {
-        throw new Error(result.error || "AI analysis failed");
-      }
-    } catch (error) {
-      console.error("Error generating questions:", error);
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to generate AI questions.";
-      setFormMessage({ type: "error", message });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const applyOneImprovedQuestion = (question: {
-    text: string;
-    answer: string;
-  }) => {
-    // Check if the first question is empty and replace it, otherwise append.
-    const firstQuestion = form.getValues("questions")[0];
-    if (
-      form.getValues("questions").length === 1 &&
-      !firstQuestion.text &&
-      !firstQuestion.answer
-    ) {
-      replace([question]);
-    } else {
-      append(question);
-    }
-
-    // Remove the used question from the improved questions list
-    setImprovedQuestions((prev) =>
-      prev.filter(
-        (q) =>
-          !(
-            q.text.trim() === question.text.trim() &&
-            q.answer.trim() === question.answer.trim()
-          )
-      )
-    );
-
-    setFormMessage({ type: "success", message: "Question added." });
-  };
-
-  const applyAllImprovedQuestions = () => {
-    if (improvedQuestions.length === 0) return;
-    replace(improvedQuestions);
-
-    // Clear all improved questions since they've all been applied
-    setImprovedQuestions([]);
-
-    setFormMessage({
-      type: "success",
-      message: "All suggested questions have been applied.",
-    });
-  };
-
   // Check if preview is available - all required fields for API evaluation
   const isPreviewAvailable = () => {
     const data = currentFormData;
 
     // Basic required fields
-    if (!data.topic?.trim() || !data.videoUrl?.trim()) {
+    if (!data.topic?.trim()) {
       return false;
     }
 
@@ -367,25 +163,24 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     const hasValidQuestions =
       data.questions &&
       data.questions.length > 0 &&
-      data.questions.some((q) => q.text?.trim() && q.answer?.trim());
+      data.questions.some((q) => q.text?.trim())
 
     return hasValidQuestions;
   };
 
-  async function onSubmit(values: VideoFormValues) {
+  async function onSubmit(values: ReadingFormValues) {
     setIsSubmitting(true);
     setFormMessage(null);
     try {
-      const response = await fetch("/api/assignments/video", {
+      const response = await fetch("/api/assignments/reading", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          creationType: "video",
+          creationType: "READING",
           ...values,
-          videoTranscript: transcriptContent || "",
-        }),
+        }), 
       });
 
       const result = await response.json();
@@ -424,7 +219,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <Card>
           <CardHeader>
-            <CardTitle>Video Assignment Details</CardTitle>
+            <CardTitle>Reading Assignment Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
@@ -435,7 +230,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                   <FormLabel>Topic</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Top 10 things to remember when learning IELTS"
+                      placeholder="Reading assignment topic"
                       {...field}
                     />
                   </FormControl>
@@ -443,133 +238,14 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="videoUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>YouTube Video URL</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="https://www.youtube.com/watch?v=..."
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {isCheckingTranscript && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Checking...</AlertTitle>
-                <AlertDescription>
-                  Checking for transcript availability...
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {videoHasTranscript === false && !isCheckingTranscript && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>No Transcript</AlertTitle>
-                <AlertDescription>
-                  No transcript is available for this video. Please choose
-                  another or add questions manually.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {videoHasTranscript &&
-              transcriptContent &&
-              !isCheckingTranscript && (
-                <Alert variant="default">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <AlertTitle>Transcript Available!</AlertTitle>
-                  <AlertDescription>
-                    <details className="mt-2 cursor-pointer">
-                      <summary className="font-semibold">
-                        View Transcript
-                      </summary>
-                      <div className="mt-2 p-2 bg-secondary rounded-md max-h-48 overflow-y-auto whitespace-pre-wrap">
-                        {transcriptContent}
-                      </div>
-                    </details>
-                    {improvedQuestions.length === 0 && (
-                      <Button
-                        type="button"
-                        onClick={suggestQuestionsFromTranscript}
-                        disabled={isAnalyzing}
-                        className="mt-4"
-                      >
-                        {isAnalyzing
-                          ? "Generating..."
-                          : "Generate Questions from Transcript"}
-                      </Button>
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
           </CardContent>
         </Card>
 
-        {improvedQuestions.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Suggested Questions</CardTitle>
-              <CardDescription>
-                These questions have been generated by AI based on the video
-                transcript. You can add them individually or all at once.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2 max-h-96 overflow-y-auto pr-4">
-                {improvedQuestions.map((q, i) => (
-                  <div key={i} className="p-4 border rounded-md bg-secondary">
-                    <p className="font-semibold">
-                      {i + 1}. {q.text}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      <span className="font-semibold">Answer:</span> {q.answer}
-                    </p>
-                    <div className="flex justify-end mt-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyOneImprovedQuestion(q)}
-                      >
-                        Use This Question
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center gap-4 mt-4 justify-end">
-                <Button type="button" onClick={applyAllImprovedQuestions}>
-                  Use All Suggested Questions
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={suggestQuestionsFromTranscript}
-                  disabled={isAnalyzing}
-                >
-                  {isAnalyzing
-                    ? "Generating more..."
-                    : "Generate More Questions"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         <Card>
           <CardHeader>
-            <CardTitle>Questions</CardTitle>
+            <CardTitle>Content</CardTitle>
             <CardDescription>
-              Add questions that students will answer after watching the video.
+              Add reading passages that students will read.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -578,16 +254,32 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                 key={field.id}
                 className="flex items-start justify-between w-full gap-4 p-4 border rounded-md"
               >
-                <div className="flex-grow gap-4">
+                <div className="flex-grow gap-4 flex flex-col">
+                <FormField
+                    control={form.control}
+                    name={`questions.${index}.title`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Passage Title (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Past Tense Verbs" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name={`questions.${index}.text`}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Question {index + 1}</FormLabel>
+                        <FormLabel>Passage {index + 1}</FormLabel>
+                        <FormDescription>
+                          The text that students will read.
+                        </FormDescription>
                         <FormControl>
                           <Textarea
-                            placeholder="e.g., What did the character do?"
+                            placeholder="Yesterday morning, I woke up and stretched my arms. I brushed my teeth and washed my face. Then I ate breakfast and drank some juice. After that, I packed my bag and walked to school. In class, I listened to the teacher and wrote in my notebook. At the end of the day, I played with my friends and laughed a lot."
                             {...field}
                             rows={2}
                           />
@@ -612,10 +304,10 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => append({ text: "", answer: "" })}
+              onClick={() => append({ text: "" })}
             >
               <PlusCircle className="h-4 w-4 mr-2" />
-              Add Question
+              Add Passage
             </Button>
           </CardContent>
         </Card>
@@ -952,15 +644,15 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
 
         <div className="flex justify-end gap-4">
           <div className="flex flex-col items-end gap-2">
-            {!isPreviewAvailable() && (
+            {/* {!isPreviewAvailable() && (
               <p className="text-xs text-muted-foreground">
                 Preview requires: topic, video URL, and at least one complete
                 question
               </p>
-            )}
+            )} */}
             <div className="flex gap-4">
               <Dialog>
-                <DialogTrigger asChild>
+                {/* <DialogTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
@@ -974,7 +666,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                     <Eye className="mr-2 h-4 w-4" />
                     Preview
                   </Button>
-                </DialogTrigger>
+                </DialogTrigger> */}
                 <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] p-0">
                   <div className="flex flex-col h-full max-h-[90vh]">
                     <div className="flex items-center justify-between rounded-lg p-6 border-b flex-shrink-0">
@@ -988,12 +680,12 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                       </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-6">
-                      <VideoAssignmentPreview
+                      {/* <VideoAssignmentPreview
                         topic={currentFormData.topic}
                         videoUrl={currentFormData.videoUrl}
                         questions={currentFormData.questions}
                         transcriptContent={transcriptContent}
-                      />
+                      /> */}
                     </div>
                   </div>
                 </DialogContent>

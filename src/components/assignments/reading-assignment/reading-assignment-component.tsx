@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { AnswerFeedback } from '@/components/ui/answer-feedback'
-import { useAudioRecorder } from '@/hooks/use-audio-recorder'
+import { useAudioAnalysisRecorder } from '@/hooks/use-audio-analysis-recorder'
 import { 
   Mic, 
   ChevronLeft, 
@@ -18,24 +18,15 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-interface VideoQuestion {
+interface ReadingQuestion {
   id: string
-  textQuestion: string | null
-  textAnswer: string | null // Expected answer
-  image: string | null
-  videoUrl: string | null
+  textQuestion?: string | null
+  textAnswer: string | null 
 }
 
 interface Assignment {
   id: string
   topic: string | null
-  videoUrl: string | null
-  videoTranscript: string | null
-  language: {
-    id: string
-    language: string
-    code: string
-  } | null
   evaluationSettings: {
     type: string
     customPrompt: string | null
@@ -43,7 +34,7 @@ interface Assignment {
     acceptableResponses: any
     feedbackSettings: any
   } | null
-  questions: VideoQuestion[]
+  questions: ReadingQuestion[]
 }
 
 interface StudentProgress {
@@ -53,17 +44,17 @@ interface StudentProgress {
   submittedAt: string | null
 }
 
-interface VideoAssignmentPlayerProps {
+interface ReadingAssignmentProps {
   assignment: Assignment
   studentProgress: StudentProgress[]
   onProgressUpdate: (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING') => Promise<void>
 }
 
-export function VideoAssignmentPlayer({ 
+export function ReadingAssignment({ 
   assignment, 
   studentProgress,
   onProgressUpdate 
-}: VideoAssignmentPlayerProps) {
+}: ReadingAssignmentProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isCorrect, setIsCorrect] = useState(false)
@@ -73,26 +64,9 @@ export function VideoAssignmentPlayer({
   const [encouragement, setEncouragement] = useState('')
   const [ruleEvaluation, setRuleEvaluation] = useState<Record<string, { passed: boolean; feedback: string }>>({})
   const [currentTranscript, setCurrentTranscript] = useState('')
-  const [showVideoTranscript, setShowVideoTranscript] = useState(false)
   const [localProcessing, setLocalProcessing] = useState(false)
   const [hasStartedAnyQuestion, setHasStartedAnyQuestion] = useState(false)
-
-  // Get YouTube video ID for embedded player
-  const getYouTubeVideoId = (url: string) => {
-    if (!url) return ''
-    
-    let videoId = ''
-    if (url.includes('youtube.com/watch')) {
-      const urlObj = new URL(url)
-      videoId = urlObj.searchParams.get('v') || ''
-    } else if (url.includes('youtu.be/')) {
-      const parts = url.split('/')
-      videoId = parts[parts.length - 1].split('?')[0]
-    }
-    return videoId
-  }
-
-  const videoId = getYouTubeVideoId(assignment.videoUrl || '')
+  const [pronunciationResult, setPronunciationResult] = useState<any>(null)
 
   // Get progress for current question
   const getCurrentQuestionProgress = () => {
@@ -109,8 +83,8 @@ export function VideoAssignmentPlayer({
   const totalQuestions = assignment.questions.length
   const overallProgress = totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0
 
-  // Submit transcript for evaluation
-  const submitTranscript = async (transcript: string) => {
+  // Submit transcript for pronunciation analysis
+  const submitTranscript = async (transcript: string, audioFile: File) => {
     if (!assignment.questions[currentIndex]) return
 
     setLocalProcessing(true)
@@ -118,57 +92,47 @@ export function VideoAssignmentPlayer({
     
     try {
       const currentQuestion = assignment.questions[currentIndex]
+      const expectedText = currentQuestion.textAnswer || ''
       
-      const response = await fetch('/api/evaluate-video-answer', {
+      console.log('Submitting for analysis:', {
+        expectedText,
+        transcript,
+        audioFileSize: audioFile.size
+      })
+      
+      // Use pronunciation analysis for reading assignments (text-only, no audio file needed)
+      const response = await fetch('/api/analysis/scripted', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          answer: transcript,
-          videoUrl: assignment.videoUrl,
-          question: {
-            question: currentQuestion.textQuestion || '',
-            answer: currentQuestion.textAnswer || ''
-          },
-          rules: assignment.evaluationSettings?.rules || [],
-          feedbackSettings: assignment.evaluationSettings?.feedbackSettings || {},
-          transcriptContent: assignment.videoTranscript,
-          language: assignment.language ? {
-            code: assignment.language.code,
-            name: assignment.language.language
-          } : null,
-          topic: assignment.topic || ''
+          expectedText,
+          browserTranscript: transcript
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to evaluate answer')
+        const errorText = await response.text()
+        console.error('API Error:', errorText)
+        throw new Error('Failed to analyze pronunciation')
       }
 
-      const { 
-        feedback: newFeedback, 
-        isCorrect: newIsCorrect,
-        details: newDetails,
-        encouragement: newEncouragement,
-        ruleEvaluation: newRuleEvaluation
-      } = await response.json()
+      const { analysis } = await response.json()
       
-      setFeedback(newFeedback)
-      setIsCorrect(newIsCorrect)
-      setDetails(newDetails)
-      setEncouragement(newEncouragement)
-      setRuleEvaluation(newRuleEvaluation)
+      // Set all the feedback states
+      setIsCorrect(analysis.isCorrect)
+      setFeedback(analysis.feedback)
+      setEncouragement(analysis.encouragement || '')
+      setPronunciationResult(analysis.pronunciationResult)
       setShowFeedback(true)
-      setHasStartedAnyQuestion(true)
-
-      // Update progress
-      await onProgressUpdate(currentQuestion.id, newIsCorrect, {
-        transcript,
-        timestamp: new Date().toISOString()
-      }, 'VIDEO')
       
-      // Show confetti for correct answers (similar to original)
-      if (newIsCorrect) {
-        // Simple confetti effect using CSS animation
+      // Update progress
+      await onProgressUpdate(currentQuestion.id, analysis.isCorrect, {
+        result: analysis,
+        timestamp: new Date().toISOString()
+      }, 'READING')
+      
+      // Show confetti for correct answers
+      if (analysis.isCorrect) {
         const button = document.querySelector('button[disabled]') as HTMLElement
         if (button) {
           button.style.animation = 'bounce 0.6s ease-in-out'
@@ -179,10 +143,11 @@ export function VideoAssignmentPlayer({
       }
       
     } catch (error) {
-      console.error('Error evaluating answer:', error)
-      setFeedback('Error processing your answer. Please try again.')
+      console.error('Error evaluating pronunciation:', error)
+      setFeedback('Error processing your pronunciation. Please try again.')
       setIsCorrect(false)
       setShowFeedback(true)
+      setPronunciationResult(null)
     } finally {
       setLocalProcessing(false)
       clearProcessing() // Clear the audio recorder processing state
@@ -198,16 +163,17 @@ export function VideoAssignmentPlayer({
     isSpeaking,
     reset: resetRecorder,
     clearProcessing
-  } = useAudioRecorder({
-    languageCode: assignment.language?.code || 'en-US',
+  } = useAudioAnalysisRecorder({
+    languageCode: 'en-US',
     onTranscriptionStart: () => {
       setShowFeedback(false)
       setFeedback('')
+      setPronunciationResult(null)
       // Don't set localProcessing here - wait for transcript completion
     },
-    onTranscriptionComplete: (transcript) => {
+    onTranscriptionComplete: (transcript: string, audioFile: File) => {
       const capitalizedTranscript = transcript.charAt(0).toUpperCase() + transcript.slice(1)
-      submitTranscript(capitalizedTranscript)
+      submitTranscript(capitalizedTranscript, audioFile)
     },
     onTranscriptionError: (error) => {
       console.error("Recording error:", error)
@@ -227,6 +193,7 @@ export function VideoAssignmentPlayer({
     setEncouragement('')
     setRuleEvaluation({})
     setCurrentTranscript('')
+    setPronunciationResult(null)
     setLocalProcessing(false) // Reset processing state
   }
 
@@ -333,58 +300,12 @@ export function VideoAssignmentPlayer({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Video Player */}
         <div className="lg:col-span-2 space-y-6">
-          {videoId && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Play className="h-5 w-5" />
-                  Assignment Video
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="relative pb-[56.25%] h-0 overflow-hidden rounded-lg">
-                  <iframe
-                    className="absolute top-0 left-0 w-full h-full"
-                    src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&controls=1`}
-                    title="Assignment Video"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-                
-                {assignment.videoTranscript && (
-                  <div className="mt-4">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setShowVideoTranscript(!showVideoTranscript)}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      {showVideoTranscript ? 'Hide' : 'Show'} Transcript
-                    </Button>
-                    
-                    {showVideoTranscript && (
-                      <div className="mt-4 p-4 bg-gray-50 rounded-lg max-h-60 overflow-y-auto">
-                        <h4 className="font-medium mb-2">Video Transcript</h4>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {assignment.videoTranscript}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
           {/* Question Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Question {currentIndex + 1}</span>
+                <span>Question {currentIndex + 1}: {assignment.questions[currentIndex]?.textQuestion || 'No title available'}</span>
                 <div className="flex gap-2">
                   <Button
                     variant="ghost"
@@ -408,7 +329,7 @@ export function VideoAssignmentPlayer({
             <CardContent className="space-y-4">
               <div className="p-4 bg-blue-50 rounded-lg">
                 <p className="text-lg">
-                  {assignment.questions[currentIndex]?.textQuestion || 'No question text available'}
+                  {assignment.questions[currentIndex]?.textAnswer || 'No question text available'}
                 </p>
               </div>
 
@@ -466,17 +387,91 @@ export function VideoAssignmentPlayer({
 
               {/* Feedback */}
               {(showFeedback || isProcessing) && (
-                              <AnswerFeedback
-                isCorrect={isCorrect}
-                feedback={feedback}
-                show={showFeedback || isProcessing}
-                isProcessing={isProcessing}
-                details={details}
-                encouragement={encouragement}
-                ruleEvaluation={{}} // Empty for video assignments - evaluation criteria not used
-                evaluationSettings={assignment.evaluationSettings?.feedbackSettings}
-                userAnswer={currentTranscript}
-              />
+                <AnswerFeedback
+                  isCorrect={isCorrect}
+                  feedback={feedback}
+                  show={showFeedback || isProcessing}
+                  isProcessing={isProcessing}
+                  details={details}
+                  encouragement={encouragement}
+                  ruleEvaluation={{}} // Empty for reading assignments - evaluation criteria not used
+                  evaluationSettings={assignment.evaluationSettings?.feedbackSettings}
+                  userAnswer={currentTranscript}
+                />
+              )}
+
+              {/* Pronunciation Results */}
+              {pronunciationResult && pronunciationResult.words && (
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-3">Pronunciation Analysis</h3>
+                  <div className="space-y-2">
+                    {pronunciationResult.words.map((word: any, wordIndex: number) => (
+                      <div key={wordIndex} className="flex flex-wrap items-center gap-1">
+                        <span className="font-medium text-sm text-gray-600 min-w-0 mr-2">
+                          {word.word_text}:
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {word.phonemes?.map((phoneme: any, phonemeIndex: number) => {
+                            // Color coding based on phoneme score
+                            let bgColor = 'bg-red-200 text-red-800' // 0-50: Poor
+                            if (phoneme.phoneme_score >= 90) {
+                              bgColor = 'bg-green-200 text-green-800' // 90-100: Excellent
+                            } else if (phoneme.phoneme_score >= 80) {
+                              bgColor = 'bg-blue-200 text-blue-800' // 80-89: Very Good
+                            } else if (phoneme.phoneme_score >= 70) {
+                              bgColor = 'bg-yellow-200 text-yellow-800' // 70-79: Good
+                            } else if (phoneme.phoneme_score >= 50) {
+                              bgColor = 'bg-orange-200 text-orange-800' // 50-69: Fair
+                            }
+                            
+                            return (
+                              <span
+                                key={phonemeIndex}
+                                className={`inline-block px-2 py-1 rounded text-xs font-mono ${bgColor}`}
+                                title={`${phoneme.ipa_label}: ${Math.round(phoneme.phoneme_score)}%`}
+                              >
+                                {phoneme.ipa_label}
+                              </span>
+                            )
+                          })}
+                        </div>
+                        <span className="text-xs text-gray-500 ml-2">
+                          ({Math.round(word.word_score)}%)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Overall Score:</span>
+                      <span className="font-semibold">
+                        {Math.round(pronunciationResult.overall_score)}%
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Legend */}
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-600 mb-2">Color Legend:</p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="inline-block px-2 py-1 rounded bg-green-200 text-green-800">
+                        90%+ Excellent
+                      </span>
+                      <span className="inline-block px-2 py-1 rounded bg-blue-200 text-blue-800">
+                        80%+ Very Good
+                      </span>
+                      <span className="inline-block px-2 py-1 rounded bg-yellow-200 text-yellow-800">
+                        70%+ Good
+                      </span>
+                      <span className="inline-block px-2 py-1 rounded bg-orange-200 text-orange-800">
+                        50%+ Fair
+                      </span>
+                      <span className="inline-block px-2 py-1 rounded bg-red-200 text-red-800">
+                        &lt;50% Needs Practice
+                      </span>
+                    </div>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

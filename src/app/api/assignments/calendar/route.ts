@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
             }
           }
         ],
-        isActive: true
+        // isActive: true
       },
       include: {
         teacher: {

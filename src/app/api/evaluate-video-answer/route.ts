@@ -3,6 +3,12 @@ import { AuthService } from '../../../../lib/services/auth.service'
 import { handleServiceError } from '../../../../lib/services/auth.service'
 import OpenAI from 'openai'
 
+// Helper function to capitalize just the first letter
+const capitalizeSentence = (text: string): string => {
+  if (!text) return text;
+  return text[0].toUpperCase() + text.slice(1);
+};
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
@@ -47,9 +53,12 @@ export async function POST(request: NextRequest) {
       topic 
     } = body
 
+    // Capitalize the answer
+    const capitalizedAnswer = capitalizeSentence(answer);
+
     // Use OpenAI to evaluate the student's answer
     const evaluation = await evaluateAnswerWithAI({
-      studentAnswer: answer,
+      studentAnswer: capitalizedAnswer,
       expectedAnswer: question.answer,
       questionText: question.question,
       topic,
@@ -94,70 +103,63 @@ async function evaluateAnswerWithAI(params: EvaluationParams) {
     language
   } = params
 
-  // Create a comprehensive system prompt for evaluation
-  const systemPrompt = `You are an expert language teacher evaluating a student's spoken response to a video comprehension question. 
+  // Build the system prompt based on settings
+  let systemPrompt = `You are an educational assistant evaluating a student's answer to a question about a video. 
+The video topic is: ${topic}
+The question is: "${questionText}"
+The expected answer is: "${expectedAnswer}"
 
-**Context:**
-- Topic: ${topic}
-- Language: ${language}
-- Question: ${questionText}
-- Expected Answer: ${expectedAnswer}
-${videoTranscript ? `- Video Transcript: ${videoTranscript.substring(0, 1000)}...` : ''}
+${videoTranscript ? `The video transcript contains the following text: "${videoTranscript.substring(0, 2000)}${videoTranscript.length > 2000 ? '...' : ''}"` : ''}
 
-**Evaluation Rules:**
-${rules.length > 0 ? rules.map((rule, i) => `${i + 1}. ${rule}`).join('\n') : 'No specific rules provided.'}
+Your task is to evaluate whether the student's answer demonstrates understanding of the video content and correctly addresses the question.`;
 
-**Your Task:**
-Evaluate the student's spoken response and provide:
-1. **isCorrect**: Boolean - true if the answer demonstrates understanding of the key concepts
-2. **feedback**: String - Clear, constructive feedback (2-3 sentences)
-3. **details**: String - Detailed analysis if requested (what was good, what could be improved)
-4. **encouragement**: String - Motivational message if requested
-5. **ruleEvaluation**: Object - For each rule, indicate if passed and provide specific feedback
+  // Add rules evaluation section
+  if (rules.length > 0) {
+    systemPrompt += `\n\nYou MUST evaluate the answer against these specific rules:\n`;
+    rules.forEach((rule, index) => {
+      systemPrompt += `${index + 1}. ${rule}\n`;
+    });
+  }
 
-**Evaluation Criteria:**
-- Content accuracy and relevance to the question
-- Demonstration of understanding key concepts from the video
-- Adherence to specified rules
-- Language appropriateness for the level
-- Overall comprehension shown
+  systemPrompt += `\nIMPORTANT INSTRUCTIONS:
+1. The answer is correct if it demonstrates a basic understanding of the relevant concept from the video and addresses the question asked.
+2. Compare the student's answer to the expected answer for conceptual similarity, not exact wording.
+3. The answer should be marked as incorrect ONLY if it:
+   - Contains factually incorrect information
+   - Shows clear misunderstanding of the video content
+   - Completely fails to address the question asked
+4. Spelling or grammatical errors should NOT cause the answer to be marked as incorrect unless they change the meaning significantly.
+5. Be lenient with phrasing - focus on whether the student understood the concept.
 
-Be fair but encouraging. Consider that this is spoken language, so minor grammatical errors or filler words are acceptable.
+Respond with a JSON object containing:
+- 'isCorrect' (boolean): whether the answer demonstrates understanding of the concept
+- 'feedback' (string): a very brief explanation about why the answer is correct or incorrect, in very basic language, in 10 words or less. IMPORTANT: Refer to the user as 'you' or 'your' instead of 'the student' or 'the user'.
+${feedbackSettings.detailedFeedback ? '- \'details\' (string): feedback in very basic language, in 10 words or less. with suggestions for improvement. IMPORTANT: Do not give the user the actual correct answer. Give them a clue.' : ''}
+${feedbackSettings.encouragementEnabled ? '- \'encouragement\' (string): encouraging feedback in 3 or fewer words' : ''}`;
 
-Return your evaluation as a JSON object with the exact structure requested.`
-
-  const userPrompt = `Please evaluate this student response:
-
-**Student's Answer:** "${studentAnswer}"
-
-Provide your evaluation following the criteria and format specified.`
+  // Build the user prompt
+  const userPrompt = `Student's answer: "${studentAnswer}"\n\nEvaluate this answer against the question, expected answer, and rules provided.`;
 
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: userPrompt
+        }
       ],
       response_format: { type: "json_object" },
-      temperature: 0.3 // Lower temperature for more consistent evaluation
+      max_tokens: 300,
     })
 
-    const evaluationContent = completion.choices[0].message?.content
-    if (!evaluationContent) {
-      throw new Error('No evaluation content received from AI')
-    }
-
-    const evaluation = JSON.parse(evaluationContent)
-
-    // Ensure we have the required fields with fallbacks
-    return {
-      isCorrect: evaluation.isCorrect || false,
-      feedback: evaluation.feedback || "Thank you for your response. Keep practicing!",
-      details: feedbackSettings.detailedFeedback ? (evaluation.details || "") : "",
-      encouragement: feedbackSettings.encouragementEnabled ? (evaluation.encouragement || "Keep up the good work!") : "",
-      ruleEvaluation: evaluation.ruleEvaluation || {}
-    }
+    const response = JSON.parse(completion.choices[0].message.content || '{"isCorrect": false, "feedback": "Unable to evaluate"}');
+    
+    return response;
 
   } catch (error) {
     console.error('Error in AI evaluation:', error)
@@ -168,15 +170,14 @@ Provide your evaluation following the criteria and format specified.`
     return {
       isCorrect,
       feedback: isCorrect 
-        ? "Good job! Your answer shows understanding of the key concepts."
-        : "Your answer could be improved. Try to include more details from the video.",
+        ? "Good job! Your answer shows understanding."
+        : "Your answer could be improved. Try again!",
       details: feedbackSettings.detailedFeedback 
-        ? "AI evaluation temporarily unavailable. Basic evaluation applied."
+        ? "AI evaluation temporarily unavailable."
         : "",
       encouragement: feedbackSettings.encouragementEnabled 
-        ? "Keep practicing - you're doing great!"
-        : "",
-      ruleEvaluation: {}
+        ? "Keep practicing!"
+        : ""
     }
   }
 } 

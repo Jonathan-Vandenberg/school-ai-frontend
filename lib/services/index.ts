@@ -24,7 +24,9 @@ export {
   type CreateAssignmentData, 
   type UpdateAssignmentData, 
   type AssignmentWithDetails, 
-  type AssignmentListParams 
+  type AssignmentListParams,
+  type CreateVideoAssignmentDto,
+  type CreateReadingAssignmentDto
 } from './assignments.service'
 
 // Class management

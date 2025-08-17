@@ -11,9 +11,9 @@ import {
   PlusCircle 
 } from "lucide-react";
 
-const assignmentTypes = [
+export const assignmentTypes = [
   {
-    id: 'video',
+    id: 'VIDEO',
     title: 'Video',
     description: 'Create video-based assignments for student presentations and analysis',
     icon: Video,
@@ -26,7 +26,7 @@ const assignmentTypes = [
     }
   },
   {
-    id: 'reading',
+    id: 'READING',
     title: 'Reading',
     description: 'Design reading comprehension and analysis assignments',
     icon: BookOpen,
@@ -39,7 +39,7 @@ const assignmentTypes = [
     }
   },
   {
-    id: 'pronunciation',
+    id: 'PRONUNCIATION',
     title: 'Pronunciation',
     description: 'Build pronunciation practice and speaking exercises',
     icon: Mic,
@@ -52,7 +52,7 @@ const assignmentTypes = [
     }
   },
   {
-    id: 'image',
+    id: 'IMAGE',
     title: 'Image',
     description: 'Create visual analysis and interpretation assignments',
     icon: Image,
@@ -65,7 +65,7 @@ const assignmentTypes = [
     }
   },
   {
-    id: 'ielts',
+    id: 'IELTS',
     title: 'IELTS',
     description: 'Prepare IELTS test practice and preparation materials',
     icon: FileText,
@@ -78,7 +78,7 @@ const assignmentTypes = [
     }
   },
   {
-    id: 'custom',
+    id: 'CUSTOM',
     title: 'Custom',
     description: 'Create your own custom assignment type',
     icon: PlusCircle,

@@ -1074,6 +1074,215 @@ export class AssignmentsService {
     });
   }
 
+  static async createReadingAssignment(
+    currentUser: AuthenticatedUser,
+    data: CreateReadingAssignmentDto
+  ): Promise<AssignmentWithDetails> {
+    AuthService.requireTeacherOrAdmin(currentUser)
+
+    const {
+      topic,
+      questions,
+      classIds,
+      studentIds,
+      scheduledPublishAt,
+      dueDate,
+      languageId,
+      color,
+      totalStudentsInScope,
+    } = data;
+
+    // Validate language exists (only if languageId is provided)
+    let language = null
+    if (languageId) {
+      language = await prisma.language.findUnique({
+        where: { id: languageId }
+      })
+
+      if (!language) {
+        throw new ValidationError('Language not found')
+      }
+    }
+
+    return withTransaction(async (tx) => {
+      // Calculate initial stats
+      const initialTotalStudentsInScope = totalStudentsInScope || 0;
+      const publishDate = new Date();
+      const isActive = !scheduledPublishAt;
+
+      // Create evaluation settings for reading assignment
+      const evaluationData = {
+        type: 'READING' as const,
+        customPrompt: '',
+        rules: [],
+        acceptableResponses: [],
+        feedbackSettings: {
+          detailedFeedback: true,
+          encouragementEnabled: true
+        }
+      };
+
+      const isClassAssignment = classIds && classIds.length > 0 && studentIds && studentIds.length === 0
+
+      // 1. Create the main Assignment record
+      const newAssignment = await tx.assignment.create({
+        data: {
+          topic,
+          videoUrl: null, // Reading assignments don't have videos
+          videoTranscript: '', // Empty for reading assignments
+          languageId: languageId || undefined,
+          teacherId: currentUser.id,
+          type: isClassAssignment ? 'CLASS' : 'INDIVIDUAL',
+          color: color || '#10B981', // Green color for reading assignments
+          isActive,
+          publishedAt: publishDate,
+          scheduledPublishAt: scheduledPublishAt || publishDate,
+          dueDate: dueDate || null,
+          totalStudentsInScope: initialTotalStudentsInScope,
+          completedStudentsCount: 0,
+          completionRate: 0.0,
+          averageScoreOfCompleted: 0.0,
+          evaluationSettings: {
+            create: evaluationData
+          }
+        },
+        include: {
+          teacher: {
+            select: { id: true, username: true }
+          },
+          language: {
+            select: { id: true, language: true, code: true }
+          },
+          evaluationSettings: true,
+          questions: {
+            select: {
+              id: true,
+              textQuestion: true,
+              textAnswer: true,
+              image: true,
+              videoUrl: true,
+            }
+          },
+          classes: {
+            include: {
+              class: {
+                select: { id: true, name: true }
+              }
+            }
+          },
+          students: {
+            include: {
+              user: {
+                select: { id: true, username: true }
+              }
+            }
+          },
+        }
+      });
+
+      // 2. Create the associated reading passages as questions
+      if (questions && questions.length > 0) {
+        await tx.question.createMany({
+          data: questions.map((q, i) => ({
+            textQuestion: q.title || `Reading Passage ${i + 1}`,
+            textAnswer: q.text, // The passage text goes in textAnswer
+            assignmentId: newAssignment.id,
+            videoUrl: null,
+            publishedAt: publishDate
+          }))
+        });
+      }
+
+      // 3. Link assignment to classes or students
+      if (studentIds && studentIds.length > 0) {
+        await tx.userAssignment.createMany({
+          data: studentIds.map((userId) => ({
+            userId,
+            assignmentId: newAssignment.id,
+          })),
+        });
+      } else if (classIds && classIds.length > 0) {
+        await tx.classAssignment.createMany({
+          data: classIds.map((classId) => ({
+            classId,
+            assignmentId: newAssignment.id,
+          })),
+        });
+      } else 
+
+      // 4. Log the activity using the ActivityLogService
+      await ActivityLogService.logAssignmentCreated(
+        currentUser,
+        {
+          id: newAssignment.id,
+          topic: newAssignment.topic || 'Untitled Reading Assignment'
+        },
+        isClassAssignment ? 'CLASS' : 'INDIVIDUAL',
+        {
+          createdBy: currentUser.customRole,
+          creatorId: currentUser.id,
+          creatorUsername: currentUser.username,
+          language: language?.language || 'No language specified',
+          languageCode: language?.code || 'none',
+          classCount: classIds?.length || 0,
+          studentCount: studentIds?.length || 0,
+          isScheduled: !!scheduledPublishAt,
+          scheduledDate: scheduledPublishAt?.toISOString(),
+          assignmentType: isClassAssignment ? 'CLASS' : 'INDIVIDUAL',
+          evaluationType: 'READING',
+          questionCount: questions?.length || 0
+        },
+        tx
+      );
+      
+      // Refetch the assignment with all relations to match AssignmentWithDetails interface
+      const completeAssignment = await tx.assignment.findUnique({
+        where: { id: newAssignment.id },
+        include: {
+          teacher: {
+            select: { id: true, username: true }
+          },
+          language: {
+            select: { id: true, language: true, code: true }
+          },
+          evaluationSettings: true,
+          questions: {
+            select: {
+              id: true,
+              textQuestion: true,
+              textAnswer: true,
+              image: true,
+              videoUrl: true,
+            }
+          },
+          classes: {
+            include: {
+              class: {
+                select: { id: true, name: true }
+              }
+            }
+          },
+          students: {
+            include: {
+              user: {
+                select: { id: true, username: true }
+              }
+            }
+          },
+        }
+      });
+
+      if (!completeAssignment) {
+        throw new Error('Failed to retrieve created reading assignment');
+      }
+
+      // Initialize assignment statistics WITHIN the transaction
+      await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
+
+      return completeAssignment as AssignmentWithDetails;
+    });
+  }
+
   /**
    * Submit student progress for a question
    */
@@ -1082,7 +1291,8 @@ export class AssignmentsService {
     assignmentId: string,
     questionId: string,
     isCorrect: boolean,
-    transcript: string
+    result: any,
+    type: 'VIDEO' | 'READING'
   ) {
     return withTransaction(async (tx) => {
       // Check if student has access to this assignment
@@ -1140,6 +1350,22 @@ export class AssignmentsService {
       })
 
       let progress
+      let languageConfidenceResponse = null
+      switch (type) {
+        case 'VIDEO':
+          languageConfidenceResponse = {
+            transcript: result,
+            timestamp: new Date().toISOString()
+          }
+          break
+        case 'READING':
+          languageConfidenceResponse = {
+            result,
+            timestamp: new Date().toISOString()
+          }
+          break
+      }
+
       if (existingProgress) {
         // Update existing progress
         progress = await tx.studentAssignmentProgress.update({
@@ -1148,10 +1374,7 @@ export class AssignmentsService {
           },
           data: {
             isCorrect,
-            languageConfidenceResponse: {
-              transcript: transcript,
-              timestamp: new Date().toISOString()
-            },
+            languageConfidenceResponse,
             isComplete: true,
             updatedAt: new Date()
           }
@@ -1164,10 +1387,7 @@ export class AssignmentsService {
             assignmentId: assignmentId,
             questionId: questionId,
             isCorrect,
-            languageConfidenceResponse: {
-              transcript: transcript,
-              timestamp: new Date().toISOString()
-            },
+            languageConfidenceResponse,
             isComplete: true
           }
         })
@@ -1344,4 +1564,18 @@ export interface CreateVideoAssignmentDto {
   };
   totalStudentsInScope?: number;
   analysisResult?: any;
+}
+
+export interface CreateReadingAssignmentDto {
+  topic: string;
+  questions: { text: string; title?: string }[]; // Reading passages
+  classIds: string[];
+  studentIds?: string[];
+  assignToEntireClass: boolean;
+  scheduledPublishAt?: Date | null;
+  dueDate?: Date | null;
+  hasTranscript?: boolean;
+  languageId?: string | null;
+  color?: string;
+  totalStudentsInScope?: number;
 } 

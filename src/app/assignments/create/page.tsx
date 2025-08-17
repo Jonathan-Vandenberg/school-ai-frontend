@@ -3,6 +3,7 @@ import { IELTSAssignmentCards } from "@/components/assignments/ielts-assignment/
 import { ClassesService } from "../../../../lib/services/classes.service";
 import { AuthService } from "../../../../lib/services/auth.service";
 import { notFound, redirect } from "next/navigation";
+import { ReadingAssignmentForm } from "@/components/assignments/reading-assignment/reading-assignment-form";
 
 interface CreateAssignmentPageProps {
   searchParams: Promise<{ type?: string }>;
@@ -30,14 +31,7 @@ export default async function CreateAssignmentPage({ searchParams }: CreateAssig
       case "video":
         return <VideoAssignmentForm data={formData} />;
       case "reading":
-        return (
-          <div className="container mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-4">Create Reading Assignment</h1>
-            <p className="text-muted-foreground">
-              Reading assignment creation is coming soon. Please check back later.
-            </p>
-          </div>
-        );
+        return <ReadingAssignmentForm data={formData} />;
       case "pronunciation":
         return (
           <div className="container mx-auto p-6">

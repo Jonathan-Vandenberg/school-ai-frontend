@@ -76,7 +76,13 @@ const SeverityBadge = ({ severity }: { severity: string }) => {
   )
 }
 
-export const StudentHelpCard = ({ student }: { student: StudentNeedingHelp | UserWithHelp }) => {
+export const StudentHelpCard = ({ 
+  student, 
+  onClick 
+}: { 
+  student: StudentNeedingHelp | UserWithHelp
+  onClick?: () => void 
+}) => {
   // Normalize data from different interfaces
   const studentData = 'student' in student ? {
     username: student.student.username,
@@ -110,7 +116,10 @@ export const StudentHelpCard = ({ student }: { student: StudentNeedingHelp | Use
   const showBothMetrics = hasLowCompletion && hasLowScore
 
   return (
-    <Card className="transition-all hover:shadow-md">
+    <Card 
+      className={`transition-all hover:shadow-md ${onClick ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+      onClick={onClick}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">

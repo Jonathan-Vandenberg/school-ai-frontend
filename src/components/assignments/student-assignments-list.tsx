@@ -3,32 +3,39 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Video, BookOpen, Mic, Image as ImageIcon, FileText, Settings, Calendar, Clock, Users, User, School, Star, CheckCircle } from "lucide-react";
+import { Video, BookOpen, Mic, Image as ImageIcon, FileText, Settings, Calendar, Clock, Users, User, School, Star, CheckCircle, Icon } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { useState } from "react";
 import { AssignmentWithDetails } from "../../../lib/services/assignments.service";
+import { assignmentTypes } from "@/app/create-assignment/page";
 
 interface StudentAssignmentsListProps {
   assignments: AssignmentWithDetails[];
 }
 
-const getAssignmentIcon = (evaluationType?: string) => {
+const getAssignmentCardStyle = (evaluationType?: string) => {
   switch (evaluationType) {
     case 'VIDEO':
-      return Video;
+      const videoCard = assignmentTypes.find(type => type.id === 'VIDEO')?.colors;
+      return {icon: assignmentTypes.find(type => type.id === 'VIDEO')?.icon, color: videoCard};
     case 'READING':
-      return BookOpen;
+      const readingCard = assignmentTypes.find(type => type.id === 'READING')?.colors;
+      return {icon: assignmentTypes.find(type => type.id === 'READING')?.icon, color: readingCard};
     case 'PRONUNCIATION':
-      return Mic;
+      const pronunciationCard = assignmentTypes.find(type => type.id === 'PRONUNCIATION')?.colors;
+      return {icon: assignmentTypes.find(type => type.id === 'PRONUNCIATION')?.icon, color: pronunciationCard};
     case 'IMAGE':
-      return ImageIcon;
+      const imageCard = assignmentTypes.find(type => type.id === 'IMAGE')?.colors;
+      return {icon: assignmentTypes.find(type => type.id === 'IMAGE')?.icon, color: imageCard};
     case 'IELTS':
-      return FileText;
+      const ieltsCard = assignmentTypes.find(type => type.id === 'IELTS')?.colors;
+      return {icon: assignmentTypes.find(type => type.id === 'IELTS')?.icon, color: ieltsCard};
     default:
-      return Settings;
+      const customCard = assignmentTypes.find(type => type.id === 'CUSTOM')?.colors;
+      return {icon: assignmentTypes.find(type => type.id === 'CUSTOM')?.icon, color: customCard};
   }
 };
 
@@ -182,7 +189,7 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
   return (
     <div className="space-y-3">
       {assignments.map((assignment) => {
-        const Icon = getAssignmentIcon(assignment.evaluationSettings?.type);
+        const cardStyle = getAssignmentCardStyle(assignment.evaluationSettings?.type);
         const isStudent = session?.user?.role === 'STUDENT';
         const statusInfo = getAssignmentStatus(assignment, isStudent);
         const progress = isStudent ? getStudentProgress(assignment) : null;
@@ -204,10 +211,15 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
                     alt={`${assignment.topic} video thumbnail`}
                   />
                 ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center rounded-t-lg sm:rounded-t-none sm:rounded-l-lg">
-                    <div className="w-8 h-8 sm:w-8 sm:h-8 bg-gradient-to-br from-primary/20 to-primary/10 rounded-lg flex items-center justify-center">
-                      <Icon className="h-4 w-4 sm:h-4 sm:w-4 text-primary" />
+                  <div className={`${cardStyle?.color?.bg} absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-t-lg sm:rounded-t-none sm:rounded-l-lg`}>
+                    <div className={`${cardStyle?.color?.iconBg} w-10 h-10 sm:w-10 sm:h-10 rounded-full flex items-center justify-center`}>
+                      {cardStyle?.icon && (
+                        <cardStyle.icon className={`h-6 w-6 sm:h-6 sm:w-6 ${cardStyle?.color?.iconColor}`} />
+                      )}
                     </div>
+                    <p className={`${cardStyle?.color?.iconColor} text-sm font-medium`}>
+                      {assignment.evaluationSettings?.type}
+                    </p>
                   </div>
                 )}
               </div>
