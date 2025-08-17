@@ -43,7 +43,7 @@ interface GrammarCorrection {
   strengths: string[];
   improvements: string[];
   lexical_band_score: number;
-  modelAnswers: Record<string, string>;
+  modelAnswers: Record<string, { marked: string, clean: string }>;
   grammar_score: number;
 }
 

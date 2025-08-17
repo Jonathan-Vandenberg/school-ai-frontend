@@ -1,15 +1,27 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Link from "next/link";
+import Image from "next/image";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Video, 
   BookOpen, 
   Mic, 
-  Image, 
+  Image as ImageIcon, 
   FileText, 
   PlusCircle 
 } from "lucide-react";
+
+// JIS Logo component
+const JISLogo = ({ className }: { className?: string }) => (
+  <Image
+    src="/jis-logo.png"
+    alt="JIS Logo"
+    width={32}
+    height={32}
+    className={`object-contain ${className}`}
+  />
+);
 
 export const assignmentTypes = [
   {
@@ -55,7 +67,7 @@ export const assignmentTypes = [
     id: 'IMAGE',
     title: 'Image',
     description: 'Create visual analysis and interpretation assignments',
-    icon: Image,
+    icon: ImageIcon,
     href: '/assignments/create?type=image',
     colors: {
       bg: 'bg-gradient-to-br from-amber-50 to-orange-100',
@@ -68,7 +80,7 @@ export const assignmentTypes = [
     id: 'IELTS',
     title: 'IELTS',
     description: 'Prepare IELTS test practice and preparation materials',
-    icon: FileText,
+    icon: JISLogo,
     href: '/assignments/create?type=ielts',
     colors: {
       bg: 'bg-gradient-to-br from-rose-50 to-pink-100',

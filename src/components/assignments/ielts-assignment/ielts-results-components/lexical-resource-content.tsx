@@ -17,7 +17,7 @@ interface GrammarCorrection {
   strengths: string[];
   improvements: string[];
   lexical_band_score: number;
-  modelAnswers: Record<string, string>;
+  modelAnswers: Record<string, { marked: string, clean: string }>;
   grammar_score: number;
 }
 
@@ -29,12 +29,12 @@ interface LexicalResourceContentProps {
 }
 
 // Model Answers Display Component
-function ModelAnswersDisplay({ modelAnswers, accent }: { modelAnswers: Record<string, string>, accent: string }) {
+function ModelAnswersDisplay({ modelAnswers, accent }: { modelAnswers: Record<string, { marked: string, clean: string }>, accent: string }) {
   const [playingBand, setPlayingBand] = useState<string | null>(null);
   const [audioSources, setAudioSources] = useState<Record<string, string>>({});
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const playBandExample = async (bandKey: string, text: string) => {
+  const playBandExample = async (bandKey: string, cleanText: string) => {
     try {
       if (playingBand === bandKey && audioRef.current) {
         audioRef.current.pause();
@@ -56,7 +56,7 @@ function ModelAnswersDisplay({ modelAnswers, accent }: { modelAnswers: Record<st
       const response = await fetch('/api/text-to-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text, accent: accent }),
+        body: JSON.stringify({ text: cleanText, accent: accent }),
       });
       
       if (!response.ok) throw new Error('Failed to get audio');
@@ -134,8 +134,8 @@ function ModelAnswersDisplay({ modelAnswers, accent }: { modelAnswers: Record<st
     return <>{parts}</>;
   };
 
-  const renderBandExample = (bandKey: string, bandNum: string, exampleText: string) => {
-    if (!exampleText) return null;
+  const renderBandExample = (bandKey: string, bandNum: string, example: { marked: string, clean: string }) => {
+    if (!example || !example.marked) return null;
     
     const isLoading = playingBand === bandKey && !audioSources[bandKey];
     const isCurrentlyPlaying = playingBand === bandKey && audioSources[bandKey] && audioRef.current && !audioRef.current.paused;
@@ -150,7 +150,7 @@ function ModelAnswersDisplay({ modelAnswers, accent }: { modelAnswers: Record<st
             <h5 className="text-sm font-medium text-gray-800">Band {bandNum} Example</h5>
           </div>
           <button 
-            onClick={() => playBandExample(bandKey, exampleText)}
+            onClick={() => playBandExample(bandKey, example.clean)}
             className="flex items-center text-xs text-blue-700 hover:text-blue-900 disabled:opacity-50 shrink-0 ml-3"
             disabled={isLoading}
           >
@@ -158,7 +158,7 @@ function ModelAnswersDisplay({ modelAnswers, accent }: { modelAnswers: Record<st
             {isLoading ? 'Loading...' : isCurrentlyPlaying ? 'Playing...' : 'Listen'}
           </button>
         </div>
-        <p className="text-sm text-gray-700 pl-11">{renderMarkedText(exampleText)}</p>
+        <p className="text-sm text-gray-700 pl-11">{renderMarkedText(example.marked)}</p>
       </div>
     );
   };
