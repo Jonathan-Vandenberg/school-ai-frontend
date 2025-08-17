@@ -26,7 +26,10 @@ export {
   type AssignmentWithDetails, 
   type AssignmentListParams,
   type CreateVideoAssignmentDto,
-  type CreateReadingAssignmentDto
+  type CreateReadingAssignmentDto,
+  type CreatePronunciationAssignmentDto,
+  IELTSAssignmentsService,
+  type CreateIELTSAssignmentDto
 } from './assignments.service'
 
 // Class management
@@ -65,7 +68,7 @@ export {
 // Import for ServiceFactory only (these must be value imports, not type imports)
 import { AuthService } from './auth.service'
 import { UsersService } from './users.service'
-import { AssignmentsService } from './assignments.service'
+import { AssignmentsService, IELTSAssignmentsService } from './assignments.service'
 import { ClassesService } from './classes.service'
 import { QuestionsService } from './questions.service'
 import { ActivityLogService } from './activity-log.service'
@@ -102,6 +105,10 @@ export class ServiceFactory {
 
   static get studentsNeedingHelp() {
     return StudentsNeedingHelpService
+  }
+
+  static get ieltsAssignments() {
+    return IELTSAssignmentsService
   }
 }
 

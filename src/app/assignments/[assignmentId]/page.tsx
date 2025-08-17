@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import { ReadingAssignment } from '@/components/assignments/reading-assignment/reading-assignment-component'
 import { PronunciationAssignment } from '@/components/assignments/pronunciation-assignment/pronunciation-assignment-component'
+import { IELTSAssignment } from '@/components/assignments/ielts-assignment/ielts-assignment-component'
 
 interface Assignment {
   id: string
@@ -222,7 +223,7 @@ export default function AssignmentDetailPage() {
     }
   }
 
-  const handleProgressUpdate = async (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING' | 'PRONUNCIATION') => {
+  const handleProgressUpdate = async (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING' | 'PRONUNCIATION' | 'Q_AND_A' | 'IELTS') => {
     try {
       const response = await fetch(`/api/assignments/${assignmentId}/submit-progress`, {
         method: 'POST',
@@ -808,6 +809,18 @@ export default function AssignmentDetailPage() {
         ): assignment.evaluationSettings?.type === 'PRONUNCIATION' ? (
           /* Pronunciation Assignment Player */
           <PronunciationAssignment
+            assignment={{
+              id: assignment.id,
+              topic: assignment.topic,
+              evaluationSettings: assignment.evaluationSettings,
+              questions: assignment.questions
+            }}
+            studentProgress={studentProgress}
+            onProgressUpdate={handleProgressUpdate}
+          />
+        ) : assignment.evaluationSettings?.type === 'Q_AND_A' ? (
+          /* IELTS Assignment Player */
+          <IELTSAssignment
             assignment={{
               id: assignment.id,
               topic: assignment.topic,

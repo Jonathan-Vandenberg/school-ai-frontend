@@ -1501,7 +1501,7 @@ export class AssignmentsService {
     questionId: string,
     isCorrect: boolean,
     result: any,
-    type: 'VIDEO' | 'READING' | 'PRONUNCIATION'
+    type: 'VIDEO' | 'READING' | 'PRONUNCIATION' | 'IELTS'
   ) {
     return withTransaction(async (tx) => {
       // Check if student has access to this assignment
@@ -1569,6 +1569,7 @@ export class AssignmentsService {
           break
         case 'READING':
         case 'PRONUNCIATION':
+        case 'IELTS':
           languageConfidenceResponse = {
             result,
             timestamp: new Date().toISOString()
@@ -1808,4 +1809,284 @@ export interface CreatePronunciationAssignmentDto {
   languageId?: string | null;
   color?: string;
   totalStudentsInScope?: number;
-} 
+}
+
+export interface CreateIELTSAssignmentDto {
+  topic: string;
+  subtype: 'reading' | 'question-answer' | 'pronunciation';
+  classIds: string[];
+  studentIds?: string[];
+  assignToEntireClass?: boolean;
+  scheduledPublishAt?: Date | null;
+  dueDate?: Date | null;
+  languageId?: string | null;
+  color?: string;
+  totalStudentsInScope?: number;
+  
+  // For reading and pronunciation assignments
+  passages?: { text: string; title?: string }[];
+  
+  // For question-answer assignments
+  questions?: { text: string; topic?: string; expectedLevel?: 'beginner' | 'intermediate' | 'advanced' }[];
+  context?: string;
+  
+  // IELTS specific
+  accent?: 'us' | 'uk';
+}
+
+export class IELTSAssignmentsService {
+  static async createIELTSAssignment(
+    currentUser: AuthenticatedUser,
+    data: CreateIELTSAssignmentDto
+  ): Promise<AssignmentWithDetails> {
+    AuthService.requireTeacherOrAdmin(currentUser)
+
+    const {
+      topic,
+      subtype,
+      classIds,
+      studentIds,
+      assignToEntireClass,
+      scheduledPublishAt,
+      dueDate,
+      languageId,
+      color,
+      totalStudentsInScope,
+      passages,
+      questions,
+      context,
+      accent,
+    } = data;
+
+    // Validate language exists (only if languageId is provided)
+    let language = null
+    if (languageId) {
+      language = await prisma.language.findUnique({
+        where: { id: languageId }
+      })
+
+      if (!language) {
+        throw new ValidationError('Language not found')
+      }
+    }
+
+    return withTransaction(async (tx) => {
+      // Calculate initial stats
+      const initialTotalStudentsInScope = totalStudentsInScope || 0;
+      const publishDate = new Date();
+      const isActive = !scheduledPublishAt;
+
+      // Determine evaluation type based on subtype
+      let evaluationType: 'READING' | 'Q_AND_A' | 'PRONUNCIATION';
+      let assignmentColor = color;
+      
+      switch (subtype) {
+        case 'reading':
+          evaluationType = 'READING';
+          assignmentColor = assignmentColor || '#10B981'; // Green
+          break;
+        case 'question-answer':
+          evaluationType = 'Q_AND_A';
+          assignmentColor = assignmentColor || '#3B82F6'; // Blue
+          break;
+        case 'pronunciation':
+          evaluationType = 'PRONUNCIATION';
+          assignmentColor = assignmentColor || '#8B5CF6'; // Purple
+          break;
+        default:
+          throw new ValidationError('Invalid IELTS assignment subtype')
+      }
+
+      // Create evaluation settings for IELTS assignment
+      const evaluationData = {
+        type: evaluationType,
+        customPrompt: context || '',
+        rules: [],
+        acceptableResponses: [],
+        feedbackSettings: {
+          detailedFeedback: true,
+          encouragementEnabled: true,
+          ieltsScoring: true,
+          accent: accent || 'us'
+        }
+      };
+
+      const isClassAssignment = assignToEntireClass && classIds && classIds.length > 0
+
+      // 1. Create the main Assignment record
+      const newAssignment = await tx.assignment.create({
+        data: {
+          topic,
+          videoUrl: null, // IELTS assignments don't have videos
+          videoTranscript: '', // Empty for IELTS assignments
+          languageId: languageId || undefined,
+          teacherId: currentUser.id,
+          type: isClassAssignment ? 'CLASS' : 'INDIVIDUAL',
+          color: assignmentColor,
+          isActive,
+          publishedAt: publishDate,
+          scheduledPublishAt: scheduledPublishAt || publishDate,
+          dueDate: dueDate || null,
+          totalStudentsInScope: initialTotalStudentsInScope,
+          completedStudentsCount: 0,
+          completionRate: 0.0,
+          averageScoreOfCompleted: 0.0,
+          isIELTS: true, // Mark as IELTS assignment
+          context: context || null,
+          evaluationSettings: {
+            create: evaluationData
+          }
+        },
+        include: {
+          teacher: {
+            select: { id: true, username: true }
+          },
+          language: {
+            select: { id: true, language: true, code: true }
+          },
+          evaluationSettings: true,
+          questions: {
+            select: {
+              id: true,
+              textQuestion: true,
+              textAnswer: true,
+              image: true,
+              videoUrl: true,
+            }
+          },
+          classes: {
+            include: {
+              class: {
+                select: { id: true, name: true }
+              }
+            }
+          },
+          students: {
+            include: {
+              user: {
+                select: { id: true, username: true }
+              }
+            }
+          },
+        }
+      });
+
+      // 2. Create the associated questions based on subtype
+      if (subtype === 'reading' || subtype === 'pronunciation') {
+        if (passages && passages.length > 0) {
+          await tx.question.createMany({
+            data: passages.map((passage, i) => ({
+              textQuestion: passage.title || `${subtype === 'reading' ? 'Reading' : 'Pronunciation'} Passage ${i + 1}`,
+              textAnswer: passage.text, // The passage text goes in textAnswer
+              assignmentId: newAssignment.id,
+              videoUrl: null,
+              publishedAt: publishDate
+            }))
+          });
+        }
+      } else if (subtype === 'question-answer') {
+        if (questions && questions.length > 0) {
+          await tx.question.createMany({
+            data: questions.map((question, i) => ({
+              textQuestion: question.topic || `Question ${i + 1}`,
+              textAnswer: question.text, // The question text goes in textAnswer for Q&A
+              assignmentId: newAssignment.id,
+              videoUrl: null,
+              publishedAt: publishDate
+            }))
+          });
+        }
+      }
+
+      // 3. Link assignment to classes or students
+      if (studentIds && studentIds.length > 0) {
+        await tx.userAssignment.createMany({
+          data: studentIds.map((userId) => ({
+            userId,
+            assignmentId: newAssignment.id,
+          })),
+        });
+      } else if (classIds && classIds.length > 0) {
+        await tx.classAssignment.createMany({
+          data: classIds.map((classId) => ({
+            classId,
+            assignmentId: newAssignment.id,
+          })),
+        });
+      }
+
+      // 4. Log the activity using the ActivityLogService
+      await ActivityLogService.logAssignmentCreated(
+        currentUser,
+        {
+          id: newAssignment.id,
+          topic: newAssignment.topic || 'Untitled IELTS Assignment'
+        },
+        isClassAssignment ? 'CLASS' : 'INDIVIDUAL',
+        {
+          createdBy: currentUser.customRole,
+          creatorId: currentUser.id,
+          creatorUsername: currentUser.username,
+          language: language?.language || 'No language specified',
+          languageCode: language?.code || 'none',
+          classCount: classIds?.length || 0,
+          studentCount: studentIds?.length || 0,
+          isScheduled: !!scheduledPublishAt,
+          scheduledDate: scheduledPublishAt?.toISOString(),
+          assignmentType: isClassAssignment ? 'CLASS' : 'INDIVIDUAL',
+          evaluationType: evaluationType,
+          subtype: subtype,
+          isIELTS: true,
+          questionCount: (passages?.length || questions?.length || 0)
+        },
+        tx
+      );
+      
+      // Refetch the assignment with all relations to match AssignmentWithDetails interface
+      const completeAssignment = await tx.assignment.findUnique({
+        where: { id: newAssignment.id },
+        include: {
+          teacher: {
+            select: { id: true, username: true }
+          },
+          language: {
+            select: { id: true, language: true, code: true }
+          },
+          evaluationSettings: true,
+          questions: {
+            select: {
+              id: true,
+              textQuestion: true,
+              textAnswer: true,
+              image: true,
+              videoUrl: true,
+            }
+          },
+          classes: {
+            include: {
+              class: {
+                select: { id: true, name: true }
+              }
+            }
+          },
+          students: {
+            include: {
+              user: {
+                select: { id: true, username: true }
+              }
+            }
+          },
+        }
+      });
+
+      if (!completeAssignment) {
+        throw new Error('Failed to retrieve created IELTS assignment');
+      }
+
+      // Initialize assignment statistics WITHIN the transaction
+      await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
+
+      return completeAssignment as AssignmentWithDetails;
+    });
+  }
+}

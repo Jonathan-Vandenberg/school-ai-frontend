@@ -19,6 +19,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import IELTSResults from './ielts-results'
 
 // Enhanced Word Display Component with hover tooltips and speaker functionality
 function WordDisplayWithTooltip({ word, accent = 'US' }: { word: any, accent?: string }) {
@@ -267,7 +268,7 @@ interface StudentProgress {
 interface IELTSAssignmentProps {
   assignment: Assignment
   studentProgress: StudentProgress[]
-  onProgressUpdate: (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING' | 'PRONUNCIATION' | "IELTS") => Promise<void>
+  onProgressUpdate: (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING' | 'PRONUNCIATION' | 'IELTS' | 'Q_AND_A') => Promise<void>
 }
 
 export function IELTSAssignment({ 
@@ -308,7 +309,7 @@ export function IELTSAssignment({
   const totalQuestions = assignment.questions.length
   const overallProgress = totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0
 
-  // Submit transcript for pronunciation analysis
+  // Submit transcript for IELTS analysis
   const submitTranscript = async (transcript: string, audioFile: File) => {
     if (!assignment.questions[currentIndex]) return
 
@@ -318,49 +319,98 @@ export function IELTSAssignment({
     try {
       const currentQuestion = assignment.questions[currentIndex]
       const expectedText = currentQuestion.textAnswer || ''
+      const questionText = currentQuestion.textQuestion || ''
       
-      console.log('Submitting for analysis:', {
+      console.log('Submitting for IELTS analysis:', {
         expectedText,
+        questionText,
         transcript,
-        audioFileSize: audioFile.size
+        audioFileSize: audioFile.size,
+        assignmentType: assignment.evaluationSettings?.type
       })
       
-      // Use pronunciation analysis with audio file
-      const formData = new FormData()
-      formData.append('expectedText', expectedText)
-      formData.append('browserTranscript', transcript)
-      formData.append('analysisType', 'PRONUNCIATION')
-      formData.append('audioFile', audioFile)
+      // Determine which API to use based on assignment type
+      const assignmentType = assignment.evaluationSettings?.type?.toLowerCase()
+      let apiEndpoint = ''
+      let requestData: any = {}
       
-      const response = await fetch('/api/analysis/scripted', {
+      if (assignmentType === 'pronunciation') {
+        // Use pronunciation API for pronunciation assignments
+        apiEndpoint = '/api/analysis/scripted'
+        const formData = new FormData()
+        formData.append('expectedText', expectedText)
+        formData.append('browserTranscript', transcript)
+        formData.append('analysisType', 'PRONUNCIATION')
+        formData.append('audioFile', audioFile)
+        requestData = formData
+      } else {
+        // Use unscripted API for reading and question-answer assignments
+        apiEndpoint = '/api/analysis/unscripted'
+        const formData = new FormData()
+        formData.append('expectedText', expectedText)
+        formData.append('browserTranscript', transcript)
+        formData.append('questionText', questionText)
+        formData.append('analysisType', 'IELTS')
+        formData.append('audioFile', audioFile)
+        requestData = formData
+      }
+      
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
-        body: formData,
+        body: requestData,
         // Don't set Content-Type for FormData - let browser set it with boundary
       })
 
       if (!response.ok) {
         const errorText = await response.text()
         console.error('API Error:', errorText)
-        throw new Error('Failed to analyze pronunciation')
+        throw new Error('Failed to analyze response')
       }
 
-      const { analysis } = await response.json()
+      const result = await response.json()
       
-      // Set all the feedback states
-      setIsCorrect(analysis.isCorrect)
-      setFeedback(analysis.feedback)
-      setEncouragement(analysis.encouragement || '')
-      setPronunciationResult(analysis.pronunciationResult)
-      setShowFeedback(true)
+      if (assignmentType === 'pronunciation') {
+        // Handle pronunciation response
+        const { analysis } = result
+        setIsCorrect(analysis.isCorrect)
+        setFeedback(analysis.feedback)
+        setEncouragement(analysis.encouragement || '')
+        setPronunciationResult(analysis.pronunciationResult)
+        setShowFeedback(true)
+        
+        await onProgressUpdate(currentQuestion.id, analysis.isCorrect, {
+          result: analysis,
+          timestamp: new Date().toISOString()
+        }, 'PRONUNCIATION')
+      } else {
+        // Handle IELTS response (comprehensive analysis)
+        const { analysis } = result
+        
+        // For IELTS, we'll consider it "correct" if overall band is 5+
+        const overallBand = analysis.ielts_score?.overall_band || 0
+        const isCorrect = overallBand >= 5
+        
+        setIsCorrect(isCorrect)
+        setFeedback(analysis.grammar?.corrected_text || 'Analysis completed')
+        setEncouragement(`IELTS Band Score: ${overallBand}`)
+        
+        // Store comprehensive IELTS results
+        setPronunciationResult({
+          ielts_response: analysis,
+          overall_score: overallBand * 11.11, // Convert to 0-100 scale for compatibility
+          words: analysis.pronunciation?.words || []
+        })
+        setShowFeedback(true)
+        
+        await onProgressUpdate(currentQuestion.id, isCorrect, {
+          result: analysis,
+          timestamp: new Date().toISOString()
+        }, 'IELTS')
+      }
       
-      // Update progress
-      await onProgressUpdate(currentQuestion.id, analysis.isCorrect, {
-        result: analysis,
-        timestamp: new Date().toISOString()
-      }, 'PRONUNCIATION')
-      
-      // Show confetti for correct answers
-      if (analysis.isCorrect) {
+      // Show confetti for good scores
+      if ((assignmentType === 'pronunciation' && result.analysis.isCorrect) || 
+          (assignmentType !== 'pronunciation' && result.analysis.ielts_score?.overall_band >= 5)) {
         const button = document.querySelector('button[disabled]') as HTMLElement
         if (button) {
           button.style.animation = 'bounce 0.6s ease-in-out'
@@ -371,8 +421,8 @@ export function IELTSAssignment({
       }
       
     } catch (error) {
-      console.error('Error evaluating pronunciation:', error)
-      setFeedback('Error processing your pronunciation. Please try again.')
+      console.error('Error evaluating response:', error)
+      setFeedback('Error processing your response. Please try again.')
       setIsCorrect(false)
       setShowFeedback(true)
       setPronunciationResult(null)
@@ -528,16 +578,81 @@ export function IELTSAssignment({
     const currentQuestion = assignment.questions[currentIndex]
     const savedProgress = studentProgress.find(p => p.questionId === currentQuestion.id)
     
-    if (savedProgress?.languageConfidenceResponse?.result?.result) {
-      const savedResult = savedProgress.languageConfidenceResponse.result.result
+    if (savedProgress?.languageConfidenceResponse?.result) {
+      const savedData = savedProgress.languageConfidenceResponse.result
       
-      // Load saved analysis data
-      setIsCorrect(savedResult.isCorrect || false)
-      setFeedback(savedResult.feedback || '')
-      setEncouragement(savedResult.encouragement || '')
-      setPronunciationResult(savedResult.pronunciationResult || null)
-      setCurrentTranscript(savedResult.predictedText || '')
-      setShowFeedback(true)
+      // Debug: Log the saved data structure
+      console.log('Loading saved data for Q_AND_A:', {
+        hasResult: !!savedData.result,
+        hasIeltsScore: !!savedData.ielts_score,
+        hasGrammar: !!savedData.grammar,
+        keys: Object.keys(savedData),
+        savedData: savedData
+      })
+      
+      // Handle different result structures for different assignment types
+      if (savedData.result) {
+        // Check if this is an IELTS result (has ielts_score) or pronunciation result
+        const savedResult = savedData.result
+        console.log('Loading nested result structure:', savedResult)
+        
+        if (savedResult.ielts_score) {
+          // IELTS Q_AND_A assignment structure (result.result with ielts_score)
+          const overallBand = savedResult.ielts_score?.overall_band || 0
+          const isCorrect = overallBand >= 5
+          
+          console.log('Loading IELTS Q_AND_A structure:', { overallBand, isCorrect, grammar: savedResult.grammar })
+          
+          setIsCorrect(isCorrect)
+          setFeedback(savedResult.grammar?.corrected_text || `IELTS Analysis Complete - Band ${overallBand}`)
+          setEncouragement(`IELTS Band Score: ${overallBand}`)
+          
+          // Restore comprehensive IELTS results
+          setPronunciationResult({
+            ielts_response: savedResult,
+            overall_score: overallBand * 11.11, // Convert to 0-100 scale for compatibility
+            words: savedResult.pronunciation?.words || []
+          })
+          setCurrentTranscript(savedResult.transcribed_text || '')
+          setShowFeedback(true)
+        } else {
+          // Traditional pronunciation assignment structure
+          console.log('Loading pronunciation structure:', savedResult)
+          setIsCorrect(savedResult.isCorrect || false)
+          setFeedback(savedResult.feedback || '')
+          setEncouragement(savedResult.encouragement || '')
+          setPronunciationResult(savedResult.pronunciationResult || null)
+          setCurrentTranscript(savedResult.predictedText || '')
+          setShowFeedback(true)
+        }
+      } else if (savedData.ielts_score || savedData.grammar) {
+        // IELTS assignment structure (direct result) - fallback
+        const overallBand = savedData.ielts_score?.overall_band || 0
+        const isCorrect = overallBand >= 5
+        
+        console.log('Loading direct IELTS structure:', { overallBand, isCorrect, grammar: savedData.grammar })
+        
+        setIsCorrect(isCorrect)
+        setFeedback(savedData.grammar?.corrected_text || 'Analysis completed')
+        setEncouragement(`IELTS Band Score: ${overallBand}`)
+        
+        // Restore comprehensive IELTS results
+        setPronunciationResult({
+          ielts_response: savedData,
+          overall_score: overallBand * 11.11, // Convert to 0-100 scale for compatibility
+          words: savedData.pronunciation?.words || []
+        })
+        setCurrentTranscript(savedData.transcribed_text || '')
+        setShowFeedback(true)
+      } else {
+        console.log('Unknown data structure, clearing feedback')
+        // Clear feedback if structure is unknown
+        clearFeedbackState()
+      }
+    } else {
+      console.log('No saved progress found, clearing feedback')
+      // Clear feedback if no saved progress
+      clearFeedbackState()
     }
   }, [currentIndex, assignment.questions, studentProgress])
 
@@ -641,7 +756,7 @@ export function IELTSAssignment({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-3 space-y-6">
           {/* Question Card */}
           <Card>
             <CardHeader>
@@ -764,48 +879,63 @@ export function IELTSAssignment({
                 />
               )} */}
 
-              {/* Pronunciation Results */}
-              {pronunciationResult && pronunciationResult.words && (
+              {/* IELTS Results */}
+              {pronunciationResult && (
                 <div className="mb-6">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-3">Word-Level Analysis</h4>
-                  <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-                    {/* Overall Score */}
-                    <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Overall Pronunciation Score</span>
-                        <span className="text-xl font-bold text-gray-800">
-                          {Math.round(pronunciationResult.overall_score)}%
-                        </span>
+                  {pronunciationResult.ielts_response ? (
+                    // Show comprehensive IELTS results
+                    <div className="space-y-4">
+                      {/* Import and use IELTSResults component */}
+                      <IELTSResults 
+                        response={pronunciationResult.ielts_response}
+                        type="question-answer"
+                        accent="US"
+                      />
+                    </div>
+                  ) : pronunciationResult.words && pronunciationResult.words.length > 0 ? (
+                    // Show pronunciation-only results for pronunciation assignments
+                    <div className="space-y-4">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-3">Word-Level Analysis</h4>
+                      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+                        {/* Overall Score */}
+                        <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Overall Pronunciation Score</span>
+                            <span className="text-xl font-bold text-gray-800">
+                              {Math.round(pronunciationResult.overall_score)}%
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Word Display */}
+                        <div className="flex flex-wrap gap-2">
+                          {pronunciationResult.words.map((word: any, wordIndex: number) => (
+                            <WordDisplayWithTooltip 
+                              key={wordIndex} 
+                              word={word} 
+                              accent="US" 
+                            />
+                          ))}
+                        </div>
+                        
+                        {/* Legend */}
+                        <div className="mt-4 pt-3 border-t border-gray-200">
+                          <p className="text-xs text-gray-600 mb-2">Score Range:</p>
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            <span className="inline-block px-2 py-1 rounded bg-green-50 border border-green-200 text-green-700">
+                              80%+ Good
+                            </span>
+                            <span className="inline-block px-2 py-1 rounded bg-yellow-50 border border-yellow-200 text-yellow-700">
+                              60-79% Fair
+                            </span>
+                            <span className="inline-block px-2 py-1 rounded bg-red-50 border border-red-200 text-red-700">
+                              &lt;60% Needs Practice
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    
-                    {/* Word Display */}
-                    <div className="flex flex-wrap gap-2">
-                      {pronunciationResult.words.map((word: any, wordIndex: number) => (
-                        <WordDisplayWithTooltip 
-                          key={wordIndex} 
-                          word={word} 
-                          accent="US" 
-                        />
-                      ))}
-                    </div>
-                    
-                    {/* Legend */}
-                    <div className="mt-4 pt-3 border-t border-gray-200">
-                      <p className="text-xs text-gray-600 mb-2">Score Range:</p>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <span className="inline-block px-2 py-1 rounded bg-green-50 border border-green-200 text-green-700">
-                          80%+ Good
-                        </span>
-                        <span className="inline-block px-2 py-1 rounded bg-yellow-50 border border-yellow-200 text-yellow-700">
-                          60-79% Fair
-                        </span>
-                        <span className="inline-block px-2 py-1 rounded bg-red-50 border border-red-200 text-red-700">
-                          &lt;60% Needs Practice
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  ) : null}
                 </div>
               )}
             </CardContent>
@@ -813,7 +943,7 @@ export function IELTSAssignment({
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        {/* <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Progress Summary</CardTitle>
@@ -860,7 +990,7 @@ export function IELTSAssignment({
               </CardContent>
             </Card>
           )}
-        </div>
+        </div> */}
       </div>
     </div>
   )

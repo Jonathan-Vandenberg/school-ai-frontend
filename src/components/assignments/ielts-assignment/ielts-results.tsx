@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState, useRef, useCallback } from 'react';
-import { Volume2, Info } from 'lucide-react';
+import { Volume2 } from 'lucide-react';
+import GrammaticalAnalysisContent from './ielts-results-components/grammatical-analysis-content';
+import LexicalResourceContent from './ielts-results-components/lexical-resource-content';
+import FluencyCoherenceContent from './ielts-results-components/fluency-coherence-content';
+import PronunciationContent from './ielts-results-components/pronunciation-content';
 
 // Response types based on the audio-analysis API
 interface PhonemeScore {
@@ -21,6 +25,7 @@ interface PronunciationAssessmentResponse {
   overall_score: number;
   words: WordScore[];
   lowest_scoring_phonemes?: PhonemeScore[];
+  recognized_phonemes?: string[];  // Actual phonemes detected from audio
   processing_time_ms?: number;
 }
 
@@ -30,7 +35,7 @@ interface GrammarCorrection {
   differences: Array<{
     type: string;
     original: string;
-    corrected: string;
+    corrected: string | null;
     position: number;
   }>;
   taggedText: string;
@@ -58,12 +63,35 @@ interface IELTSScore {
   explanation: string;
 }
 
+interface Metrics {
+  speech_rate: number;
+  speech_rate_over_time: number[];
+  pauses: number;
+  filler_words: number;
+  discourse_markers: Array<{
+    text: string;
+    start_index: number;
+    end_index: number;
+    description: string;
+  }>;
+  filler_words_per_min: number;
+  pause_details: any[];
+  repetitions: any[];
+  filler_words_details: Array<{
+    text: string;
+    start_index: number;
+    end_index: number;
+    phonemes: string;
+  }>;
+}
+
 interface FreestyleSpeechResponse {
   transcribed_text: string;
   pronunciation: PronunciationAssessmentResponse;
   relevance: RelevanceAnalysis;
   grammar: GrammarCorrection;
   ielts_score?: IELTSScore;
+  metrics: Metrics;
   processing_time_ms: number;
   confidence_level: number;
 }
@@ -82,6 +110,7 @@ export default function IELTSResults({
   accent = 'us'
 }: IELTSResultsProps) {
   const [showPhoneticInfo, setShowPhoneticInfo] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [isPlayingCorrected, setIsPlayingCorrected] = useState(false);
   const correctedAudioRef = useRef<HTMLAudioElement>(null);
   const [correctedAudioSrc, setCorrectedAudioSrc] = useState('');
@@ -141,6 +170,14 @@ export default function IELTSResults({
     return [];
   }, [response, words]);
 
+  // Toggle category expansion
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
+
   // Function to play corrected text
   const playCorrectedAnswer = useCallback(async (text: string) => {
     try {
@@ -162,7 +199,7 @@ export default function IELTSResults({
       
       setIsPlayingCorrected(true);
       
-      const response = await fetch('/api/text-to-voice', {
+      const audioResponse = await fetch('/api/text-to-voice', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -173,11 +210,11 @@ export default function IELTSResults({
         }),
       });
       
-      if (!response.ok) {
+      if (!audioResponse.ok) {
         throw new Error('Failed to get audio');
       }
       
-      const data = await response.json();
+      const data = await audioResponse.json();
       const url = `data:audio/mp3;base64,${data.audio}`;
       setCorrectedAudioSrc(url);
       
@@ -203,38 +240,58 @@ export default function IELTSResults({
     }
   }, [isPlayingCorrected, correctedAudioSrc, accent]);
 
+  // Category scores for the 4 IELTS criteria
+  const categoryScores = useMemo(() => {
+    const scores: {
+      [key: string]: { 
+        ielts?: number | null, 
+        color: string
+      }
+    } = {};
+    
+    if (isFreestyleResponse(response) && response.ielts_score) {
+      scores["Grammatical Range and Accuracy"] = {
+        ielts: response.ielts_score.grammatical_range,
+        color: '#4ade80' // green-400
+      };
+      
+      scores["Lexical Resource"] = {
+        ielts: response.ielts_score.lexical_resource,
+        color: '#facc15' // yellow-400
+      };
+      
+      scores["Fluency and Coherence"] = {
+        ielts: response.ielts_score.fluency_coherence,
+        color: '#60a5fa' // blue-400
+      };
+      
+      scores["Pronunciation"] = {
+        ielts: response.ielts_score.pronunciation,
+        color: '#f97316' // orange-500
+      };
+    }
+    
+    return scores;
+  }, [response]);
+
   return (
     <div className={`bg-white rounded-lg ${className}`}>
-      {/* IELTS Score (for Q&A assignments) */}
+      {/* IELTS Score Section */}
       {ieltsScore && (
         <div className="mb-6">
-          <h4 className="text-lg font-semibold text-gray-800 mb-3">IELTS Score</h4>
+          <h4 className="text-lg font-semibold text-gray-800 mb-3">IELTS Equivalent Score</h4>
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-2 md:gap-4">
               <div>
-                <p className="text-sm text-gray-600 mb-2">Overall Band Score</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                  <div className="bg-gray-50 p-2 rounded">
-                    <span className="text-xs text-gray-500 block">Fluency & Coherence</span>
-                    <span className="font-medium">{ieltsScore.fluency_coherence}</span>
-                  </div>
-                  <div className="bg-gray-50 p-2 rounded">
-                    <span className="text-xs text-gray-500 block">Lexical Resource</span>
-                    <span className="font-medium">{ieltsScore.lexical_resource}</span>
-                  </div>
-                  <div className="bg-gray-50 p-2 rounded">
-                    <span className="text-xs text-gray-500 block">Grammar</span>
-                    <span className="font-medium">{ieltsScore.grammatical_range}</span>
-                  </div>
-                  <div className="bg-gray-50 p-2 rounded">
-                    <span className="text-xs text-gray-500 block">Pronunciation</span>
-                    <span className="font-medium">{ieltsScore.pronunciation}</span>
-                  </div>
-                </div>
+                <p className="text-sm text-gray-600 mb-1">Disclaimer: This score estimate is not an official IELTS score.</p>
               </div>
-              <div className="flex items-center justify-center w-20 h-20 border-4 border-blue-800 rounded-full bg-white">
-                <span className="text-3xl font-bold text-blue-800">
-                  {ieltsScore.overall_band}
+              <div className="flex items-center justify-center w-16 h-16 md:w-20 md:h-20 border-2 md:border-4 border-blue-800 rounded-full bg-white aspect-square">
+                <span className="text-xl md:text-3xl font-bold text-blue-800">
+                  {ieltsScore.overall_band === 9 
+                    ? '8-9'
+                    : Number.isInteger(ieltsScore.overall_band) 
+                      ? ieltsScore.overall_band 
+                      : `${Math.floor(ieltsScore.overall_band)}-${Math.ceil(ieltsScore.overall_band)}`}
                 </span>
               </div>
             </div>
@@ -247,7 +304,7 @@ export default function IELTSResults({
         </div>
       )}
 
-      {/* Transcription (for Q&A assignments) */}
+      {/* Transcription */}
       {isFreestyleResponse(response) && response.transcribed_text && (
         <div className="mb-6">
           <h4 className="text-lg font-semibold text-gray-800 mb-3">Your Answer</h4>
@@ -257,170 +314,93 @@ export default function IELTSResults({
         </div>
       )}
 
-      {/* Grammar Analysis (for Q&A assignments) */}
-      {isFreestyleResponse(response) && response.grammar && (
+      {/* Category Breakdown with Dropdowns */}
+      {Object.keys(categoryScores).length > 0 && (
         <div className="mb-6">
-          <h4 className="text-lg font-semibold text-gray-800 mb-3">Grammar Analysis</h4>
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            {response.grammar.differences && response.grammar.differences.length > 0 ? (
-              <>
-                {/* Corrected text */}
-                {response.grammar.corrected_text && (
-                  <div className="mb-4">
-                    <div className="flex items-center mb-2">
-                      <h5 className="text-sm font-medium text-green-700 mr-2">Corrected Answer</h5>
+          <h4 className="text-lg font-semibold text-gray-800 mb-3">Category Breakdown</h4>
+          <div className="space-y-2">
+            {Object.entries(categoryScores).map(([category, scores]) => (
+              <div 
+                key={category}
+                className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden"
+                style={expandedCategories[category] ? { borderColor: scores.color, borderWidth: '2px' } : {}}
+              >
                       <button 
-                        onClick={() => playCorrectedAnswer(response.grammar.corrected_text)}
-                        className="flex items-center text-xs text-green-700 hover:text-green-900 disabled:opacity-50"
-                        disabled={isPlayingCorrected}
-                      >
-                        <Volume2 size={14} className="mr-1" />
-                        {isPlayingCorrected ? 'Loading...' : 'Listen'}
-                      </button>
-                    </div>
-                    <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                      <p className="text-sm text-gray-800">{response.grammar.corrected_text}</p>
-                    </div>
+                  onClick={() => toggleCategory(category)}
+                  className="w-full text-left p-4 flex items-center justify-between cursor-pointer"
+                  style={{ borderLeftColor: scores.color, borderLeftWidth: '4px' }}
+                >
+                  <div className="flex items-center">
+                    <h5 className="font-medium text-gray-700 text-lg">{category}</h5>
                   </div>
-                )}
-
-                {/* Grammar errors */}
-                <div className="mb-4">
-                  <h5 className="text-sm font-medium text-gray-700 mb-2">Grammar Errors ({response.grammar.differences.length})</h5>
-                  <div className="space-y-2">
-                    {response.grammar.differences.map((diff, index) => (
-                      <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <div className="flex items-start space-x-2">
-                          <div className="bg-red-50 p-2 rounded-md flex-grow">
-                            <div className="text-xs text-red-700 mb-1">Original</div>
-                            <div className="text-sm text-red-800 font-medium">"{diff.original}"</div>
-                          </div>
-                          <div className="text-gray-500 self-center">→</div>
-                          <div className="bg-green-50 p-2 rounded-md flex-grow">
-                            <div className="text-xs text-green-700 mb-1">Correction</div>
-                            <div className="text-sm text-green-800 font-medium">"{diff.corrected}"</div>
-                          </div>
-                        </div>
+                  
+                  <div className="flex items-center gap-3">
+                    {scores.ielts && (
+                      <div className="flex items-center bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
+                        <span className="font-bold text-xl whitespace-nowrap" style={{ color: scores.color }}>
+                          {scores.ielts === 9 
+                            ? '8-9'
+                            : Number.isInteger(scores.ielts) 
+                              ? scores.ielts 
+                              : `${Math.floor(scores.ielts)}-${Math.ceil(scores.ielts)}`}
+                        </span>
+                        <span className="text-xs ml-1 text-gray-500">IELTS</span>
                       </div>
-                    ))}
+                    )}
+                    
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      className={`h-5 w-5 text-gray-500 transition-transform ${expandedCategories[category] ? 'transform rotate-180' : ''}`} 
+                      viewBox="0 0 20 20" 
+                      fill="currentColor"
+                    >
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
                   </div>
+                </button>
+                
+                {expandedCategories[category] && (
+                  <div className="p-4 pt-4 border-t border-gray-100" style={{ borderTopColor: scores.color }}>
+                    {/* Category-specific content */}
+                    {category === 'Grammatical Range and Accuracy' && isFreestyleResponse(response) && response.grammar && (
+                      <GrammaticalAnalysisContent 
+                        grammar={response.grammar} 
+                        playCorrectedAnswer={playCorrectedAnswer}
+                        isPlayingCorrected={isPlayingCorrected}
+                      />
+                    )}
+                    
+                    {category === 'Lexical Resource' && isFreestyleResponse(response) && response.grammar && (
+                      <LexicalResourceContent 
+                        grammar={response.grammar} 
+                        playCorrectedAnswer={playCorrectedAnswer}
+                        isPlayingCorrected={isPlayingCorrected}
+                        accent={accent}
+                      />
+                    )}
+                    
+                    {category === 'Fluency and Coherence' && isFreestyleResponse(response) && response.metrics && (
+                      <FluencyCoherenceContent metrics={response.metrics} />
+                    )}
+                    
+                    {category === 'Pronunciation' && (
+                      <PronunciationContent 
+                        words={words}
+                        lowestScoringPhonemes={lowestScoringPhonemes}
+                        accent={accent}
+                        showPhoneticInfo={showPhoneticInfo}
+                        setShowPhoneticInfo={setShowPhoneticInfo}
+                      />
+                    )}
+
+                    {/* Task Achievement for reading/relevance */}
+                    {category === 'Task Achievement' && isFreestyleResponse(response) && response.relevance && (
+                      <TaskAchievementContent relevance={response.relevance} />
+                    )}
                 </div>
-              </>
-            ) : (
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <div className="flex items-center mb-2">
-                  <div className="w-5 h-5 text-green-600 mr-2">✓</div>
-                  <h5 className="text-green-700 font-medium">Perfect Grammar!</h5>
-                </div>
-                <p className="text-green-600">Congratulations! Your answer has no grammatical errors.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Relevance Analysis (for Q&A assignments) */}
-      {isFreestyleResponse(response) && response.relevance && (
-        <div className="mb-6">
-          <h4 className="text-lg font-semibold text-gray-800 mb-3">Relevance Analysis</h4>
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-sm font-medium">Relevance Score</p>
-                <p className="text-xs text-gray-600">{response.relevance.explanation}</p>
-              </div>
-              <div className="flex items-center justify-center w-16 h-16 border-4 border-blue-500 rounded-full">
-                <span className="text-xl font-bold text-blue-600">
-                  {response.relevance.relevance_score}%
-                </span>
-              </div>
-            </div>
-            
-            {response.relevance.key_points_covered.length > 0 && (
-              <div className="mb-3">
-                <h6 className="text-sm font-medium text-green-700 mb-1">Key Points Covered</h6>
-                <ul className="text-sm text-gray-600 list-disc pl-5">
-                  {response.relevance.key_points_covered.map((point, index) => (
-                    <li key={index}>{point}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            
-            {response.relevance.missing_points.length > 0 && (
-              <div>
-                <h6 className="text-sm font-medium text-orange-700 mb-1">Areas for Improvement</h6>
-                <ul className="text-sm text-gray-600 list-disc pl-5">
-                  {response.relevance.missing_points.map((point, index) => (
-                    <li key={index}>{point}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Word-Level Pronunciation Analysis */}
-      {words.length > 0 && (
-        <div className="mb-6">
-          <h4 className="text-lg font-semibold text-gray-800 mb-3">Pronunciation Analysis</h4>
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <p className="text-sm text-gray-600 mb-4">
-              Click on words to hear their correct pronunciation. Colors indicate pronunciation accuracy.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {words.map((word, index) => (
-                <WordDisplay key={index} word={word} accent={accent} />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pronunciation Challenges */}
-      {lowestScoringPhonemes.length > 0 && (
-        <div className="mb-6">
-          <h4 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-            Pronunciation Challenges
-            <button 
-              onClick={() => setShowPhoneticInfo(!showPhoneticInfo)}
-              className="ml-2 text-gray-600 hover:text-gray-800 focus:outline-none"
-            >
-              <Info className="w-4 h-4" />
-            </button>
-          </h4>
-          
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            {showPhoneticInfo && (
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-md mb-4">
-                <h5 className="text-sm font-semibold text-blue-800">About Phonetic Analysis</h5>
-                <p className="text-xs text-blue-700 mt-1">
-                  This analysis uses the International Phonetic Alphabet (IPA) to identify specific sounds 
-                  that need improvement in your pronunciation.
-                </p>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {lowestScoringPhonemes.map((phoneme, index) => (
-                <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-lg font-mono bg-red-50 px-2 py-1 rounded text-red-800">
-                      {phoneme.ipa_label}
-                    </span>
-                    <span className="text-sm font-medium">
-                      {Math.round(phoneme.phoneme_score)}%
-                    </span>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    {phoneme.phoneme_score < 60 ? "Needs significant improvement" : 
-                     phoneme.phoneme_score < 80 ? "Needs some practice" : 
-                     "Almost there!"}
-                  </span>
+                )}
                 </div>
               ))}
-            </div>
           </div>
         </div>
       )}
@@ -439,141 +419,42 @@ export default function IELTSResults({
   );
 }
 
-// Component to display individual words with pronunciation scores
-function WordDisplay({ word, accent }: { word: WordScore, accent: string }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioSrc, setAudioSrc] = useState('');
-  const [showPhonemes, setShowPhonemes] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  const getWordColor = () => {
-    const score = word.word_score;
-    if (score >= 80) return 'bg-green-50 border-green-200 text-green-800';
-    if (score >= 60) return 'bg-yellow-50 border-yellow-200 text-yellow-800';
-    return 'bg-red-50 border-red-200 text-red-800';
-  };
-
-  const getPhonemeColor = (score: number) => {
-    if (score >= 0.8) return 'bg-green-100 text-green-800';
-    if (score >= 0.6) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
-  };
-
-  const playWordPronunciation = async () => {
-    try {
-      if (isPlaying) return;
-      
-      if (audioSrc && audioRef.current) {
-        audioRef.current.currentTime = 0;
-        setIsPlaying(true);
-        
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.error("Play failed:", error);
-            setIsPlaying(false);
-          });
-        }
-        return;
-      }
-      
-      setIsPlaying(true);
-      
-      const response = await fetch('/api/text-to-voice', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: word.word_text,
-          accent: accent
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to get audio');
-      }
-      
-      const data = await response.json();
-      const url = `data:audio/mp3;base64,${data.audio}`;
-      setAudioSrc(url);
-      
-      if (audioRef.current) {
-        const audio = audioRef.current;
-        
-        const playWhenReady = () => {
-          audio.play().catch(err => {
-            console.error("Error playing audio:", err);
-            setIsPlaying(false);
-          });
-          audio.removeEventListener('canplaythrough', playWhenReady);
-        };
-        
-        audio.addEventListener('canplaythrough', playWhenReady);
-        audio.load();
-      } else {
-        setIsPlaying(false);
-      }
-    } catch (error) {
-      console.error('Error playing pronunciation:', error);
-      setIsPlaying(false);
-    }
-  };
-
+// Task Achievement Content Component (for relevance analysis)
+function TaskAchievementContent({ relevance }: { relevance: RelevanceAnalysis }) {
   return (
-    <div className={`text-sm border rounded-md hover:bg-opacity-80 transition-all ${getWordColor()}`}>
-      {/* Word header with score and controls */}
-      <div 
-        className="px-2 py-1 cursor-pointer flex items-center justify-between"
-        onClick={playWordPronunciation}
-        title={`Score: ${Math.round(word.word_score)}% - Click to hear pronunciation`}
-      >
-        <span>{word.word_text}</span>
-        <div className="flex items-center gap-1">
-          <span className="text-xs font-medium">{Math.round(word.word_score)}%</span>
-          {isPlaying && <span className="text-xs">🔊</span>}
-          {word.phonemes && word.phonemes.length > 0 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowPhonemes(!showPhonemes);
-              }}
-              className="text-xs text-gray-500 hover:text-gray-700 ml-1"
-              title="Show phoneme breakdown"
-            >
-              {showPhonemes ? '▼' : '▶'}
-            </button>
-          )}
+    <div className="mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm font-medium">Relevance Score</p>
+          <p className="text-xs text-gray-600">{relevance.explanation}</p>
+              </div>
+              <div className="flex items-center justify-center w-16 h-16 border-4 border-blue-500 rounded-full">
+                <span className="text-xl font-bold text-blue-600">
+            {relevance.relevance_score}%
+                </span>
         </div>
       </div>
 
-      {/* Phoneme breakdown */}
-      {showPhonemes && word.phonemes && word.phonemes.length > 0 && (
-        <div className="px-2 pb-2 border-t border-gray-200 bg-gray-50">
-          <div className="text-xs text-gray-600 mb-1 mt-1">Phoneme Breakdown:</div>
-          <div className="flex flex-wrap gap-1">
-            {word.phonemes.map((phoneme, index) => (
-              <span
-                key={index}
-                className={`text-xs px-1 py-0.5 rounded font-mono ${getPhonemeColor(phoneme.phoneme_score)}`}
-                title={`${phoneme.ipa_label}: ${Math.round(phoneme.phoneme_score * 100)}%`}
-              >
-                {phoneme.ipa_label}
-              </span>
-            ))}
-          </div>
+      {relevance.key_points_covered.length > 0 && (
+              <div className="mb-3">
+                <h6 className="text-sm font-medium text-green-700 mb-1">Key Points Covered</h6>
+                <ul className="text-sm text-gray-600 list-disc pl-5">
+            {relevance.key_points_covered.map((point, index) => (
+                    <li key={index}>{point}</li>
+                  ))}
+                </ul>
         </div>
       )}
       
-      {/* Only render audio element when src is not empty */}
-      {audioSrc && (
-        <audio 
-          ref={audioRef}
-          src={audioSrc} 
-          onEnded={() => setIsPlaying(false)}
-          onError={() => setIsPlaying(false)}
-          className="hidden"
-        />
+      {relevance.missing_points.length > 0 && (
+              <div>
+                <h6 className="text-sm font-medium text-orange-700 mb-1">Areas for Improvement</h6>
+                <ul className="text-sm text-gray-600 list-disc pl-5">
+            {relevance.missing_points.map((point, index) => (
+                    <li key={index}>{point}</li>
+                  ))}
+                </ul>
+              </div>
       )}
     </div>
   );
