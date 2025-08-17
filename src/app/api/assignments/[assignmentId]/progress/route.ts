@@ -172,7 +172,7 @@ export async function GET(
             id: true,
             textQuestion: true
           }
-        }
+        },
       },
       orderBy: [
         { studentId: 'asc' },
@@ -228,7 +228,8 @@ export async function GET(
             questionText: question.textQuestion,
             isComplete: questionProgress?.isComplete || false,
             isCorrect: questionProgress?.isCorrect || false,
-            submittedAt: questionProgress?.createdAt || null
+            submittedAt: questionProgress?.createdAt || null,
+            languageConfidenceResponse: questionProgress?.languageConfidenceResponse || null
           }
         })
       }

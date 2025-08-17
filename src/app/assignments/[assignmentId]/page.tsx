@@ -32,6 +32,7 @@ import {
   CheckCheck
 } from 'lucide-react'
 import { ReadingAssignment } from '@/components/assignments/reading-assignment/reading-assignment-component'
+import { PronunciationAssignment } from '@/components/assignments/pronunciation-assignment/pronunciation-assignment-component'
 
 interface Assignment {
   id: string
@@ -151,7 +152,7 @@ export default function AssignmentDetailPage() {
   
   const [assignment, setAssignment] = useState<Assignment | null>(null)
   const [progressData, setProgressData] = useState<ProgressData | null>(null)
-  const [studentProgress, setStudentProgress] = useState<Array<{questionId: string, isComplete: boolean, isCorrect: boolean, submittedAt: string | null}>>([])
+  const [studentProgress, setStudentProgress] = useState<Array<{questionId: string, isComplete: boolean, isCorrect: boolean, submittedAt: string | null, languageConfidenceResponse: any}>>([])
   const [loading, setLoading] = useState(true)
   const [progressLoading, setProgressLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -221,7 +222,7 @@ export default function AssignmentDetailPage() {
     }
   }
 
-  const handleProgressUpdate = async (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING') => {
+  const handleProgressUpdate = async (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING' | 'PRONUNCIATION') => {
     try {
       const response = await fetch(`/api/assignments/${assignmentId}/submit-progress`, {
         method: 'POST',
@@ -795,6 +796,18 @@ export default function AssignmentDetailPage() {
         ) : assignment.evaluationSettings?.type === 'READING' ? (
           /* Reading Assignment Player */
           <ReadingAssignment
+            assignment={{
+              id: assignment.id,
+              topic: assignment.topic,
+              evaluationSettings: assignment.evaluationSettings,
+              questions: assignment.questions
+            }}
+            studentProgress={studentProgress}
+            onProgressUpdate={handleProgressUpdate}
+          />
+        ): assignment.evaluationSettings?.type === 'PRONUNCIATION' ? (
+          /* Pronunciation Assignment Player */
+          <PronunciationAssignment
             assignment={{
               id: assignment.id,
               topic: assignment.topic,

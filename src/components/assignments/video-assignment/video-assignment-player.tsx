@@ -14,7 +14,8 @@ import {
   Star, 
   Play,
   FileText,
-  ArrowLeft
+  ArrowLeft,
+  Loader2
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -435,21 +436,12 @@ export function VideoAssignmentPlayer({
                 >
                   {isCurrentQuestionCorrect ? (
                     <Star className="w-8 h-8 text-white" fill="white" />
+                  ) : isProcessing ? (
+                    <Loader2 className="w-8 h-8 text-white animate-spin" />
                   ) : (
                     <Mic className="w-8 h-8 text-white" />
                   )}
                 </Button>
-                
-                <p className="text-sm text-muted-foreground mt-2">
-                  {isProcessing
-                    ? 'Processing your answer...'
-                    : isCurrentQuestionCorrect 
-                      ? 'Question completed!'
-                      : isRecording 
-                        ? 'Recording... Click to stop'
-                        : 'Click to start recording'
-                  }
-                </p>
                 
                 {/* Audio level indicator when recording */}
                 {isRecording && (

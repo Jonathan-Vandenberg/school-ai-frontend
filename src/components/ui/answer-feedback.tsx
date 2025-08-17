@@ -36,13 +36,6 @@ export function AnswerFeedback({
   return (
     <Card className={`${isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
       <CardContent className="p-4 space-y-3">
-        {isProcessing ? (
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-sm">Processing your answer...</span>
-          </div>
-        ) : (
-          <>
             {/* Main Feedback */}
             <div className="flex items-start gap-2">
               {isCorrect ? (
@@ -112,8 +105,6 @@ export function AnswerFeedback({
                 </div>
               </div>
             )}
-          </>
-        )}
       </CardContent>
     </Card>
   )

@@ -4,9 +4,10 @@ import { ClassesService } from "../../../../lib/services/classes.service";
 import { AuthService } from "../../../../lib/services/auth.service";
 import { notFound, redirect } from "next/navigation";
 import { ReadingAssignmentForm } from "@/components/assignments/reading-assignment/reading-assignment-form";
+import { PronunciationAssignmentForm } from "@/components/assignments/pronunciation-assignment/pronunciation-assignment-form";
 
 interface CreateAssignmentPageProps {
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ type?: string, subtype?: string }>;
 }
 
 export default async function CreateAssignmentPage({ searchParams }: CreateAssignmentPageProps) {
@@ -29,17 +30,40 @@ export default async function CreateAssignmentPage({ searchParams }: CreateAssig
 
     switch (type) {
       case "video":
-        return <VideoAssignmentForm data={formData} />;
-      case "reading":
-        return <ReadingAssignmentForm data={formData} />;
-      case "pronunciation":
-        return (
+       return (
+        <>
           <div className="container mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-4">Create Pronunciation Assignment</h1>
+            <h1 className="text-2xl font-bold mb-2">Create Video Assignment</h1>
             <p className="text-muted-foreground">
-              Pronunciation assignment creation is coming soon. Please check back later.
+              Video exercises to improve students&apos; listening, speaking and comprehension skills.
             </p>
           </div>
+          <VideoAssignmentForm data={formData} />
+         </>
+        );
+      case "reading":
+        return (
+        <>
+          <div className="container mx-auto p-6">
+            <h1 className="text-2xl font-bold mb-2">Create Reading Assignment</h1>
+            <p className="text-muted-foreground">
+              Reading exercises to improve students&apos; reading, speaking and comprehension skills.
+            </p>
+          </div>
+          <ReadingAssignmentForm data={formData} />
+        </>
+      );
+      case "pronunciation":
+        return (
+          <>  
+            <div className="container mx-auto p-6">
+              <h1 className="text-2xl font-bold mb-2">Create Pronunciation Assignment</h1>
+              <p className="text-muted-foreground">
+                Pronunciation exercises to improve students&apos; pronunciation and speaking skills.
+              </p>
+            </div>
+            <PronunciationAssignmentForm data={formData} />
+          </>
         );
       case "image":
         return (

@@ -264,17 +264,17 @@ interface StudentProgress {
   languageConfidenceResponse: any
 }
 
-interface ReadingAssignmentProps {
+interface IELTSAssignmentProps {
   assignment: Assignment
   studentProgress: StudentProgress[]
-  onProgressUpdate: (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING') => Promise<void>
+  onProgressUpdate: (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING' | 'PRONUNCIATION' | "IELTS") => Promise<void>
 }
 
-export function ReadingAssignment({ 
+export function IELTSAssignment({ 
   assignment, 
   studentProgress,
   onProgressUpdate 
-}: ReadingAssignmentProps) {
+}: IELTSAssignmentProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isCorrect, setIsCorrect] = useState(false)
@@ -325,14 +325,17 @@ export function ReadingAssignment({
         audioFileSize: audioFile.size
       })
       
-      // Use pronunciation analysis for reading assignments (text-only, no audio file needed)
+      // Use pronunciation analysis with audio file
+      const formData = new FormData()
+      formData.append('expectedText', expectedText)
+      formData.append('browserTranscript', transcript)
+      formData.append('analysisType', 'PRONUNCIATION')
+      formData.append('audioFile', audioFile)
+      
       const response = await fetch('/api/analysis/scripted', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          expectedText,
-          browserTranscript: transcript
-        }),
+        body: formData,
+        // Don't set Content-Type for FormData - let browser set it with boundary
       })
 
       if (!response.ok) {
@@ -354,7 +357,7 @@ export function ReadingAssignment({
       await onProgressUpdate(currentQuestion.id, analysis.isCorrect, {
         result: analysis,
         timestamp: new Date().toISOString()
-      }, 'READING')
+      }, 'PRONUNCIATION')
       
       // Show confetti for correct answers
       if (analysis.isCorrect) {
@@ -538,12 +541,12 @@ export function ReadingAssignment({
     }
   }, [currentIndex, assignment.questions, studentProgress])
 
-  // Debug: Log audio level changes
-  useEffect(() => {
-    if (isRecording) {
-      console.log('Component audioLevel:', audioLevel?.toFixed(1) || 'undefined', '%', 'Type:', typeof audioLevel)
-    }
-  }, [audioLevel, isRecording])
+  // Debug: Log audio level changes (optional, can be removed)
+  // useEffect(() => {
+  //   if (isRecording) {
+  //     console.log('Component audioLevel:', audioLevel?.toFixed(1) || 'undefined', '%', 'Type:', typeof audioLevel)
+  //   }
+  // }, [audioLevel, isRecording])
 
   const handleNext = () => {
     if (currentIndex < assignment.questions.length - 1) {
@@ -736,6 +739,11 @@ export function ReadingAssignment({
                           transition: 'width 0.1s ease-out'
                         }}
                       />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-[10px] font-mono text-gray-700">
+                          {(audioLevel || 0).toFixed(0)}%
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}

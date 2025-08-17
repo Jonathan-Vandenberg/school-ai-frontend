@@ -112,9 +112,10 @@ const getAssignmentStatus = (assignment: AssignmentWithDetails, isStudent: boole
 
 const getButtonTextForStudent = (assignment: AssignmentWithDetails) => {
   const progress = getStudentProgress(assignment);
-  
-  if (progress.isFullyCompleted) {
+  if(progress.isPerfectScore) {
     return 'Review';
+  } else if (progress.isFullyCompleted) {
+    return 'Improve';
   } else if (progress.hasStarted) {
     return 'Continue';
   } else {

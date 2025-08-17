@@ -6,7 +6,9 @@ const AUDIO_ANALYSIS_URL = process.env.AUDIO_ANALYSIS_URL || 'http://localhost:8
 
 interface AnalysisRequest {
   expectedText: string
-  browserTranscript: string
+  browserTranscript?: string
+  analysisType?: string
+  audioFile?: File
 }
 
 export async function POST(request: NextRequest) {
@@ -14,14 +16,43 @@ export async function POST(request: NextRequest) {
     // Authenticate user
     const currentUser = await AuthService.getAuthenticatedUser()
     
-    const body: AnalysisRequest = await request.json()
-    const { expectedText, browserTranscript } = body
+    const contentType = request.headers.get('content-type')
+    let expectedText: string
+    let browserTranscript: string | undefined
+    let analysisType: string | undefined
+    let audioFile: File | undefined
+
+    // Handle both JSON (reading) and FormData (pronunciation with audio)
+    if (contentType?.includes('multipart/form-data')) {
+      // FormData request (pronunciation with audio)
+      const formData = await request.formData()
+      expectedText = formData.get('expectedText') as string
+      browserTranscript = formData.get('browserTranscript') as string || undefined
+      analysisType = formData.get('analysisType') as string || undefined
+      audioFile = formData.get('audioFile') as File || undefined
+    } else {
+      // JSON request (reading without audio)
+      const body: AnalysisRequest = await request.json()
+      expectedText = body.expectedText
+      browserTranscript = body.browserTranscript
+      analysisType = body.analysisType
+    }
 
     // Validate required fields
-    if (!expectedText || !browserTranscript) {
+    if (!expectedText) {
       return NextResponse.json({ 
         error: 'Failed to analyze speech', 
-        details: 'Missing required fields: expectedText or browserTranscript' 
+        details: 'Missing required fields: expectedText' 
+      }, { 
+        status: 400 
+      });
+    }
+
+    // For pronunciation analysis, audio file is required
+    if (analysisType === 'PRONUNCIATION' && !audioFile) {
+      return NextResponse.json({ 
+        error: 'Failed to analyze speech', 
+        details: 'Audio file is required for pronunciation analysis' 
       }, { 
         status: 400 
       });
@@ -29,37 +60,62 @@ export async function POST(request: NextRequest) {
 
     // Clean expectedText and browserTranscript
     const cleanExpectedText = expectedText.replace(/\\n/g, ' ').replace(/\n/g, ' ').trim()
-    const cleanBrowserTranscript = browserTranscript.replace(/\\n/g, ' ').replace(/\n/g, ' ').trim()
+    const cleanBrowserTranscript = browserTranscript?.replace(/\\n/g, ' ').replace(/\n/g, ' ').trim()
     
-    console.log('Sending to audio analysis:', {
-      expectedText: cleanExpectedText,
-      browserTranscript: cleanBrowserTranscript
-    })
+    // Create FormData for the audio analysis API
+    const backendFormData = new FormData()
+    backendFormData.append('expected_text', cleanExpectedText)
+    if (cleanBrowserTranscript) {
+      backendFormData.append('browser_transcript', cleanBrowserTranscript)
+    }
     
-    // Create FormData for the audio analysis API (no audio file needed)
-    const formData = new FormData()
-    formData.append('expected_text', cleanExpectedText)
-    formData.append('browser_transcript', cleanBrowserTranscript)
+    // Add audio file if provided (for pronunciation analysis)
+    if (audioFile) {
+      backendFormData.append('file', audioFile)
+    } else {
+      // For scripted analysis without audio, create a minimal dummy file
+      const webmHeader = new Uint8Array([
+        0x1a, 0x45, 0xdf, 0xa3, // EBML
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x23, // Header length
+        0x42, 0x82, 0x84, 0x77, 0x65, 0x62, 0x6d, // doctype = "webm"
+        0x42, 0x87, 0x81, 0x02, // version
+        0x42, 0x85, 0x81, 0x02, // read version
+        0x42, 0xf3, 0x81, 0x08, // Segment
+        0x18, 0x53, 0x80, 0x67, // Info
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x19,
+        0x2a, 0xd7, 0xb1, 0x83, 0x0f, 0x42, 0x40, // Timecode scale
+        0x4d, 0x80, 0x84, 0x6f, 0x70, 0x75, 0x73, // Codec = opus
+        0x16, 0x54, 0xae, 0x6b, // Tracks
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2f,
+        0xae, 0x83, 0x01, 0x00, 0x00, 0x28, // Track entry
+        0xd7, 0x81, 0x01, // Track number
+        0x73, 0xc5, 0x81, 0x01, // Track UID
+        0x83, 0x81, 0x02, // Track type (audio)
+        0x86, 0x84, 0x6f, 0x70, 0x75, 0x73, // Codec ID = opus
+        0x1f, 0x43, 0xb6, 0x75, // Cluster
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c,
+        0xe7, 0x81, 0x00, // Timecode
+        0xa3, 0x81, 0x00, 0x81, 0x00, 0x01 // Simple block with minimal data
+      ])
+      const dummyBlob = new Blob([webmHeader], { type: 'audio/webm' })
+      backendFormData.append('file', dummyBlob, 'dummy.webm')
+    }
 
     // Call the audio analysis backend
     let response
     try {
-      console.log('Attempting to connect to:', `${AUDIO_ANALYSIS_URL}/analyze/scripted`)
-      console.log('FormData contents:', {
-        expected_text: cleanExpectedText,
-        browser_transcript: cleanBrowserTranscript
-      })
+      const url = analysisType === 'PRONUNCIATION' ? `${AUDIO_ANALYSIS_URL}/analyze/pronunciation` : `${AUDIO_ANALYSIS_URL}/analyze/scripted`
 
-      response = await fetch(`${AUDIO_ANALYSIS_URL}/analyze/scripted`, {
+      response = await fetch(url, {
         method: 'POST',
-        body: formData,
+        body: backendFormData,
         headers: {
           // Don't set Content-Type for FormData - let browser set it with boundary
         },
       })
 
-      console.log('Response status:', response.status)
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+      console.log('URL:', url)
+      console.log('FormData:', backendFormData)
 
       if (!response.ok) {
         const errorText = await response.text()

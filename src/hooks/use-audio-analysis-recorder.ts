@@ -45,7 +45,8 @@ export function useAudioAnalysisRecorder({
       const analyser = audioContext.createAnalyser()
       const source = audioContext.createMediaStreamSource(stream)
       
-      analyser.fftSize = 256
+      analyser.fftSize = 512  // Increased for better frequency resolution
+      analyser.smoothingTimeConstant = 0.3  // Smoother transitions
       source.connect(analyser)
       
       audioContextRef.current = audioContext
@@ -54,17 +55,31 @@ export function useAudioAnalysisRecorder({
       const dataArray = new Uint8Array(analyser.frequencyBinCount)
 
       const updateAudioLevel = () => {
-        if (analyserRef.current) {
-          analyserRef.current.getByteFrequencyData(dataArray)
-          const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length
-          const level = (average / 255) * 100
+        if (analyserRef.current && audioContextRef.current && audioContextRef.current.state !== 'closed') {
+          // Use time domain data for more accurate volume detection
+          analyserRef.current.getByteTimeDomainData(dataArray)
+          
+          // Calculate RMS of the time domain data
+          let sumSquares = 0
+          for (let i = 0; i < dataArray.length; i++) {
+            const normalized = (dataArray[i] - 128) / 128  // Normalize to -1 to 1
+            sumSquares += normalized * normalized
+          }
+          const rms = Math.sqrt(sumSquares / dataArray.length)
+          
+          // Convert to percentage with enhanced scaling for better visibility
+          const level = Math.min(rms * 600, 100) // Multiply by 6 for more sensitive range (2x more sensitive)
+          
+          // Debug: Log audio level occasionally
+          if (Math.random() < 0.02) { // Log ~2% of the time to avoid spam
+            console.log('Raw RMS:', rms.toFixed(3), 'Scaled level:', level.toFixed(1), '%')
+          }
           
           setAudioLevel(level)
           setIsSpeaking(level > 5) // Threshold for speaking detection
           
-          if (isRecording) {
-            animationFrameRef.current = requestAnimationFrame(updateAudioLevel)
-          }
+          // Continue animation frame regardless of isRecording state to ensure smooth updates
+          animationFrameRef.current = requestAnimationFrame(updateAudioLevel)
         }
       }
 
@@ -72,7 +87,7 @@ export function useAudioAnalysisRecorder({
     } catch (error) {
       console.error('Error setting up audio analysis:', error)
     }
-  }, [isRecording])
+  }, [])
 
   const startRecording = useCallback(async () => {
     try {
@@ -202,10 +217,15 @@ export function useAudioAnalysisRecorder({
     // Stop audio analysis
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = undefined
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close()
     }
+    
+    // Reset audio level
+    setAudioLevel(0)
+    setIsSpeaking(false)
   }, [])
 
   const toggleRecording = useCallback(() => {
@@ -224,6 +244,17 @@ export function useAudioAnalysisRecorder({
     // Stop any ongoing recording
     if (isRecording) {
       stopRecording()
+    }
+    
+    // Stop audio analysis animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = undefined
+    }
+    
+    // Close audio context
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close()
     }
     
     // Reset all states
