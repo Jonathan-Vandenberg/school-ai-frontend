@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { School, Mail, Lock, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 
 export default function SignInPage() {
   const [email, setEmail] = useState('')
@@ -23,7 +24,7 @@ export default function SignInPage() {
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
       console.log('User already authenticated, redirecting...', session.user)
-      if (session.user.role === 'ADMIN' || session.user.role === 'TEACHER') {
+      if (session.user.role === 'ADMIN') {
         router.push('/dashboard')
       } else {
         router.push('/profile')
@@ -60,7 +61,7 @@ export default function SignInPage() {
         console.log('Session data:', sessionData)
         
         // Role-based redirection
-        if (sessionData?.user?.role === 'ADMIN' || sessionData?.user?.role === 'TEACHER') {
+        if (sessionData?.user?.role === 'ADMIN') {
           console.log('Redirecting to dashboard')
           router.push('/dashboard')
         } else {
@@ -99,11 +100,11 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
+      <div className="w-full max-w-md space-y-6 transform scale-125 origin-center">
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <School className="h-8 w-8 text-blue-600" />
+            <Image src="/jis-logo.png" alt="JIS AI Portal" className="w-10 h-10" width={100} height={100} />
             <h1 className="text-2xl font-bold text-gray-900">JIS AI Portal</h1>
           </div>
           <p className="text-gray-600">AI-powered language learning platform</p>
@@ -175,65 +176,13 @@ export default function SignInPage() {
               </Button>
             </form>
 
-            {/* Demo Credentials */}
-            <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-sm font-medium text-green-800 mb-2">
-                Demo Admin Credentials:
-              </p>
-              <div className="space-y-1 text-sm text-green-700">
-                <p><strong>Email/Username:</strong> admin@schoolai.local or admin</p>
-                <p><strong>Password:</strong> admin123</p>
-                <p className="text-xs text-green-600 mt-1">
-                  ✨ Login now supports both email and username!
-                </p>
-              </div>
-            </div>
-
-            {/* Progress Tracker */}
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm font-medium text-blue-800 mb-2">
-                🚀 Phase 2 Progress - Enhanced User Management!
-              </p>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-blue-700">User list with DataTable</span>
-                  <Badge variant="default" className="bg-green-100 text-green-800">✅</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-blue-700">Single user creation</span>
-                  <Badge variant="default" className="bg-green-100 text-green-800">✅</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-blue-700">Smart bulk creation</span>
-                  <Badge variant="default" className="bg-green-100 text-green-800">✅</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-blue-700">Username/Email login</span>
-                  <Badge variant="default" className="bg-green-100 text-green-800">✅</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-blue-700">Conflict resolution</span>
-                  <Badge variant="default" className="bg-green-100 text-green-800">✅</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-blue-700">User edit operations</span>
-                  <Badge variant="outline" className="bg-gray-50 text-gray-600">⏳</Badge>
-                </div>
-              </div>
-              <div className="mt-3 pt-3 border-t border-blue-200">
-                <p className="text-xs text-blue-600">
-                  <strong>Latest:</strong> Simplified bulk creation - just enter names, auto-generates usernames!
-                </p>
-              </div>
-            </div>
-            
-            <div className="text-center">
+            {/* <div className="text-center">
               <Button variant="outline" className="w-full" asChild>
                 <a href="/auth/forgot-password">
                   Forgot Password?
                 </a>
               </Button>
-            </div>
+            </div> */}
           </CardContent>
         </Card>
 

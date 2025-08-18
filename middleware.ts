@@ -10,6 +10,7 @@ const protectedRoutes = {
   '/classes': ['ADMIN', 'TEACHER'],
   '/assignments': ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT'],
   '/tools': ['ADMIN', 'TEACHER'],
+  '/dashboard': ['ADMIN'],
   '/api/admin': ['ADMIN'],
   '/api/teachers': ['ADMIN', 'TEACHER'],
   '/api/students': ['ADMIN', 'TEACHER'],
@@ -40,6 +41,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(signInUrl)
   }
 
+  const pathname = request.nextUrl.pathname
+  const userRole = token.role as string
+  if (pathname === '/dashboard' && userRole !== 'ADMIN') {
+    return NextResponse.redirect(new URL('/profile', request.url))
+  }
+
+  for (const [route, requiredRoles] of Object.entries(protectedRoutes)) {
+    if (pathname.startsWith(route)) {
+      if (!(requiredRoles as readonly string[]).includes(userRole)) {
+        return NextResponse.redirect(new URL('/auth/signin', request.url))
+      }
+      break
+    }
+  }
+
   return NextResponse.next()
 }
 
@@ -53,5 +69,7 @@ export const config = {
      * - public files (public directory)
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Explicitly include dashboard route
+    '/dashboard/:path*',
   ],
 } 
