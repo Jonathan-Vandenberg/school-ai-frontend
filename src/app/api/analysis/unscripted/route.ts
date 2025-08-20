@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService, handleServiceError } from '@/lib/services'
 
-// Audio analysis backend URL
+// Audio analysis backend URL and API key
 const AUDIO_ANALYSIS_URL = process.env.AUDIO_ANALYSIS_URL || 'http://127.0.0.1:8000'
+const AUDIO_ANALYSIS_API_KEY = process.env.AUDIO_ANALYSIS_API_KEY
 
 interface AnalysisRequest {
   expectedText?: string
@@ -17,6 +18,16 @@ export async function POST(request: NextRequest) {
   try {
     // Authenticate user
     const currentUser = await AuthService.getAuthenticatedUser()
+    
+    // Check if API key is configured
+    if (!AUDIO_ANALYSIS_API_KEY) {
+      return NextResponse.json({ 
+        error: 'Service configuration error', 
+        details: 'Audio analysis API key not configured' 
+      }, { 
+        status: 500 
+      });
+    }
     
     const contentType = request.headers.get('content-type')
     let expectedText: string | undefined
@@ -115,6 +126,7 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         body: backendFormData,
         headers: {
+          'Authorization': `Bearer ${AUDIO_ANALYSIS_API_KEY}`,
           // Don't set Content-Type for FormData - let browser set it with boundary
         },
       })
