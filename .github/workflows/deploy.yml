@@ -1,4 +1,4 @@
-name: 🚀 Deploy Frontend (school-ai)
+name: Deploy Frontend (school-ai)
 
 on:
   push:
