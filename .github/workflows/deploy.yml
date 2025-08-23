@@ -30,6 +30,16 @@ jobs:
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN || '' }}
 
+      - name: Prepare target dir on droplet
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DIGITAL_OCEAN_SSH_KEY }}
+          script: |
+            sudo mkdir -p /var/www/school-ai
+            sudo chown -R $USER:$USER /var/www/school-ai
+
       - name: Upload project to droplet
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -39,7 +49,7 @@ jobs:
           source: |
             .
           target: /var/www/school-ai
-          rm: true
+          rm: false
           strip_components: 0
           overwrite: true
 
