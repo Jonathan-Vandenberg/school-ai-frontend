@@ -4,10 +4,12 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
+const fallbackUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres'
+
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   datasources: {
     db: {
-      url: process.env.DATABASE_URL,
+      url: fallbackUrl,
     },
   },
   log: process.env.NODE_ENV === 'development' ? ['error'] : ['error'],
