@@ -3,8 +3,8 @@ import { AuthService } from '../../../../../../../lib/services/auth.service';
 import { prisma } from '../../../../../../../lib/db';
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { quizId: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ quizId: string }> }
 ) {
   try {
     // Authenticate user

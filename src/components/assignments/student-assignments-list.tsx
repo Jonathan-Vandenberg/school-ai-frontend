@@ -1,16 +1,16 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Video, BookOpen, Mic, Image as ImageIcon, FileText, Settings, Calendar, Clock, Users, User, School, Star, CheckCircle, Icon } from "lucide-react";
+import { Video, BookOpen, FileText, Calendar, Clock, Users, User, School, Star, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { useState } from "react";
 import { AssignmentWithDetails } from "../../../lib/services/assignments.service";
-import { assignmentTypes } from "@/app/create-assignment/page";
+import { assignmentTypes, AssignmentTypeDef } from "../../lib/assignment-types";
 
 interface StudentAssignmentsListProps {
   assignments: AssignmentWithDetails[];
@@ -19,23 +19,23 @@ interface StudentAssignmentsListProps {
 const getAssignmentCardStyle = (evaluationType?: string) => {
   switch (evaluationType) {
     case 'VIDEO':
-      const videoCard = assignmentTypes.find(type => type.id === 'VIDEO')?.colors;
-      return {icon: assignmentTypes.find(type => type.id === 'VIDEO')?.icon, color: videoCard};
+      const videoCard = assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'VIDEO')?.colors;
+      return {icon: assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'VIDEO')?.icon, color: videoCard};
     case 'READING':
-      const readingCard = assignmentTypes.find(type => type.id === 'READING')?.colors;
-      return {icon: assignmentTypes.find(type => type.id === 'READING')?.icon, color: readingCard};
+      const readingCard = assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'READING')?.colors;
+      return {icon: assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'READING')?.icon, color: readingCard};
     case 'PRONUNCIATION':
-      const pronunciationCard = assignmentTypes.find(type => type.id === 'PRONUNCIATION')?.colors;
-      return {icon: assignmentTypes.find(type => type.id === 'PRONUNCIATION')?.icon, color: pronunciationCard};
+      const pronunciationCard = assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'PRONUNCIATION')?.colors;
+      return {icon: assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'PRONUNCIATION')?.icon, color: pronunciationCard};
     case 'IMAGE':
-      const imageCard = assignmentTypes.find(type => type.id === 'IMAGE')?.colors;
-      return {icon: assignmentTypes.find(type => type.id === 'IMAGE')?.icon, color: imageCard};
+      const imageCard = assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'IMAGE')?.colors;
+      return {icon: assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'IMAGE')?.icon, color: imageCard};
     case 'IELTS':
-      const ieltsCard = assignmentTypes.find(type => type.id === 'IELTS')?.colors;
-      return {icon: assignmentTypes.find(type => type.id === 'IELTS')?.icon, color: ieltsCard};
+      const ieltsCard = assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'IELTS')?.colors;
+      return {icon: assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'IELTS')?.icon, color: ieltsCard};
     default:
-      const customCard = assignmentTypes.find(type => type.id === 'CUSTOM')?.colors;
-      return {icon: assignmentTypes.find(type => type.id === 'CUSTOM')?.icon, color: customCard};
+      const customCard = assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'CUSTOM')?.colors;
+      return {icon: assignmentTypes.find((type: AssignmentTypeDef) => type.id === 'CUSTOM')?.icon, color: customCard};
   }
 };
 

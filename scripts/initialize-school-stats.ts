@@ -144,8 +144,6 @@ async function initializeSchoolStats() {
         totalQuestions,
         totalAnswers,
         totalCorrectAnswers,
-        dailyActiveStudents,
-        dailyActiveTeachers,
         studentsNeedingHelp
       },
       create: {
@@ -163,8 +161,6 @@ async function initializeSchoolStats() {
         totalQuestions,
         totalAnswers,
         totalCorrectAnswers,
-        dailyActiveStudents,
-        dailyActiveTeachers,
         studentsNeedingHelp
       }
     })

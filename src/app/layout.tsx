@@ -28,7 +28,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Resolve tenant on server using incoming host header
-  const host = headers().get('host') || ''
+  const hdrs = await headers()
+  const host = hdrs.get('host') || ''
   const tenant = host ? await getTenantConfigForHost(host) : null
   return (
     <html lang="en" suppressHydrationWarning>

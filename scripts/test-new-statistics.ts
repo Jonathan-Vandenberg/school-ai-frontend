@@ -56,7 +56,6 @@ async function schoolDashboardTest() {
       console.log(`    Active Assignments: ${schoolStats.activeAssignments}`)
       console.log(`    Average Completion Rate: ${schoolStats.averageCompletionRate}%`)
       console.log(`    Average Score: ${schoolStats.averageScore}%`)
-      console.log(`    Daily Active Students: ${schoolStats.dailyActiveStudents}`)
       console.log(`    Students Needing Help: ${schoolStats.studentsNeedingHelp}`)
     } else {
       console.log('  ⚠️  No school statistics found (run updateDailyStatistics)')
