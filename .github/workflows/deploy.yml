@@ -85,7 +85,8 @@ jobs:
               printf "%s\n" "${{ secrets.FRONTEND_ENV }}" >> .env.production
             fi
 
-            npm ci
+            # Prefer reproducible install; fall back to npm install if lock is out of sync
+            npm ci || npm install --no-audit --no-fund
             npm run build
 
             pm2 describe school-ai >/dev/null 2>&1 || pm2 start "npm -- start" --name school-ai
