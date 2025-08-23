@@ -698,7 +698,7 @@ export function IELTSAssignment({
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <div className="container mx-auto md:p-6 max-w-8xl">
       {/* Header */}
       <div className="mb-6">
         {/* <div className="flex items-center gap-4 mb-4">
@@ -758,7 +758,7 @@ export function IELTSAssignment({
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-3 space-y-6">
           {/* Question Card */}
-          <Card>
+          <Card className="p-0 md:p-6 border-none md:border-2 md:border-gray-100 shadow-none">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>Question {currentIndex + 1}: {assignment.questions[currentIndex]?.textQuestion || 'No title available'}</span>

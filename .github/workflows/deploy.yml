@@ -1,0 +1,85 @@
+name: 🚀 Deploy Frontend (school-ai)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'next.config.*'
+      - '.github/workflows/deploy.yml'
+      - 'middleware.ts'
+  workflow_dispatch:
+
+concurrency:
+  group: school-ai-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install doctl (optional)
+        if: false
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN || '' }}
+
+      - name: Upload project to droplet
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DIGITAL_OCEAN_SSH_KEY }}
+          source: |
+            .
+          target: /var/www/school-ai
+          rm: true
+          strip_components: 0
+          overwrite: true
+
+      - name: Build & restart app on droplet
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DIGITAL_OCEAN_SSH_KEY }}
+          script: |
+            set -e
+            # Ensure dir
+            sudo mkdir -p /var/www/school-ai
+            sudo chown -R $USER:$USER /var/www/school-ai
+            cd /var/www/school-ai
+
+            # Ensure Node 20 and pm2 exist
+            if ! command -v node >/dev/null 2>&1; then
+              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              sudo apt-get install -y nodejs build-essential
+            fi
+            if ! command -v pm2 >/dev/null 2>&1; then
+              sudo npm i -g pm2
+            fi
+
+            # Build-time env: prefer repo config/.env.production, then append secret FRONTEND_ENV overrides
+            if [ -f config/.env.production ]; then
+              cp config/.env.production .env.production
+            else
+              : > .env.production
+            fi
+            if [ -n "${{ secrets.FRONTEND_ENV }}" ]; then
+              printf "%s\n" "${{ secrets.FRONTEND_ENV }}" >> .env.production
+            fi
+
+            npm ci
+            npm run build
+
+            pm2 describe school-ai >/dev/null 2>&1 || pm2 start "npm -- start" --name school-ai
+            pm2 restart school-ai
+            pm2 save
+
+

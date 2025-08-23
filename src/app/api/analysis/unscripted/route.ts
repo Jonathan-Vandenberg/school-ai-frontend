@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService, handleServiceError } from '@/lib/services'
+import { postFormToAudioApi } from '@/app/lib/tenant-api'
 
 // Audio analysis backend URL and API key
 const AUDIO_ANALYSIS_URL = process.env.AUDIO_ANALYSIS_URL || 'http://127.0.0.1:8000'
@@ -120,16 +121,7 @@ export async function POST(request: NextRequest) {
     // Call the audio analysis backend (it now handles all AI analysis when deep_analysis=true)
     let response
     try {
-      const url = `${AUDIO_ANALYSIS_URL}/analyze/unscripted`
-      
-      response = await fetch(url, {
-        method: 'POST',
-        body: backendFormData,
-        headers: {
-          'Authorization': `Bearer ${AUDIO_ANALYSIS_API_KEY}`,
-          // Don't set Content-Type for FormData - let browser set it with boundary
-        },
-      })
+      response = await postFormToAudioApi('/analyze/unscripted', backendFormData)
 
       if (!response.ok) {
         const errorText = await response.text()

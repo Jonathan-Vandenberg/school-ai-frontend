@@ -49,7 +49,7 @@ export default function GrammaticalAnalysisContent({
           {/* Original text with errors highlighted */}
           <div className="mb-4">
             <h5 className="text-sm font-medium text-gray-700 mb-2">Your Answer with Grammar Errors Highlighted</h5>
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
+            <div className="bg-white md:p-3 rounded-lg md:border md:border-gray-200">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xs text-gray-500">Hover over highlighted text to see corrections</span>
               </div>

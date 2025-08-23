@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService, handleServiceError } from '@/lib/services'
+import { postFormToAudioApi } from '@/app/lib/tenant-api'
 
 // Audio analysis backend URL and API key
 const AUDIO_ANALYSIS_URL = process.env.AUDIO_ANALYSIS_URL || 'http://localhost:8000'
@@ -115,19 +116,10 @@ export async function POST(request: NextRequest) {
     // Call the audio analysis backend
     let response
     try {
-      const url = analysisType === 'PRONUNCIATION' ? `${AUDIO_ANALYSIS_URL}/analyze/pronunciation` : `${AUDIO_ANALYSIS_URL}/analyze/scripted`
+      const path = analysisType === 'PRONUNCIATION' ? '/analyze/pronunciation' : '/analyze/scripted'
+      response = await postFormToAudioApi(path, backendFormData)
 
-      response = await fetch(url, {
-        method: 'POST',
-        body: backendFormData,
-        headers: {
-          'Authorization': `Bearer ${AUDIO_ANALYSIS_API_KEY}`,
-          // Don't set Content-Type for FormData - let browser set it with boundary
-        },
-      })
-
-      console.log('URL:', url)
-      console.log('FormData:', backendFormData)
+      console.log('Tenant API call path:', path)
 
       if (!response.ok) {
         const errorText = await response.text()

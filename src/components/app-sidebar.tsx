@@ -51,6 +51,7 @@ import {
   Plus
 } from 'lucide-react'
 import Image from 'next/image'
+import { useTenant } from '@/components/providers/tenant-provider'
 import { signOut } from 'next-auth/react'
 
 interface NavItem {
@@ -169,6 +170,7 @@ const navItems: NavItem[] = [
 
 export function AppSidebar() {
   const { data: session } = useSession()
+  const { tenant } = useTenant()
   const pathname = usePathname()
   const { setRefreshCallback } = useStatsRefresh()
   const [studentStats, setStudentStats] = useState({
@@ -260,18 +262,23 @@ export function AppSidebar() {
             <SidebarMenuButton size="lg" asChild>
               <Link href={userRole === 'STUDENT' ? '/assignments' : '/dashboard'}>
                 <div className="flex aspect-square size-12 items-center justify-center rounded">
-                  <Image
-                    src="/jis-logo.png"
-                    alt="JIS Logo"
-                    width={48}
-                    height={48}
-                    className="object-contain"
-                  />
+                  {tenant?.branding?.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={tenant.branding.logo_url} alt={tenant.display_name} width={48} height={48} className="object-contain" />
+                  ) : (
+                    <Image
+                      src="/jis-logo.png"
+                      alt="Logo"
+                      width={48}
+                      height={48}
+                      className="object-contain"
+                    />
+                  )}
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">JIS AI Portal</span>
+                  <span className="truncate font-semibold">{tenant?.display_name || 'JIS AI Portal'}</span>
                   <span className="truncate text-xs">
-                    {userRole === 'STUDENT' ? 'Student Portal' : 'Japanese International School'}
+                    {userRole === 'STUDENT' ? 'Student Portal' : (tenant?.subdomain || 'Japanese International School')}
                   </span>
                 </div>
               </Link>

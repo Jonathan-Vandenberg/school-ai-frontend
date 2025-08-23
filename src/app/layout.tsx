@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { TenantProvider } from "@/components/providers/tenant-provider";
+import { getTenantConfigForHost } from "./lib/tenant";
+import { headers } from 'next/headers';
 import { ConditionalLayout } from "@/components/conditional-layout";
 
 const geistSans = Geist({
@@ -19,20 +22,25 @@ export const metadata: Metadata = {
   description: "AI-powered language learning platform for Japanese International School",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Resolve tenant on server using incoming host header
+  const host = headers().get('host') || ''
+  const tenant = host ? await getTenantConfigForHost(host) : null
   return (
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers>
-          <ConditionalLayout>
-            {children}
-          </ConditionalLayout>
+          <TenantProvider tenant={tenant}>
+            <ConditionalLayout>
+              {children}
+            </ConditionalLayout>
+          </TenantProvider>
         </Providers>
       </body>
     </html>

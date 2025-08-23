@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import { parseSubdomainFromHost } from './src/app/lib/tenant'
 
 // Define protected routes and their required roles
 const protectedRoutes = {
@@ -24,14 +25,22 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
   const isApiAuthRoute = request.nextUrl.pathname.startsWith('/api/auth')
 
+  // Resolve subdomain and set header for server components/api routes
+  const host = request.headers.get('host') || ''
+  const subdomain = parseSubdomainFromHost(host)
+  const response = NextResponse.next()
+  if (subdomain) {
+    response.headers.set('x-tenant-subdomain', subdomain)
+  }
+
   // Allow auth pages and API auth routes
   if (isAuthPage || isApiAuthRoute) {
-    return NextResponse.next()
+    return response
   }
 
   // Allow access to the init endpoint
   if (request.nextUrl.pathname === '/api/init') {
-    return NextResponse.next()
+    return response
   }
 
   // Redirect to signin if no token
@@ -56,7 +65,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next()
+  return response
 }
 
 export const config = {
