@@ -180,6 +180,8 @@ export interface AssignmentListParams {
   search?: string
   languageId?: string
   isScheduled?: boolean
+  publishedFrom?: Date
+  publishedTo?: Date
 }
 
 
@@ -592,7 +594,7 @@ export class AssignmentsService {
       studentId,
       search,
       languageId,
-      isScheduled
+      isScheduled,
     } = params
 
     const skip = (page - 1) * limit
@@ -673,6 +675,17 @@ export class AssignmentsService {
       }
     }
 
+    const orderBy = isScheduled
+      ? [
+          { scheduledPublishAt: 'desc' as const },
+          { publishedAt: 'desc' as const },
+          { createdAt: 'desc' as const }
+        ]
+      : [
+          { publishedAt: 'desc' as const },
+          { createdAt: 'desc' as const }
+        ]
+
     const [assignments, total] = await Promise.all([
       prisma.assignment.findMany({
         where,
@@ -716,10 +729,7 @@ export class AssignmentsService {
             }
           }
         },
-        orderBy: [
-          { scheduledPublishAt: 'asc' },
-          { createdAt: 'desc' }
-        ]
+        orderBy
       }),
       prisma.assignment.count({ where })
     ])
@@ -792,6 +802,17 @@ export class AssignmentsService {
       }
     }
 
+    const orderBy = (status === 'scheduled')
+      ? [
+          { scheduledPublishAt: 'desc' as const },
+          { publishedAt: 'desc' as const },
+          { createdAt: 'desc' as const }
+        ]
+      : [
+          { publishedAt: 'desc' as const },
+          { createdAt: 'desc' as const }
+        ]
+
     const assignments = await prisma.assignment.findMany({
       where,
       include: {
@@ -843,10 +864,7 @@ export class AssignmentsService {
           }
         }
       },
-      orderBy: [
-        { scheduledPublishAt: 'asc' },
-        { createdAt: 'desc' }
-      ]
+      orderBy
     })
 
     return assignments as any

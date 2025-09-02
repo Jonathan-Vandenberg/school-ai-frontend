@@ -80,6 +80,9 @@ export async function POST(request: NextRequest) {
     if (cleanBrowserTranscript) {
       backendFormData.append('browser_transcript', cleanBrowserTranscript)
     }
+    if (analysisType) {
+      backendFormData.append('analysis_type', analysisType)
+    }
     
     // Add audio file if provided (for pronunciation analysis)
     if (audioFile) {
@@ -156,7 +159,11 @@ export async function POST(request: NextRequest) {
     let feedback = ''
     let encouragement = ''
     
-    if (overallScore >= 90) {
+    if (overallScore === 0) {
+      // Zero score indicates wrong text for reading assignments
+      feedback = 'Please read the exact text shown. Try again!'
+      encouragement = 'Keep trying!'
+    } else if (overallScore >= 90) {
       feedback = 'Excellent pronunciation! Keep it up!'
       encouragement = 'Amazing!'
     } else if (overallScore >= 80) {

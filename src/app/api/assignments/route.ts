@@ -21,6 +21,10 @@ export async function GET(request: NextRequest) {
     const typeParam = searchParams.get('type')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
+    const publishedFromParam = searchParams.get('publishedFrom')
+    const publishedToParam = searchParams.get('publishedTo')
+    const publishedFrom = publishedFromParam ? new Date(publishedFromParam) : undefined
+    const publishedTo = publishedToParam ? new Date(publishedToParam) : undefined
 
     // Validate type parameter
     const validTypes = ['CLASS', 'INDIVIDUAL'] as const
@@ -34,6 +38,8 @@ export async function GET(request: NextRequest) {
         type,
         isActive: status === 'PUBLISHED' ? true : status === 'DRAFT' ? false : undefined,
         isScheduled: status === 'SCHEDULED' ? true : undefined,
+        publishedFrom,
+        publishedTo,
         page,
         limit
       })

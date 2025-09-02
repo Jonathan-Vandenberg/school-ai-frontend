@@ -331,7 +331,8 @@ export function ReadingAssignment({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           expectedText,
-          browserTranscript: transcript
+          browserTranscript: transcript,
+          analysisType: 'READING'
         }),
       })
 
