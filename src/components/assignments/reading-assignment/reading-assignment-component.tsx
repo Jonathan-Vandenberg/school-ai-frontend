@@ -21,7 +21,7 @@ import {
 import { useRouter } from 'next/navigation'
 
 // Enhanced Word Display Component with hover tooltips and speaker functionality
-function WordDisplayWithTooltip({ word, accent = 'US' }: { word: any, accent?: string }) {
+function WordDisplayWithTooltip({ word, accent = 'US', assignmentType = 'READING' }: { word: any, accent?: string, assignmentType?: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioSrc, setAudioSrc] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
@@ -179,9 +179,9 @@ function WordDisplayWithTooltip({ word, accent = 'US' }: { word: any, accent?: s
         style={microphoneCursorStyle}
       >
         <span className="font-medium">{wordText}</span>
-        <span className="text-xs text-gray-500 ml-1">
+        {assignmentType !== 'READING' && <span className="text-xs text-gray-500 ml-1">
           ({Math.round(score)}%)
-        </span>
+        </span>}
         
         {/* Hidden audio element */}
         <audio 
@@ -194,7 +194,7 @@ function WordDisplayWithTooltip({ word, accent = 'US' }: { word: any, accent?: s
       </div>
 
       {/* Tooltip */}
-      {showTooltip && (
+      {showTooltip && assignmentType !== 'READING' && (
         <div 
           className="fixed bg-gray-800 text-white p-0 rounded-lg text-xs z-[9999] w-48 shadow-lg"
           style={{
@@ -765,7 +765,7 @@ export function ReadingAssignment({
                     {/* Overall Score */}
                     <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Overall Pronunciation Score</span>
+                        <span className="text-sm text-gray-600">Overall Reading Score</span>
                         <span className="text-xl font-bold text-gray-800">
                           {Math.round(pronunciationResult.overall_score)}%
                         </span>
@@ -778,7 +778,8 @@ export function ReadingAssignment({
                         <WordDisplayWithTooltip 
                           key={wordIndex} 
                           word={word} 
-                          accent="US" 
+                          accent="US"
+                          assignmentType="READING"
                         />
                       ))}
                     </div>

@@ -25,13 +25,21 @@ interface Assignment {
     score: number | null
     hasStarted: boolean
   }
+  stats?: {
+    totalAssignedStudents: number
+    completedCount: number
+    inProgressCount: number
+    notStartedCount: number
+    completionRate: number
+    averageScore: number | null
+  }
   _count: {
     progresses: number
     questions: number
   }
 }
 
-export default function CalendarPage() {
+export default function CalendarTeacherPage() {
   const { data: session } = useSession()
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -46,7 +54,7 @@ export default function CalendarPage() {
   const fetchAssignments = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/assignments/calendar')
+      const response = await fetch('/api/assignments/teacher/calendar')
       if (response.ok) {
         const data = await response.json()
         setAssignments(data.data || [])
@@ -130,7 +138,7 @@ export default function CalendarPage() {
     <div className="container mx-auto max-w-6xl p-6 space-y-6">
       <div className="flex items-center gap-2 mb-6">
         <CalendarIcon className="h-6 w-6" />
-        <h1 className="text-3xl font-bold">My Assignment Calendar</h1>
+        <h1 className="text-3xl font-bold">My Created Assignments Calendar</h1>
       </div>
 
       <div className="mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -139,7 +147,7 @@ export default function CalendarPage() {
           <CardHeader>
             <CardTitle>Calendar</CardTitle>
             <CardDescription>
-              Click on any date to view assignments. Dates with assignments are highlighted.
+              Click on any date to view assignments you've created. Dates with assignments are highlighted.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -167,8 +175,8 @@ export default function CalendarPage() {
             </CardTitle>
             <CardDescription>
               {selectedDateAssignments.length === 0 
-                ? 'No assignments for this date'
-                : `${selectedDateAssignments.length} assignment${selectedDateAssignments.length === 1 ? '' : 's'}`
+                ? 'No assignments created for this date'
+                : `${selectedDateAssignments.length} assignment${selectedDateAssignments.length === 1 ? '' : 's'} created`
               }
             </CardDescription>
           </CardHeader>
@@ -176,7 +184,7 @@ export default function CalendarPage() {
             {selectedDateAssignments.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <BookOpen className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>No assignments on this date</p>
+                <p>No assignments created on this date</p>
               </div>
             ) : (
               selectedDateAssignments.map((assignment) => (
@@ -188,35 +196,40 @@ export default function CalendarPage() {
                     </Badge>
                   </div>
                   
-                  <div className="w-full flex items-center justify-around">
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground w-full">
-                      <span className="capitalize rounded-md px-2 py-1 bg-primary/10 text-primary">{assignment.type?.toLowerCase() || 'assignment'}</span>
-                      <div className="flex flex-col items-center gap-1 w-full">
+                  <div className="w-full space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="capitalize rounded-md px-2 py-1 bg-primary/10 text-primary text-xs">{assignment.type?.toLowerCase() || 'assignment'}</span>
+                      <div className="flex flex-col text-xs text-muted-foreground">
                         {assignment.scheduledPublishAt && (
-                            <span className="font-bold">Start {format(parseISO(assignment.scheduledPublishAt), 'h:mm a')}</span>
+                            <span>Start: {format(parseISO(assignment.scheduledPublishAt), 'h:mm a')}</span>
                         )}
-
                         {assignment.dueDate && (
-                            <span className="font-bold">Due {format(parseISO(assignment.dueDate), 'h:mm a')} {format(assignment.dueDate, 'MMM d, yyyy')}</span>
+                            <span>Due: {format(parseISO(assignment.dueDate), 'h:mm a')}</span>
                         )}
                       </div>
                     </div>
                     
-                    {assignment.isActive && <Button asChild size="sm" variant="outline">
-                      <Link href={`/assignments/${assignment.id}`}>
-                        {assignment.progress.completed ? 'Review' : assignment.progress.hasStarted ? 'Continue' : 'Start'}
-                      </Link>
-                    </Button>}
-                  </div>
-                  
-                  {assignment.progress.hasStarted && (
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <div>Progress: {assignment.progress.completedQuestions}/{assignment.progress.totalQuestions} questions</div>
-                      {assignment.progress.score !== null && (
-                        <div>Score: {Math.round(assignment.progress.score)}%</div>
-                      )}
+                    {assignment.stats && (
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="flex gap-3">
+                          <span>{assignment.stats.totalAssignedStudents} students</span>
+                          <span>{assignment.stats.completedCount} completed</span>
+                        </div>
+                        {assignment.stats.averageScore !== null && (
+                          <span className="font-medium">Avg: {assignment.stats.averageScore}%</span>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="flex gap-2">
+                      <Button asChild size="sm" variant="outline" className="flex-1">
+                        <Link href={`/assignments/${assignment.id}`}>
+                          View Details
+                        </Link>
+                      </Button>
                     </div>
-                  )}
+                  </div>
+
                 </div>
               ))
             )}
@@ -229,10 +242,10 @@ export default function CalendarPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5" />
-            Upcoming Assignments
+            Your Upcoming Assignments
           </CardTitle>
           <CardDescription>
-            Assignments due in the next 7 days
+Assignments you created that are due in the next 7 days
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -268,23 +281,35 @@ export default function CalendarPage() {
                       </Badge>
                     </div>
 
-                    {assignment.scheduledPublishAt && (
-                      <div className="text-xs text-muted-foreground">
-                         <span className="font-bold">START {format(new Date(assignment.scheduledPublishAt), 'h:mm a')}</span> {format(new Date(assignment.scheduledPublishAt), 'MMM d, yyyy')}
-                      </div>
-                    )}
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      {assignment.scheduledPublishAt && (
+                        <div>
+                           <span className="font-bold">START:</span> {format(new Date(assignment.scheduledPublishAt), 'h:mm a, MMM d')}
+                        </div>
+                      )}
+                      
+                      {date && (
+                        <div>
+                          <span className="font-bold">DUE:</span> {format(date, 'h:mm a, MMM d')}
+                        </div>
+                      )}
+                      
+                      {assignment.stats && (
+                        <div className="flex justify-between items-center pt-1 border-t">
+                          <span>{assignment.stats.totalAssignedStudents} students</span>
+                          <span>{assignment.stats.completedCount} completed</span>
+                          {assignment.stats.averageScore !== null && (
+                            <span className="font-medium">Avg: {assignment.stats.averageScore}%</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     
-                    {date && (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-bold">END {format(date, 'h:mm a')}</span> {format(date, 'MMM d, yyyy')}
-                      </div>
-                    )}
-                    
-                    {assignment.isActive && <Button asChild size="sm" className="w-full">
+                    <Button asChild size="sm" className="w-full">
                       <Link href={`/assignments/${assignment.id}`}>
-                        Start Assignment
+                        View Assignment
                       </Link>
-                    </Button>}
+                    </Button>
                   </div>
                 )
               })}
@@ -302,7 +327,7 @@ export default function CalendarPage() {
             }).length === 0 && (
               <div className="col-span-full text-center py-8 text-muted-foreground">
                 <CalendarIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>No upcoming assignments in the next 7 days</p>
+                <p>No assignments you created are due in the next 7 days</p>
               </div>
             )}
           </div>

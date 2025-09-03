@@ -16,9 +16,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
 import {
@@ -31,7 +28,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import {
   School,
@@ -80,20 +76,20 @@ const navItems: NavItem[] = [
     title: 'Users',
     href: '/dashboard/users',
     icon: Users,
-    roles: ['ADMIN']
-  },
-  {
-    title: 'Teachers',
-    href: '/dashboard/teachers',
-    icon: GraduationCap,
-    roles: ['ADMIN']
-  },
-  {
-    title: 'Students',
-    href: '/dashboard/students',
-    icon: User,
     roles: ['ADMIN', 'TEACHER']
   },
+  // {
+  //   title: 'Teachers',
+  //   href: '/dashboard/teachers',
+  //   icon: GraduationCap,
+  //   roles: ['ADMIN']
+  // },
+  // {
+  //   title: 'Students',
+  //   href: '/dashboard/students',
+  //   icon: User,
+  //   roles: ['ADMIN', 'TEACHER']
+  // },
   {
     title: 'My Assignments',
     href: '/assignments',
@@ -106,36 +102,36 @@ const navItems: NavItem[] = [
     icon: BookOpen,
     roles: ['ADMIN', 'TEACHER']
   },
-  {
-    title: 'Create Assignment',
-    href: '/create-assignment',
-    icon: BookOpen,
-    roles: ['ADMIN', 'TEACHER']
-  },
-  {
-    title: 'Activities',
-    href: '/activities',
-    icon: Award,
-    roles: ['ADMIN', 'TEACHER', 'STUDENT']
-  },
+  // {
+  //   title: 'Create Assignment',
+  //   href: '/create-assignment',
+  //   icon: BookOpen,
+  //   roles: ['ADMIN', 'TEACHER']
+  // },
+  // {
+  //   title: 'Activities',
+  //   href: '/activities',
+  //   icon: Award,
+  //   roles: ['ADMIN', 'TEACHER', 'STUDENT']
+  // },
   {
     title: 'Classes',
     href: '/dashboard/classes',
     icon: School,
     roles: ['ADMIN', 'TEACHER']
   },
-  {
-    title: 'Analytics',
-    href: '/dashboard/analytics',
-    icon: TrendingUp,
-    roles: ['ADMIN', 'TEACHER']
-  },
-  {
-    title: 'Reports',
-    href: '/dashboard/reports',
-    icon: FileText,
-    roles: ['ADMIN', 'TEACHER', 'PARENT']
-  },
+  // {
+  //   title: 'Analytics',
+  //   href: '/dashboard/analytics',
+  //   icon: TrendingUp,
+  //   roles: ['ADMIN', 'TEACHER']
+  // },
+  // {
+  //   title: 'Reports',
+  //   href: '/dashboard/reports',
+  //   icon: FileText,
+  //   roles: ['ADMIN', 'TEACHER', 'PARENT']
+  // },
   {
     title: 'Calendar',
     href: '/calendar',
@@ -144,28 +140,28 @@ const navItems: NavItem[] = [
   },
   {
     title: 'Calendar',
-    href: '/dashboard/calendar',
+    href: '/calendar/teacher',
     icon: Calendar,
-    roles: ['ADMIN', 'TEACHER']
+    roles: ['TEACHER']
   },
-  {
-    title: 'Messages',
-    href: '/dashboard/messages',
-    icon: MessageSquare,
-    roles: ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT']
-  },
-  {
-    title: 'Achievements',
-    href: '/dashboard/achievements',
-    icon: Award,
-    roles: ['STUDENT', 'PARENT']
-  },
-  {
-    title: 'Settings',
-    href: '/dashboard/settings',
-    icon: Settings,
-    roles: ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT']
-  }
+  // {
+  //   title: 'Messages',
+  //   href: '/dashboard/messages',
+  //   icon: MessageSquare,
+  //   roles: ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT']
+  // },
+  // {
+  //   title: 'Achievements',
+  //   href: '/dashboard/achievements',
+  //   icon: Award,
+  //   roles: ['STUDENT', 'PARENT']
+  // },
+  // {
+  //   title: 'Settings',
+  //   href: '/dashboard/settings',
+  //   icon: Settings,
+  //   roles: ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT']
+  // }
 ]
 
 export function AppSidebar() {
@@ -323,10 +319,12 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton>
-                    <Plus />
-                    <span>New Assignment</span>
-                  </SidebarMenuButton>
+                  <Link href="/create-assignment">
+                    <SidebarMenuButton>
+                      <Plus />
+                      <span>New Assignment</span>
+                    </SidebarMenuButton>
+                  </Link>
                 </SidebarMenuItem>
                 {userRole === 'ADMIN' && (
                   <SidebarMenuItem>
