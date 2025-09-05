@@ -9,8 +9,9 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { School, Mail, Lock, Loader2 } from 'lucide-react'
+import { School, Mail, Lock, Loader2, User } from 'lucide-react'
 import Image from 'next/image'
+import { useTenant } from '@/components/providers/tenant-provider'
 
 export default function SignInPage() {
   const [email, setEmail] = useState('')
@@ -19,6 +20,7 @@ export default function SignInPage() {
   const [error, setError] = useState('')
   const router = useRouter()
   const { data: session, status } = useSession()
+  const { tenant } = useTenant()
 
   // Redirect if already logged in
   useEffect(() => {
@@ -99,58 +101,72 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6 transform scale-125 origin-center">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <Image src="/jis-logo.png" alt="JIS AI Portal" className="w-10 h-10" width={100} height={100} />
-            <h1 className="text-2xl font-bold text-gray-900">JIS AI Portal</h1>
-          </div>
-          <p className="text-gray-600">AI-powered language learning platform</p>
-        </div>
+    <div 
+      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      style={{
+        background: `linear-gradient(135deg, var(--brand-primary, #4f46e5) 0%, var(--brand-secondary, #0ea5e9) 100%)`
+      }}
+    >
+      {/* Animated background shapes */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-1/2 -right-1/2 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-1/2 -left-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse"></div>
+      </div>
 
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle>Sign In</CardTitle>
-            <CardDescription>
-              Enter your credentials to access your dashboard
-            </CardDescription>
+      <div className="w-full max-w-md relative z-10">
+        <Card className="backdrop-blur-sm bg-white/95 border-0 shadow-2xl">
+          <CardHeader className="text-center pb-8 pt-8">
+            <div className="flex flex-col items-center justify-center space-x-3 mb-6">
+              <div className="w-24 h-24 pb-8">
+                <div className="w-full h-full bg-white flex items-center justify-center">
+                  <Image src="/jis-logo.png" alt="JIS AI Portal" className="w-24 h-24" width={32} height={32} />
+                </div>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">{tenant?.display_name || 'School Portal'}</h1>
+                <h1 className="text-xl font-bold text-gray-500">Language Assessment Platform</h1>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6 px-8 pb-8">
             {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email or Username</Label>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1">
+                <Label htmlFor="email" className="text-sm text-gray-600 font-medium">Username</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Mail className="absolute left-4 top-4 h-4 w-4 text-gray-400" />
                   <Input
                     id="email"
                     type="text"
-                    placeholder="Enter your email or username"
+                    placeholder="Type your username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
+                    className="pl-12 h-12 border-gray-200 focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)] rounded-lg text-sm"
                     required
                     disabled={isLoading}
                   />
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+              <div className="space-y-1">
+                <Label htmlFor="password" className="text-sm text-gray-600 font-medium">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Lock className="absolute left-4 top-4 h-4 w-4 text-gray-400" />
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Enter your password"
+                    placeholder="Type your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10"
+                    className="pl-12 h-12 border-gray-200 focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)] rounded-lg text-sm"
                     required
                     disabled={isLoading}
                   />
+                </div>
+                <div className="text-right">
+                  <a href="#" className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-colors">
+                    Forgot password?
+                  </a>
                 </div>
               </div>
 
@@ -162,7 +178,10 @@ export default function SignInPage() {
 
               <Button 
                 type="submit" 
-                className="w-full" 
+                className="w-full h-12 rounded-lg font-medium text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200"
+                style={{
+                  background: `linear-gradient(135deg, var(--brand-primary, #4f46e5) 0%, var(--brand-secondary, #0ea5e9) 100%)`
+                }}
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -171,26 +190,12 @@ export default function SignInPage() {
                     Signing in...
                   </React.Fragment>
                 ) : (
-                  'Sign In'
+                  'LOGIN'
                 )}
               </Button>
             </form>
-
-            {/* <div className="text-center">
-              <Button variant="outline" className="w-full" asChild>
-                <a href="/auth/forgot-password">
-                  Forgot Password?
-                </a>
-              </Button>
-            </div> */}
           </CardContent>
         </Card>
-
-        {/* Footer */}
-        <div className="text-center text-sm text-gray-500">
-          <p>Japanese International School AI Platform</p>
-          <p className="mt-1">© 2024 All rights reserved</p>
-        </div>
       </div>
     </div>
   )

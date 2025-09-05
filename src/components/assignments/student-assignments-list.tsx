@@ -88,26 +88,59 @@ const getStudentProgress = (assignment: AssignmentWithDetails) => {
 
 const getAssignmentStatus = (assignment: AssignmentWithDetails, isStudent: boolean = false) => {
   const now = new Date();
-  
-  if (assignment.scheduledPublishAt && assignment.scheduledPublishAt > now) {
-    return { status: 'scheduled', label: 'Scheduled', variant: 'secondary' as const };
-  }
-  
-  if (!assignment.isActive) {
-    return { status: 'inactive', label: 'Inactive', variant: 'secondary' as const };
-  }
 
-  if (isStudent) {
-    const progress = getStudentProgress(assignment);
-    
-    if (progress.isFullyCompleted) {
-      return { status: 'completed', label: 'Completed', variant: 'default' as const };
-    } else if (progress.hasStarted) {
-      return { status: 'in-progress', label: 'In Progress', variant: 'secondary' as const };
+  // Determine the case for switch statement
+  const getStatusCase = (): string => {
+    if (assignment.scheduledPublishAt && assignment.scheduledPublishAt > now) {
+      return 'scheduled';
     }
+    
+    if (!assignment.isActive) {
+      return 'inactive';
+    }
+
+    if (isStudent) {
+      const progress = getStudentProgress(assignment);
+      
+      if (progress.isFullyCompleted) {
+        return 'perfect';
+      } else if (progress.isPerfectScore) {
+        return 'completed';
+      } else if (progress.hasStarted) {
+        return 'inProgress';
+      } else {
+        return 'notStarted';
+      }
+    }
+    
+    return 'available';
+  };
+
+  const statusCase = getStatusCase();
+
+  switch (statusCase) {
+    case 'scheduled':
+      return { status: 'scheduled', label: 'Scheduled', variant: 'scheduled' as const };
+    
+    case 'inactive':
+      return { status: 'inactive', label: 'Inactive', variant: 'inactive' as const };
+    
+    case 'perfect':
+      return { status: 'perfect', label: 'Perfect', variant: 'perfect' as const };
+    
+    case 'completed':
+      return { status: 'completed', label: 'Completed', variant: 'completed' as const };
+    
+    case 'inProgress':
+      return { status: 'inProgress', label: 'In Progress', variant: 'inProgress' as const };
+    
+    case 'notStarted':
+      return { status: 'notStarted', label: 'Not Started', variant: 'notStarted' as const };
+    
+    case 'available':
+    default:
+      return { status: 'available', label: 'Available', variant: 'available' as const };
   }
-  
-  return { status: 'available', label: 'Available', variant: 'default' as const };
 };
 
 const getButtonTextForStudent = (assignment: AssignmentWithDetails) => {

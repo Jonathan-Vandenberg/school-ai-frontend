@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useStatsRefresh } from '@/hooks/use-stats-refresh'
@@ -44,11 +44,30 @@ import {
   User,
   LogOut,
   ChevronUp,
-  Plus
+  Plus,
+  Palette
 } from 'lucide-react'
 import Image from 'next/image'
 import { useTenant } from '@/components/providers/tenant-provider'
-import { signOut } from 'next-auth/react'
+
+// Helper function to normalize logo URLs for Next.js public files
+const normalizeLogoUrl = (logoUrl?: string | null): string | null => {
+  if (!logoUrl) return null
+  
+  // If URL contains domain (like "localhost:3000/jis-logo.png"), extract just the path
+  if (logoUrl.includes('/') && !logoUrl.startsWith('/')) {
+    const url = new URL(`http://${logoUrl}`)
+    return url.pathname
+  }
+  
+  // If it's already a relative path, use as is
+  if (logoUrl.startsWith('/')) {
+    return logoUrl
+  }
+  
+  // If it's just a filename, add leading slash
+  return `/${logoUrl}`
+}
 
 interface NavItem {
   title: string
@@ -64,6 +83,12 @@ const navItems: NavItem[] = [
     title: 'Dashboard',
     href: '/dashboard',
     icon: BarChart3,
+    roles: ['ADMIN']
+  },
+  {
+    title: 'Admin Settings',
+    href: '/admin',
+    icon: Palette,
     roles: ['ADMIN']
   },
   {
@@ -252,30 +277,22 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="inset">
-      <SidebarHeader>
+      <SidebarHeader className="h-auto">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link href={userRole === 'STUDENT' ? '/assignments' : '/dashboard'}>
-                <div className="flex aspect-square size-12 items-center justify-center rounded">
-                  {tenant?.branding?.logo_url ? (
+            <SidebarMenuButton size="lg" asChild className="h-auto min-h-fit">
+              <Link href={userRole === 'STUDENT' ? '/assignments' : '/dashboard'} className="flex flex-col items-center text-center gap-2 py-2">
+                <div className="flex w-12 h-12 items-center justify-center rounded">
+                  {normalizeLogoUrl(tenant?.branding?.logo_url) ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={tenant.branding.logo_url} alt={tenant.display_name} width={48} height={48} className="object-contain" />
+                    <img src={normalizeLogoUrl(tenant?.branding?.logo_url)!} alt={tenant?.display_name || 'Logo'} width={48} height={48} className="object-contain" />
                   ) : (
-                    <Image
-                      src="/jis-logo.png"
-                      alt="Logo"
-                      width={48}
-                      height={48}
-                      className="object-contain"
-                    />
+                    <School className="h-8 w-8" />
                   )}
                 </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{tenant?.display_name || 'JIS AI Portal'}</span>
-                  <span className="truncate text-xs">
-                    {userRole === 'STUDENT' ? 'Student Portal' : (tenant?.subdomain || 'Japanese International School')}
-                  </span>
+                <div className="flex flex-col text-center leading-tight">
+                  <span className="font-semibold text-xs leading-tight break-words">{tenant?.display_name || 'JIS AI Portal'}</span>
+                  <p className="text-xs text-muted-foreground">Language Assessment Platform</p>
                 </div>
               </Link>
             </SidebarMenuButton>

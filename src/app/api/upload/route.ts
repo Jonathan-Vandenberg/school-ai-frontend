@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // Upload to S3
     console.log('Preparing S3 upload with key:', key);
-    const bucketName = process.env.AWS_S3_BUCKET_NAME || process.env.S3_BUCKET_NAME || process.env.MINIO_BUCKET_NAME || '';
+    const bucketName = process.env.S3_BUCKET_NAME || '';
     console.log('Using bucket:', bucketName);
     
     const uploadCommand = new PutObjectCommand({

@@ -29,20 +29,29 @@ export function useTenant() {
 }
 
 export function TenantProvider({ tenant, children }: { tenant: TenantConfig | null; children: React.ReactNode }) {
-  // Apply CSS variables for branding
-  const style = useMemo<React.CSSProperties | undefined>(() => {
-    if (!tenant?.branding) return undefined
+  // Apply CSS variables to the document root
+  React.useEffect(() => {
+    if (!tenant?.branding) return
+    
+    const root = document.documentElement
     const b = tenant.branding
-    const css: React.CSSProperties = {}
-    if (b.primary_hex) (css as Record<string, string>)['--brand-primary'] = b.primary_hex
-    if (b.secondary_hex) (css as Record<string, string>)['--brand-secondary'] = b.secondary_hex
-    if (b.accent_hex) (css as Record<string, string>)['--brand-accent'] = b.accent_hex
-    return css
+    
+    // Apply brand colors as CSS custom properties
+    if (b.primary_hex) root.style.setProperty('--brand-primary', b.primary_hex)
+    if (b.secondary_hex) root.style.setProperty('--brand-secondary', b.secondary_hex)  
+    if (b.accent_hex) root.style.setProperty('--brand-accent', b.accent_hex)
+    
+    // Cleanup function to reset to defaults when component unmounts
+    return () => {
+      root.style.removeProperty('--brand-primary')
+      root.style.removeProperty('--brand-secondary')
+      root.style.removeProperty('--brand-accent')
+    }
   }, [tenant])
 
   return (
     <TenantContext.Provider value={{ tenant }}>
-      <div style={style}>{children}</div>
+      {children}
     </TenantContext.Provider>
   )
 }
