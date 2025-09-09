@@ -66,8 +66,6 @@ function WordDisplayWithTooltip({ word, accent = 'US', assignmentType = 'READING
       // If already playing, don't start again
       if (isPlaying) return;
       
-      console.log('Starting word pronunciation for:', wordText);
-      
       // If we already have the audio, just play it
       if (audioSrc && audioRef.current) {
         console.log('Playing cached audio for:', wordText);
@@ -77,11 +75,9 @@ function WordDisplayWithTooltip({ word, accent = 'US', assignmentType = 'READING
         
         try {
           await audioRef.current.play();
-          console.log('Audio playing successfully for:', wordText);
           
           // Set a timeout as fallback in case onEnded doesn't fire
           timeoutRef.current = setTimeout(() => {
-            console.log('Audio timeout for cached word:', wordText);
             setIsPlaying(false);
           }, 10000); // 10 second timeout
         } catch (error) {
@@ -93,7 +89,6 @@ function WordDisplayWithTooltip({ word, accent = 'US', assignmentType = 'READING
       
       // Set playing state before fetching to show loading indicator
       setIsPlaying(true);
-      console.log('Fetching audio for:', wordText);
       
       const response = await fetch('/api/text-to-voice', {
         method: 'POST',
@@ -111,7 +106,6 @@ function WordDisplayWithTooltip({ word, accent = 'US', assignmentType = 'READING
       }
       
       const data = await response.json();
-      console.log('Received audio data for:', wordText);
       
       // Create URL directly from base64 data
       const url = `data:audio/mp3;base64,${data.audio}`;
@@ -124,9 +118,7 @@ function WordDisplayWithTooltip({ word, accent = 'US', assignmentType = 'READING
         
         // Use a promise to handle the play operation
         try {
-          console.log('Attempting to play audio for:', wordText);
           await audio.play();
-          console.log('Audio started playing for:', wordText);
           
           // Set a timeout as fallback in case onEnded doesn't fire
           timeoutRef.current = setTimeout(() => {
@@ -146,7 +138,6 @@ function WordDisplayWithTooltip({ word, accent = 'US', assignmentType = 'READING
 
   // Handle audio end
   const handleAudioEnd = () => {
-    console.log('Audio ended for word:', wordText);
     setIsPlaying(false);
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -344,21 +335,26 @@ export function ReadingAssignment({
 
       const { analysis } = await response.json()
       
+      // Determine correctness based on actual score instead of binary flag
+      const actualScore = analysis.pronunciationResult?.overall_score || 0
+      const isCorrectBasedOnScore = actualScore >= 80 // 80% threshold for "correct"
+      
       // Set all the feedback states
-      setIsCorrect(analysis.isCorrect)
+      setIsCorrect(isCorrectBasedOnScore)
       setFeedback(analysis.feedback)
       setEncouragement(analysis.encouragement || '')
       setPronunciationResult(analysis.pronunciationResult)
       setShowFeedback(true)
       
-      // Update progress
-      await onProgressUpdate(currentQuestion.id, analysis.isCorrect, {
+      // Update progress with score-based correctness
+      await onProgressUpdate(currentQuestion.id, isCorrectBasedOnScore, {
         result: analysis,
+        actualScore: actualScore, // Include actual score in the result
         timestamp: new Date().toISOString()
       }, 'READING')
       
       // Show confetti for correct answers
-      if (analysis.isCorrect) {
+      if (isCorrectBasedOnScore) {
         const button = document.querySelector('button[disabled]') as HTMLElement
         if (button) {
           button.style.animation = 'bounce 0.6s ease-in-out'
@@ -700,7 +696,7 @@ export function ReadingAssignment({
               {/* Microphone Control */}
               <div className="text-center py-6">
                 <div
-                  onClick={isProcessing || isCurrentQuestionCorrect ? undefined : toggleRecording}
+                  onClick={isProcessing || pronunciationResult?.overall_score && Math.round(pronunciationResult?.overall_score) >= 95 ? undefined : toggleRecording}
                   className={`w-20 h-20 rounded-full transition-all shadow-lg flex items-center justify-center mx-auto ${
                     isCurrentQuestionCorrect 
                       ? 'bg-yellow-300'
@@ -717,12 +713,12 @@ export function ReadingAssignment({
                     userSelect: 'none',
                   }}
                 >
-                  {isCurrentQuestionCorrect ? (
+                  {pronunciationResult?.overall_score && Math.round(pronunciationResult?.overall_score) >= 95 ? (
                     <Star className="w-8 h-8 text-white" fill="white" />
                   ) : isProcessing ? (
                     <Loader2 className="w-8 h-8 text-white animate-spin" />
                   ) : (
-                    <Mic className="w-8 h-8 text-white" />
+                    <Mic className="w-8 h-8 text-white cursor-pointer" />
                   )}
                 </div>
                 

@@ -754,9 +754,13 @@ export class AssignmentsService {
    */
   static async getMyAssignments(
     currentUser: AuthenticatedUser,
-    params: { status?: 'active' | 'completed' | 'scheduled' } = {}
-  ): Promise<AssignmentWithDetails[]> {
-    const { status } = params
+    params: { 
+      status?: 'active' | 'completed' | 'scheduled';
+      page?: number;
+      limit?: number;
+    } = {}
+  ): Promise<{ assignments: AssignmentWithDetails[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }> {
+    const { status, page = 1, limit = 50 } = params
 
     let where: any = {}
 
@@ -813,6 +817,14 @@ export class AssignmentsService {
           { createdAt: 'desc' as const }
         ]
 
+    // Calculate pagination
+    const skip = (page - 1) * limit
+    const take = limit
+
+    // Get total count for pagination
+    const total = await prisma.assignment.count({ where })
+    const totalPages = Math.ceil(total / limit)
+
     const assignments = await prisma.assignment.findMany({
       where,
       include: {
@@ -864,10 +876,20 @@ export class AssignmentsService {
           }
         }
       },
-      orderBy
+      orderBy,
+      skip,
+      take
     })
 
-    return assignments as any
+    return {
+      assignments: assignments as any,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages
+      }
+    }
   }
 
   /**

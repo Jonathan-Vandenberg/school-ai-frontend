@@ -97,11 +97,11 @@ const areaChartConfig = {
 
 const progressChartConfig = {
   completion: {
-    label: "Completion Rate",
+    label: "Completion",
     color: "hsl(262, 83%, 58%)", // Vibrant purple
   },
   success: {
-    label: "Success Rate", 
+    label: "Score", 
     color: "hsl(346, 77%, 49%)", // Vibrant red/pink
   },
 } satisfies ChartConfig
@@ -524,7 +524,7 @@ export function DashboardCharts() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-semibold">Performance Metrics</CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Completion and success rates over time
+              Completion and scores over time
             </CardDescription>
           </CardHeader>
           <CardContent className="pb-0">
@@ -558,6 +558,7 @@ export function DashboardCharts() {
                     cursor={false}
                     content={<ChartTooltipContent />}
                   />
+                  <Legend />
                   <Line
                     dataKey="completion"
                     type="monotone"
@@ -578,7 +579,7 @@ export function DashboardCharts() {
           </CardContent>
         </Card>
 
-        {/* Students Needing Help Bar Chart */}
+        {/* Students Needing Help Area Chart */}
         <Card className="md:col-span-1 lg:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-semibold">Students Needing Help</CardTitle>
@@ -587,9 +588,9 @@ export function DashboardCharts() {
           <CardContent className="pb-0">
             <ChartContainer config={helpChartConfig} className="h-[250px] sm:h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
+                <ComposedChart
                   accessibilityLayer
-                  data={trendData.slice(-7)} // Show last 7 days
+                  data={trendData} // Show full dataset like Growth Trends
                   margin={{
                     left: 2,
                     right: 2,
@@ -613,14 +614,18 @@ export function DashboardCharts() {
                   />
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent />}
+                    content={<ChartTooltipContent indicator="dot" />}
                   />
-                  <Bar 
-                    dataKey="help" 
-                    fill="var(--color-help)" 
-                    radius={[4, 4, 0, 0]}
+                  <Legend />
+                  <Area
+                    dataKey="help"
+                    type="monotone"
+                    fill="var(--color-help)"
+                    fillOpacity={0.2}
+                    stroke="var(--color-help)"
+                    strokeWidth={3}
                   />
-                </BarChart>
+                </ComposedChart>
               </ResponsiveContainer>
             </ChartContainer>
           </CardContent>
@@ -697,7 +702,7 @@ export function DashboardCharts() {
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+              <CardTitle className="text-sm font-medium">Scores</CardTitle>
               <Target className="h-4 w-4 text-emerald-500" />
             </CardHeader>
             <CardContent>

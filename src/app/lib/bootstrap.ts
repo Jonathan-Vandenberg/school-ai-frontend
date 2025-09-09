@@ -1,4 +1,3 @@
-import { bootstrapScheduledTasks } from '@/lib/scheduled-tasks'
 import { checkDatabaseConnection } from '@/lib/db'
 
 /**
@@ -18,9 +17,8 @@ export async function bootstrap(): Promise<void> {
     }
     console.log('✅ Database connection established')
 
-    // Start scheduled tasks
-    console.log('⏰ Starting scheduled tasks...')
-    await bootstrapScheduledTasks()
+    // Note: Scheduled tasks are handled by the dedicated cron process (startup.js)
+    // No need to initialize them here to avoid duplicates
     
     console.log('🎉 Application bootstrap completed successfully!')
     
@@ -39,21 +37,15 @@ export async function bootstrap(): Promise<void> {
  */
 export async function getApplicationHealth() {
   try {
-    const [dbHealth, tasksHealth] = await Promise.all([
-      checkDatabaseConnection(),
-      import('@/lib/scheduled-tasks').then(module => module.getScheduledTasksHealth()),
-    ])
-
-    const isHealthy = dbHealth && tasksHealth.status === 'healthy'
+    const dbHealth = await checkDatabaseConnection()
 
     return {
-      status: isHealthy ? 'healthy' : 'degraded',
+      status: dbHealth ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       database: {
         connected: dbHealth,
         status: dbHealth ? 'healthy' : 'unhealthy',
       },
-      scheduledTasks: tasksHealth,
       environment: process.env.NODE_ENV || 'development',
     }
   } catch (error) {

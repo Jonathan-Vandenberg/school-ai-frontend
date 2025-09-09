@@ -71,7 +71,36 @@ const getStudentProgress = (assignment: AssignmentWithDetails) => {
   
   const completed = uniqueQuestionsAnswered;
   const correct = correctProgresses.length;
-  const accuracy = completed > 0 ? Math.round((correct / completed) * 100) : 0;
+  
+  // Calculate accuracy based on assignment type
+  let accuracy = 0;
+  const assignmentType = assignment.evaluationSettings?.type;
+  
+  if ((assignmentType === 'PRONUNCIATION' || assignmentType === 'READING') && completedProgresses.length > 0) {
+    // Calculate average score from actual API results
+    let totalScore = 0;
+    let scoreCount = 0;
+    
+    completedProgresses.forEach(progress => {
+      const actualScore = progress.languageConfidenceResponse?.result?.actualScore;
+      if (typeof actualScore === 'number') {
+        totalScore += actualScore;
+        scoreCount++;
+      } else {
+        // Fallback to stored result data
+        const overallScore = progress.languageConfidenceResponse?.result?.result?.pronunciationResult?.overall_score;
+        if (typeof overallScore === 'number') {
+          totalScore += overallScore;
+          scoreCount++;
+        }
+      }
+    });
+    
+    accuracy = scoreCount > 0 ? Math.round(totalScore / scoreCount) : Math.round((correct / completed) * 100);
+  } else {
+    // Use binary correct/incorrect for other assignment types
+    accuracy = completed > 0 ? Math.round((correct / completed) * 100) : 0;
+  }
   const isFullyCompleted = completed >= totalQuestions;
   const hasStarted = assignment.progresses.length > 0;
 
@@ -102,9 +131,9 @@ const getAssignmentStatus = (assignment: AssignmentWithDetails, isStudent: boole
     if (isStudent) {
       const progress = getStudentProgress(assignment);
       
-      if (progress.isFullyCompleted) {
+      if (progress.isPerfectScore) {
         return 'perfect';
-      } else if (progress.isPerfectScore) {
+      } else if (progress.isFullyCompleted) {
         return 'completed';
       } else if (progress.hasStarted) {
         return 'inProgress';
@@ -148,7 +177,7 @@ const getButtonTextForStudent = (assignment: AssignmentWithDetails) => {
   if(progress.isPerfectScore) {
     return 'Review';
   } else if (progress.isFullyCompleted) {
-    return 'Improve';
+    return 'View';
   } else if (progress.hasStarted) {
     return 'Continue';
   } else {

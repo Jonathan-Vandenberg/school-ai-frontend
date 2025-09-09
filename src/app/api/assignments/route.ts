@@ -52,13 +52,16 @@ export async function GET(request: NextRequest) {
     }
     
     // Otherwise, use getMyAssignments for user-specific assignments
-    const assignments = await AssignmentsService.getMyAssignments(currentUser, {
-      status: status === 'PUBLISHED' ? 'active' : status === 'SCHEDULED' ? 'scheduled' : undefined
+    const result = await AssignmentsService.getMyAssignments(currentUser, {
+      status: status === 'PUBLISHED' ? 'active' : status === 'SCHEDULED' ? 'scheduled' : undefined,
+      page,
+      limit
     })
     
     return NextResponse.json({
       success: true,
-      data: assignments
+      data: result.assignments,
+      pagination: result.pagination
     })
   } catch (error) {
     console.error('Error fetching assignments:', error)

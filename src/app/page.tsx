@@ -40,15 +40,11 @@ export default function SignInPage() {
     setError('')
 
     try {
-      console.log('Attempting sign in with:', { email })
-      
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
       })
-
-      console.log('Sign in result:', result)
 
       if (result?.error) {
         console.error('Sign in error:', result.error)
@@ -67,8 +63,8 @@ export default function SignInPage() {
           console.log('Redirecting to dashboard')
           router.push('/dashboard')
         } else {
-          console.log('Redirecting to profile')
-          router.push('/profile')
+          console.log('Redirecting to assignments')
+          router.push('/assignments')
         }
       }
     } catch (error) {

@@ -92,6 +92,12 @@ const navItems: NavItem[] = [
     roles: ['ADMIN']
   },
   {
+    title: 'My Assignments',
+    href: '/assignments',
+    icon: BookOpen,
+    roles: ['STUDENT']
+  },
+  {
     title: 'My Profile',
     href: '/profile',
     icon: User,
@@ -115,12 +121,6 @@ const navItems: NavItem[] = [
   //   icon: User,
   //   roles: ['ADMIN', 'TEACHER']
   // },
-  {
-    title: 'My Assignments',
-    href: '/assignments',
-    icon: BookOpen,
-    roles: ['STUDENT']
-  },
   {
     title: 'Assignments',
     href: '/assignments',
@@ -330,7 +330,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* Quick Actions for Admin/Teacher */}
-        {(userRole === 'ADMIN' || userRole === 'TEACHER') && (
+        {userRole === 'TEACHER' && (
           <SidebarGroup>
             <SidebarGroupLabel>Quick Actions</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -343,14 +343,6 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>
-                {userRole === 'ADMIN' && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton>
-                      <Users />
-                      <span>Add User</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
