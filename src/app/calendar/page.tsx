@@ -151,9 +151,9 @@ export default function CalendarPage() {
                 hasAssignment: assignmentDates
               }}
               modifiersClassNames={{
-                hasAssignment: 'bg-primary/20 text-primary font-semibold'
+                hasAssignment: 'bg-primary/20 text-primary font-semibold rounded-md'
               }}
-              className="rounded-md border w-full"
+              className="rounded-md border w-full [&_button]:rounded-md [&_td]:rounded-md [&_.rdp-day]:rounded-md"
             />
           </CardContent>
         </Card>

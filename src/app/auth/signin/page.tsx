@@ -109,8 +109,13 @@ export default function SignInPage() {
     >
       {/* Animated background shapes */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 -right-1/2 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-1/2 -left-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -top-1/2 -right-1/2 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-1/2 -left-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
+        
+        {/* Light geometric rectangles */}
+        <div className="absolute -top-64 -left-96 w-[503px] h-[638px] bg-white/15 transform rotate-320 rounded"></div>
+        <div className="absolute top-1/5 -right-62 w-[570px] h-[705px] bg-black/12 transform -rotate-18 rounded"></div>
+        <div className="absolute -bottom-90 left-1/7 w-[537px] h-[671px] bg-white/10 transform rotate-65 rounded"></div>
       </div>
 
       <div className="w-full max-w-md relative z-10">

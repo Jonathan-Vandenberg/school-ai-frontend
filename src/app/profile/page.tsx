@@ -142,12 +142,12 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          <div className="pt-4">
+          {/* <div className="pt-4">
             <Button>
               <Settings className="mr-2 h-4 w-4" />
               Edit Profile
             </Button>
-          </div>
+          </div> */}
         </CardContent>
       </Card>
 
@@ -307,7 +307,7 @@ export default function ProfilePage() {
       )}
 
       {/* Quick Actions */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
           <CardDescription>
@@ -354,7 +354,7 @@ export default function ProfilePage() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   )
 } 

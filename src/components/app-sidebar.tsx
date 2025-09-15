@@ -443,7 +443,7 @@ export function AppSidebar() {
                     </div>
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
+                {/* <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <User />
                   Profile
@@ -451,7 +451,7 @@ export function AppSidebar() {
                 <DropdownMenuItem>
                   <Settings />
                   Settings
-                </DropdownMenuItem>
+                </DropdownMenuItem> */}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut />

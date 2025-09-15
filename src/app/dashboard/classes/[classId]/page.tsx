@@ -460,7 +460,7 @@ export default function ClassProfilePage() {
       </Card>
 
       {/* Quick Actions */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
           <CardDescription>
@@ -491,7 +491,7 @@ export default function ClassProfilePage() {
             )}
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   )
 } 
