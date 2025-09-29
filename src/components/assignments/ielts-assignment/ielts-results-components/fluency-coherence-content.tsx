@@ -25,11 +25,19 @@ interface Metrics {
   }>;
 }
 
-interface FluencyCoherenceContentProps {
-  metrics: Metrics;
+interface RelevanceAnalysis {
+  relevance_score: number;
+  explanation: string;
+  key_points_covered: string[];
+  missing_points: string[];
 }
 
-export default function FluencyCoherenceContent({ metrics }: FluencyCoherenceContentProps) {
+interface FluencyCoherenceContentProps {
+  metrics: Metrics;
+  relevance?: RelevanceAnalysis;
+}
+
+export default function FluencyCoherenceContent({ metrics, relevance }: FluencyCoherenceContentProps) {
   // Extract speech rate over time data for the chart
   const speechRateData = useMemo(() => {
     try {
@@ -79,10 +87,10 @@ export default function FluencyCoherenceContent({ metrics }: FluencyCoherenceCon
           <span className="text-sm text-gray-500 block">Pauses</span>
           <span className="text-lg font-medium">{metrics.pauses}</span>
         </div>
-        <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+        {/* <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
           <span className="text-sm text-gray-500 block">Filler Words</span>
           <span className="text-lg font-medium">{metrics.filler_words}</span>
-        </div>
+        </div> */}
       </div>
       
       {/* Speech Rate Over Time Chart */}
@@ -175,7 +183,7 @@ export default function FluencyCoherenceContent({ metrics }: FluencyCoherenceCon
       )}
       
       {/* Filler Words Details */}
-      {metrics.filler_words_details && metrics.filler_words_details.length > 0 && (
+      {/* {metrics.filler_words_details && metrics.filler_words_details.length > 0 && (
         <div className="mb-4">
           <h6 className="text-sm font-medium text-gray-700 mb-1">Filler Words Used</h6>
           <div className="flex flex-wrap gap-2">
@@ -189,7 +197,7 @@ export default function FluencyCoherenceContent({ metrics }: FluencyCoherenceCon
             Filler words per minute: {metrics.filler_words_per_min.toFixed(1)}
           </p>
         </div>
-      )}
+      )} */}
       
       {/* Discourse Markers */}
       {metrics.discourse_markers && metrics.discourse_markers.length > 0 && (
@@ -218,6 +226,46 @@ export default function FluencyCoherenceContent({ metrics }: FluencyCoherenceCon
               {metrics.repetitions.length} repetition(s) detected. Reducing repetitions can improve fluency.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Relevance Analysis */}
+      {relevance && (
+        <div className="mb-4">
+          <h6 className="text-sm font-medium text-gray-700 mb-2">Task Relevance & Coherence</h6>
+          <div className="bg-purple-50 p-3 rounded border border-purple-200 mb-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-purple-800">Relevance Score</span>
+              <span className="text-lg font-bold text-purple-700">{relevance.relevance_score}%</span>
+            </div>
+            <p className="text-xs text-purple-700">{relevance.explanation}</p>
+          </div>
+
+          {relevance.key_points_covered.length > 0 && (
+            <div className="mb-3">
+              <h6 className="text-xs font-medium text-gray-600 mb-1">✓ Key Points Covered</h6>
+              <ul className="space-y-1">
+                {relevance.key_points_covered.map((point, index) => (
+                  <li key={index} className="bg-green-50 text-green-700 px-2 py-1 rounded text-xs border border-green-200">
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {relevance.missing_points.length > 0 && (
+            <div className="mb-3">
+              <h6 className="text-xs font-medium text-gray-600 mb-1">⚠ Areas for Improvement</h6>
+              <ul className="space-y-1">
+                {relevance.missing_points.map((point, index) => (
+                  <li key={index} className="bg-orange-50 text-orange-700 px-2 py-1 rounded text-xs border border-orange-200">
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

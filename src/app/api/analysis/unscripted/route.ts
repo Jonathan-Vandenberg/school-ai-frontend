@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
     let audioFile: File | undefined
     let questionText: string | undefined
     let context: string | undefined
+    let useAudio: string | undefined
+    let deepAnalysis: string | undefined
 
     // Handle both JSON (text-based) and FormData (audio-based) requests
     if (contentType?.includes('multipart/form-data')) {
@@ -48,6 +50,8 @@ export async function POST(request: NextRequest) {
       audioFile = formData.get('audioFile') as File || undefined
       questionText = formData.get('questionText') as string || undefined
       context = formData.get('context') as string || undefined
+      useAudio = formData.get('use_audio') as string || undefined
+      deepAnalysis = formData.get('deep_analysis') as string || undefined
     } else {
       // JSON request (text-based)
       const body: AnalysisRequest = await request.json()
@@ -56,15 +60,18 @@ export async function POST(request: NextRequest) {
       analysisType = body.analysisType
       questionText = body.questionText
       context = body.context
+      useAudio = 'false' // JSON requests don't use audio transcription
+      deepAnalysis = 'false' // JSON requests don't need deep analysis by default
     }
 
-    // For IELTS assignments, we need the actual response text for analysis
+    // For IELTS assignments, we need either text for analysis OR audio file for transcription
     const responseText = browserTranscript || expectedText || ''
     
-    if (!responseText.trim()) {
+    // Only require text if no audio file is provided (for audio transcription)
+    if (!responseText.trim() && !audioFile) {
       return NextResponse.json({ 
         error: 'Failed to analyze speech', 
-        details: 'No text available for analysis' 
+        details: 'No text or audio available for analysis' 
       }, { 
         status: 400 
       });
@@ -107,8 +114,8 @@ export async function POST(request: NextRequest) {
 
     // Set parameters for IELTS analysis
     backendFormData.append('browser_transcript', responseText)
-    backendFormData.append('use_audio', 'true')
-    backendFormData.append('deep_analysis', 'true')
+    backendFormData.append('use_audio', useAudio || 'false')
+    backendFormData.append('deep_analysis', deepAnalysis || 'false')
     
     // Add question and context for IELTS analysis
     if (questionText) {

@@ -320,14 +320,7 @@ export function IELTSAssignment({
       const currentQuestion = assignment.questions[currentIndex]
       const expectedText = currentQuestion.textAnswer || ''
       const questionText = currentQuestion.textQuestion || ''
-      
-      console.log('Submitting for IELTS analysis:', {
-        expectedText,
-        questionText,
-        transcript,
-        audioFileSize: audioFile.size,
-        assignmentType: assignment.evaluationSettings?.type
-      })
+    
       
       // Determine which API to use based on assignment type
       const assignmentType = assignment.evaluationSettings?.type?.toLowerCase()
@@ -335,23 +328,33 @@ export function IELTSAssignment({
       let requestData: any = {}
       
       if (assignmentType === 'pronunciation') {
-        // Use pronunciation API for pronunciation assignments
+        // Use scripted API for pronunciation assignments
         apiEndpoint = '/api/analysis/scripted'
         const formData = new FormData()
-        formData.append('expectedText', expectedText)
-        formData.append('browserTranscript', transcript)
-        formData.append('analysisType', 'PRONUNCIATION')
         formData.append('audioFile', audioFile)
+        formData.append('browserTranscript', transcript)
+        formData.append('analysisType', 'IELTS')
+        formData.append('expectedText', expectedText)
+        formData.append('deep_analysis', 'true')
         requestData = formData
       } else {
         // Use unscripted API for reading and question-answer assignments
         apiEndpoint = '/api/analysis/unscripted'
         const formData = new FormData()
-        formData.append('expectedText', expectedText)
-        formData.append('browserTranscript', transcript)
-        formData.append('questionText', questionText)
-        formData.append('analysisType', 'IELTS')
         formData.append('audioFile', audioFile)
+        formData.append('browserTranscript', transcript)
+        formData.append('analysisType', 'IELTS')
+        
+        if (assignmentType === 'question-answer') {
+          formData.append('questionText', questionText)
+          formData.append('expectedText', '') // Empty for question-answer
+        } else {
+          // For reading assignments
+          formData.append('expectedText', expectedText)
+        }
+        
+        formData.append('use_audio', 'true')
+        formData.append('deep_analysis', 'true')
         requestData = formData
       }
       
@@ -369,9 +372,11 @@ export function IELTSAssignment({
 
       const result = await response.json()
       
+      // Handle response structure from new API format
+      const analysis = result.success ? result.analysis : result;
+      
       if (assignmentType === 'pronunciation') {
         // Handle pronunciation response
-        const { analysis } = result
         setIsCorrect(analysis.isCorrect)
         setFeedback(analysis.feedback)
         setEncouragement(analysis.encouragement || '')
@@ -384,7 +389,6 @@ export function IELTSAssignment({
         }, 'PRONUNCIATION')
       } else {
         // Handle IELTS response (comprehensive analysis)
-        const { analysis } = result
         
         // For IELTS, we'll consider it "correct" if overall band is 5+
         const overallBand = analysis.ielts_score?.overall_band || 0
@@ -409,8 +413,8 @@ export function IELTSAssignment({
       }
       
       // Show confetti for good scores
-      if ((assignmentType === 'pronunciation' && result.analysis.isCorrect) || 
-          (assignmentType !== 'pronunciation' && result.analysis.ielts_score?.overall_band >= 5)) {
+      if ((assignmentType === 'pronunciation' && analysis.isCorrect) || 
+          (assignmentType !== 'pronunciation' && analysis.ielts_score?.overall_band >= 5)) {
         const button = document.querySelector('button[disabled]') as HTMLElement
         if (button) {
           button.style.animation = 'bounce 0.6s ease-in-out'
@@ -888,7 +892,7 @@ export function IELTSAssignment({
                       {/* Import and use IELTSResults component */}
                       <IELTSResults 
                         response={pronunciationResult.ielts_response}
-                        type="question-answer"
+                        type={(assignment.evaluationSettings?.type?.toLowerCase() as "reading" | "pronunciation" | "question-answer") || 'question-answer'}
                         accent="US"
                       />
                     </div>

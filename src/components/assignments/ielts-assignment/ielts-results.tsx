@@ -380,7 +380,10 @@ export default function IELTSResults({
                     )}
                     
                     {category === 'Fluency and Coherence' && isFreestyleResponse(response) && response.metrics && (
-                      <FluencyCoherenceContent metrics={response.metrics} />
+                      <FluencyCoherenceContent 
+                        metrics={response.metrics} 
+                        relevance={response.relevance}
+                      />
                     )}
                     
                     {category === 'Pronunciation' && (

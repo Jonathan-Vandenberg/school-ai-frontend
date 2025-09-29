@@ -152,42 +152,54 @@ export function IELTSAssignmentPreview({ data, onBack, onAccept }: IELTSAssignme
     setShowResults(false);
 
     try {
-      // Convert audio blob to base64
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-      
-      // Determine the analysis endpoint and payload based on assignment type
+      // Convert audio blob directly to File for FormData (no need for base64 conversion)
+      const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
+
+      // Determine the analysis endpoint and create FormData payload based on assignment type
       let endpoint = '';
-      let payload: any = {
-        audio_base64: base64Audio,
-        audio_format: 'webm',
-        accent: data.accent,
-        raw_transcription: rawTranscription.trim() || '', // Include browser raw transcription
-      };
+      const formData = new FormData();
+      
+      // Add the audio file and browser transcript
+      formData.append('audioFile', audioFile);
+      formData.append('browserTranscript', rawTranscription.trim() || '');
+      formData.append('analysisType', 'IELTS');
 
       console.log('🎤 Raw transcription from browser:', rawTranscription.trim());
 
-      if (data.subtype === 'question-answer') {
-        endpoint = '/api/ielts/question-and-answer/analyze';
-        const currentQuestion = data.questions?.[currentIndex];
-        if (currentQuestion) {
-          payload.question = currentQuestion.text;
-          payload.expected_language_level = currentQuestion.expectedLevel;
-        }
-      } else if (data.subtype === 'pronunciation' || data.subtype === 'reading') {
-        endpoint = `/api/ielts/${data.subtype}/analyze`;
+      if (data.subtype === 'pronunciation') {
+        // Use scripted API for pronunciation assignments
+        endpoint = '/api/analysis/scripted';
+        formData.append('deep_analysis', 'true'); // Enable comprehensive IELTS analysis
         const currentPassage = data.passages?.[currentIndex];
         if (currentPassage) {
-          payload.expected_text = currentPassage.text;
+          formData.append('expectedText', currentPassage.text);
+        }
+      } else {
+        // Use unscripted API for question-answer and reading assignments
+        endpoint = '/api/analysis/unscripted';
+        
+        // Tell backend to use audio transcription instead of browser transcript
+        formData.append('use_audio', 'true');
+        formData.append('deep_analysis', 'true'); // Enable comprehensive IELTS analysis
+        
+        if (data.subtype === 'question-answer') {
+          const currentQuestion = data.questions?.[currentIndex];
+          if (currentQuestion) {
+            formData.append('questionText', currentQuestion.text);
+            formData.append('expectedText', ''); // No expected text for question-answer
+          }
+        } else if (data.subtype === 'reading') {
+          const currentPassage = data.passages?.[currentIndex];
+          if (currentPassage) {
+            formData.append('expectedText', currentPassage.text);
+          }
         }
       }
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        body: formData,
+        // Don't set Content-Type for FormData - let browser set it with boundary
       });
 
       if (!response.ok) {
@@ -196,11 +208,14 @@ export function IELTSAssignmentPreview({ data, onBack, onAccept }: IELTSAssignme
 
       const result = await response.json();
       
+      // Handle the response structure from the correct APIs
+      const analysisData = result.success ? result.analysis : result;
+      
       // Store the result for this question/passage
       setAnswers(prev => ({
         ...prev,
         [currentIndex]: {
-          analysisResult: result.data,
+          analysisResult: analysisData,
           isComplete: true,
           audioUrl: URL.createObjectURL(audioBlob)
         }
@@ -560,12 +575,12 @@ export function IELTSAssignmentPreview({ data, onBack, onAccept }: IELTSAssignme
                   )}
                   
                   {/* Raw Transcription Preview */}
-                  {rawTranscription && (
+                  {/* {rawTranscription && (
                     <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded max-w-md mx-auto">
                       <div className="font-medium mb-1">Live Transcription:</div>
                       <div className="text-left">{rawTranscription}</div>
                     </div>
-                  )}
+                  )} */}
                 </div>
               )}
               

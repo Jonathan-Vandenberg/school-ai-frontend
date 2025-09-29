@@ -442,10 +442,6 @@ export default function AssignmentDetailPage() {
                           <span className="capitalize">{assignment.type.toLowerCase()}</span>
                         </div>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Language</label>
-                        <p className="mt-1">{assignment.language?.language || 'Not specified'}</p>
-                      </div>
                       {assignment.scheduledPublishAt && (
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Scheduled For</label>

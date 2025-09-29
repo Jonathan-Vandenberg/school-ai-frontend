@@ -9,13 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { School, Mail, Lock, Loader2, User } from 'lucide-react'
+import { School, Mail, Lock, Loader2, User, Eye, EyeOff } from 'lucide-react'
 import Image from 'next/image'
 import { useTenant } from '@/components/providers/tenant-provider'
 
 export default function SignInPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -142,7 +143,7 @@ export default function SignInPage() {
                     placeholder="Type your username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-12 h-12 border-gray-200 focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)] rounded-lg text-sm"
+                    className="text-black pl-12 h-12 border-gray-200 focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)] rounded-lg text-sm"
                     required
                     disabled={isLoading}
                   />
@@ -155,19 +156,22 @@ export default function SignInPage() {
                   <Lock className="absolute left-4 top-4 h-4 w-4 text-gray-400" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Type your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-12 h-12 border-gray-200 focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)] rounded-lg text-sm"
+                    className="text-black pl-12 pr-12 h-12 border-gray-200 focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)] rounded-lg text-sm"
                     required
                     disabled={isLoading}
                   />
-                </div>
-                <div className="text-right">
-                  <a href="#" className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-colors">
-                    Forgot password?
-                  </a>
+                  <button
+                    type="button"
+                    className="absolute right-4 top-4 h-4 w-4 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={isLoading}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 

@@ -168,11 +168,6 @@ export default function SignInPage() {
                     disabled={isLoading}
                   />
                 </div>
-                <div className="text-right">
-                  <a href="#" className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-colors">
-                    Forgot password?
-                  </a>
-                </div>
               </div>
 
               {error && (
