@@ -98,7 +98,7 @@ jobs:
         source: "./deploy/*"
         target: "/var/www/www.japaneseinternationalschool.speechanalyser.com"
         strip_components: 1
-        rm: true
+        overwrite: true
 
     - name: Run database migrations and start application
       uses: appleboy/ssh-action@master
