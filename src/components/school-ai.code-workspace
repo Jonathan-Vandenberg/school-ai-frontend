@@ -7,13 +7,13 @@
 			"path": "../../../audio-analysis"
 		},
 		{
-			"path": "../../../audio-analysis-frontend"
-		},
-		{
 			"path": "../../../../2024/japaneseinternationalschoolai.com"
 		},
 		{
 			"path": "../../../school-ai-admin"
+		},
+		{
+			"path": "../../../frontend-speech-analyser"
 		}
 	],
 	"settings": {}

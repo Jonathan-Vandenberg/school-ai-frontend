@@ -1,96 +1,141 @@
-name: Deploy Frontend (school-ai)
+name: Deploy to Production
 
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'src/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'next.config.*'
-      - '.github/workflows/deploy.yml'
-      - 'middleware.ts'
-  workflow_dispatch:
-
-concurrency:
-  group: school-ai-deploy
-  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v3
+      
+    - name: Check System Info
+      run: |
+        echo "Node version: $(node -v)"
+        echo "NPM version: $(npm -v)"
+        echo "Architecture: $(uname -m)"
+        echo "OS: $(uname -s)"
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.18.0'
+        architecture: 'x64'
+        cache: 'npm'
+        cache-dependency-path: package-lock.json
 
-      - name: Install doctl (optional)
-        if: false
-        uses: digitalocean/action-doctl@v2
-        with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN || '' }}
+    - name: Install Dependencies
+      run: npm install --legacy-peer-deps
+      
+    # Copy production env files before building
+    - name: Set up environment files
+      run: |
+        # Create .env file for production
+        echo "NODE_ENV=production" > .env
+        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+        echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
+        echo "NEXTAUTH_URL=https://www.japaneseinternationalschool.speechanalyser.com" >> .env
+        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
+        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
+        echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env
+        echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env
+        echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+        echo "AUDIO_ANALYSIS_URL=${{ secrets.AUDIO_ANALYSIS_URL }}" >> .env
+        echo "AUDIO_ANALYSIS_API_KEY=${{ secrets.AUDIO_ANALYSIS_API_KEY }}" >> .env
+        
+        # Copy .env to .env.local for build process
+        cp .env .env.local
 
-      - name: Prepare target dir on droplet
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DIGITAL_OCEAN_SSH_KEY }}
-          script: |
-            sudo mkdir -p /var/www/school-ai
-            sudo chown -R $USER:$USER /var/www/school-ai
+    - name: Generate Prisma Client
+      run: npx prisma generate
 
-      - name: Upload project to droplet
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DIGITAL_OCEAN_SSH_KEY }}
-          source: |
-            .
-          target: /var/www/school-ai
-          rm: false
-          strip_components: 0
-          overwrite: true
+    - name: Build Application
+      run: npm run build
+      env:
+        NODE_ENV: production
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+        NEXTAUTH_URL: https://www.japaneseinternationalschool.speechanalyser.com
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        AUDIO_ANALYSIS_URL: ${{ secrets.AUDIO_ANALYSIS_URL }}
+        AUDIO_ANALYSIS_API_KEY: ${{ secrets.AUDIO_ANALYSIS_API_KEY }}
 
-      - name: Build & restart app on droplet
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DIGITAL_OCEAN_SSH_KEY }}
-          script: |
-            set -e
-            # Ensure dir
-            sudo mkdir -p /var/www/school-ai
-            sudo chown -R $USER:$USER /var/www/school-ai
-            cd /var/www/school-ai
+    - name: Prepare for deployment
+      run: |
+        # Create deployment directory structure
+        mkdir -p deploy
+        
+        # Copy necessary files for deployment
+        cp -r .next deploy/
+        cp -r public deploy/
+        cp -r prisma deploy/
+        cp -r node_modules deploy/
+        cp package.json deploy/
+        cp package-lock.json deploy/
+        cp .env deploy/
+        cp next.config.ts deploy/
+        
+        # Copy additional config files if they exist
+        cp middleware.ts deploy/ || true
+        cp tsconfig.json deploy/ || true
+        cp components.json deploy/ || true
+        
+        # Set correct permissions
+        chmod -R 755 deploy
 
-            # Ensure Node 20 and pm2 exist
-            if ! command -v node >/dev/null 2>&1; then
-              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-              sudo apt-get install -y nodejs build-essential
-            fi
-            if ! command -v pm2 >/dev/null 2>&1; then
-              sudo npm i -g pm2
-            fi
+    - name: Deploy application to DigitalOcean
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.DROPLET_HOST }}
+        username: ${{ secrets.DROPLET_USER }}
+        key: ${{ secrets.DIGITAL_OCEAN_SSH_KEY }}
+        source: "./deploy/*"
+        target: "/var/www/www.japaneseinternationalschool.speechanalyser.com"
+        strip_components: 1
+        rm: true
 
-            # Build-time env: prefer repo config/.env.production, then append secret FRONTEND_ENV overrides
-            if [ -f config/.env.production ]; then
-              cp config/.env.production .env.production
-            else
-              : > .env.production
-            fi
-            if [ -n "${{ secrets.FRONTEND_ENV }}" ]; then
-              printf "%s\n" "${{ secrets.FRONTEND_ENV }}" >> .env.production
-            fi
-
-            # Prefer reproducible install; fall back to npm install if lock is out of sync
-            npm ci || npm install --no-audit --no-fund
-            npm run build
-
-            pm2 describe school-ai >/dev/null 2>&1 || pm2 start "npm -- start" --name school-ai
-            pm2 restart school-ai
-            pm2 save
-
-
+    - name: Run database migrations and start application
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.DROPLET_HOST }}
+        username: ${{ secrets.DROPLET_USER }}
+        key: ${{ secrets.DIGITAL_OCEAN_SSH_KEY }}
+        script: |
+          cd /var/www/www.japaneseinternationalschool.speechanalyser.com
+          
+          # Set environment variables
+          export NODE_ENV=production
+          export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+          export NEXTAUTH_SECRET="${{ secrets.NEXTAUTH_SECRET }}"
+          export NEXTAUTH_URL="https://www.japaneseinternationalschool.speechanalyser.com"
+          export AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
+          export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          export AWS_REGION="${{ secrets.AWS_REGION }}"
+          export S3_BUCKET_NAME="${{ secrets.S3_BUCKET_NAME }}"
+          export OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
+          export AUDIO_ANALYSIS_URL="${{ secrets.AUDIO_ANALYSIS_URL }}"
+          export AUDIO_ANALYSIS_API_KEY="${{ secrets.AUDIO_ANALYSIS_API_KEY }}"
+          
+          # Run database migrations
+          npx prisma db push --accept-data-loss || true
+          npx prisma generate
+          
+          # Stop existing PM2 process if running
+          pm2 stop japaneseinternationalschoolai || true
+          pm2 delete japaneseinternationalschoolai || true
+          
+          # Start the application with PM2
+          NODE_ENV=production pm2 start npm --name "japaneseinternationalschoolai" -- start
+          
+          # Save PM2 configuration
+          pm2 save
+          pm2 startup || true
+          
+          # Show PM2 status
+          pm2 list
