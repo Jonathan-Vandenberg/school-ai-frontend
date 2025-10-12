@@ -3,13 +3,12 @@
 import React, { useState, useEffect } from 'react'
 import { signIn, getSession, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { School, Mail, Lock, Loader2, User } from 'lucide-react'
+import { Lock, Loader2, User } from 'lucide-react'
 import Image from 'next/image'
 import { useTenant } from '@/components/providers/tenant-provider'
 
@@ -40,15 +39,11 @@ export default function SignInPage() {
     setError('')
 
     try {
-      console.log('Attempting sign in with:', { email })
-      
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
       })
-
-      console.log('Sign in result:', result)
 
       if (result?.error) {
         console.error('Sign in error:', result.error)
@@ -60,14 +55,11 @@ export default function SignInPage() {
         console.log('Sign in successful, getting session...')
         // Get the session to determine user role for redirection
         const sessionData = await getSession()
-        console.log('Session data:', sessionData)
         
         // Role-based redirection
         if (sessionData?.user?.role === 'ADMIN') {
-          console.log('Redirecting to dashboard')
           router.push('/dashboard')
         } else {
-          console.log('Redirecting to profile')
           router.push('/profile')
         }
       }
@@ -123,7 +115,7 @@ export default function SignInPage() {
           <CardHeader className="text-center pb-8 pt-8">
             <div className="flex flex-col items-center justify-center space-x-3 mb-6">
               <div className="w-24 h-24 pb-8">
-                <div className="w-full h-full bg-white flex items-center justify-center rounded-lg">
+                <div className="w-full h-full flex items-center justify-center">
                   <Image 
                     src={tenant?.branding?.logo_url || "/jis-logo.png"} 
                     alt={`${tenant?.display_name || 'School'} Portal`} 
@@ -133,10 +125,10 @@ export default function SignInPage() {
                   />
                 </div>
               </div>
-                              <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{tenant?.display_name || 'School Portal'}</h1>
-                  <h1 className="text-xl font-bold text-gray-500">Language Assessment Platform</h1>
-                </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">{tenant?.display_name || 'School Portal'}</h1>
+                <h1 className="text-xl font-bold text-gray-500">Language Assessment Platform</h1>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-6 px-8 pb-8">

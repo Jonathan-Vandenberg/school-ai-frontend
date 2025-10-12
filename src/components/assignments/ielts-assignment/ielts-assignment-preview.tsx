@@ -504,7 +504,7 @@ export function IELTSAssignmentPreview({ data, onBack, onAccept }: IELTSAssignme
           )}
 
           {/* Question Content */}
-          <div className="p-4 bg-secondary/50 rounded-lg">
+          <div className="p-4 rounded-lg">
             {currentQuestion && (
               <>
                 <p className="font-medium text-lg">{currentQuestion.text}</p>

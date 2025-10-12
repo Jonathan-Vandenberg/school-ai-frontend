@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -72,11 +72,13 @@ export function VideoAssignmentPlayer({
   const [showFeedback, setShowFeedback] = useState(false)
   const [details, setDetails] = useState('')
   const [encouragement, setEncouragement] = useState('')
-  const [ruleEvaluation, setRuleEvaluation] = useState<Record<string, { passed: boolean; feedback: string }>>({})
+  // const [ruleEvaluation, setRuleEvaluation] = useState<Record<string, { passed: boolean; feedback: string }>>({})
   const [currentTranscript, setCurrentTranscript] = useState('')
   const [showVideoTranscript, setShowVideoTranscript] = useState(false)
   const [localProcessing, setLocalProcessing] = useState(false)
   const [hasStartedAnyQuestion, setHasStartedAnyQuestion] = useState(false)
+  const [videoIsPaused, setVideoIsPaused] = useState(false)
+  const playerRef = useRef<any>(null)
 
   // Get YouTube video ID for embedded player
   const getYouTubeVideoId = (url: string) => {
@@ -95,6 +97,48 @@ export function VideoAssignmentPlayer({
 
   const videoId = getYouTubeVideoId(assignment.videoUrl || '')
 
+  // Initialize YouTube Player API
+  useEffect(() => {
+    if (typeof window !== 'undefined' && videoId) {
+      // Load YouTube API if not already loaded
+      if (!(window as any).YT) {
+        const script = document.createElement('script')
+        script.src = 'https://www.youtube.com/iframe_api'
+        script.async = true
+        document.body.appendChild(script)
+        
+        ;(window as any).onYouTubeIframeAPIReady = () => {
+          initializePlayer()
+        }
+      } else {
+        initializePlayer()
+      }
+    }
+  }, [videoId])
+
+  const initializePlayer = () => {
+    if (videoId && (window as any).YT) {
+      playerRef.current = new (window as any).YT.Player('youtube-player', {
+        videoId: videoId,
+        playerVars: {
+          rel: 0,
+          modestbranding: 1,
+          controls: 1,
+        },
+      })
+    }
+  }
+
+  // Control video playback based on recording state
+  useEffect(() => {
+    if (playerRef.current && typeof playerRef.current.pauseVideo === 'function') {
+      if (videoIsPaused) {
+        playerRef.current.pauseVideo()
+      }
+      // Note: We don't auto-resume to avoid interrupting user's video position
+    }
+  }, [videoIsPaused])
+
   // Get progress for current question
   const getCurrentQuestionProgress = () => {
     const question = assignment.questions[currentIndex]
@@ -103,7 +147,7 @@ export function VideoAssignmentPlayer({
   }
 
   const isCurrentQuestionCorrect = getCurrentQuestionProgress()?.isCorrect || false
-  const isCurrentQuestionComplete = getCurrentQuestionProgress()?.isComplete || false
+  // const isCurrentQuestionComplete = getCurrentQuestionProgress()?.isComplete || false
 
   // Calculate overall progress
   const completedQuestions = studentProgress.filter(p => p.isComplete).length
@@ -157,7 +201,7 @@ export function VideoAssignmentPlayer({
       setIsCorrect(newIsCorrect)
       setDetails(newDetails)
       setEncouragement(newEncouragement)
-      setRuleEvaluation(newRuleEvaluation)
+      // setRuleEvaluation(newRuleEvaluation)
       setShowFeedback(true)
       setHasStartedAnyQuestion(true)
 
@@ -204,15 +248,18 @@ export function VideoAssignmentPlayer({
     onTranscriptionStart: () => {
       setShowFeedback(false)
       setFeedback('')
+      setVideoIsPaused(true) // Pause video when recording starts
       // Don't set localProcessing here - wait for transcript completion
     },
     onTranscriptionComplete: (transcript) => {
       const capitalizedTranscript = transcript.charAt(0).toUpperCase() + transcript.slice(1)
+      setVideoIsPaused(false) // Resume video when recording completes
       submitTranscript(capitalizedTranscript)
     },
     onTranscriptionError: (error) => {
       console.error("Recording error:", error)
       setLocalProcessing(false)
+      setVideoIsPaused(false) // Resume video on error
       clearProcessing() // Clear the audio recorder processing state
       alert(error.message || "Error recording audio")
     }
@@ -226,7 +273,7 @@ export function VideoAssignmentPlayer({
     setIsCorrect(false)
     setDetails('')
     setEncouragement('')
-    setRuleEvaluation({})
+    // setRuleEvaluation({})
     setCurrentTranscript('')
     setLocalProcessing(false) // Reset processing state
   }
@@ -346,14 +393,22 @@ export function VideoAssignmentPlayer({
               </CardHeader>
               <CardContent>
                 <div className="relative pb-[56.25%] h-0 overflow-hidden rounded-lg">
-                  <iframe
+                  <div
+                    id="youtube-player"
                     className="absolute top-0 left-0 w-full h-full"
-                    src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&controls=1`}
-                    title="Assignment Video"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
                   />
+                  
+                  {/* Video pause overlay when recording */}
+                  {videoIsPaused && (
+                    <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg z-10">
+                      <div className="text-center text-white p-6">
+                        <div className="w-16 h-16 mx-auto mb-4 bg-red-500 rounded-full flex items-center justify-center">
+                          <Mic className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-xl font-semibold mb-2">Recording in Progress</h3>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {assignment.videoTranscript && (
@@ -414,17 +469,17 @@ export function VideoAssignmentPlayer({
               </div>
 
               {/* Microphone Control */}
-              <div className="text-center py-6">
-                <Button
+              <div className="flex items-center flex-col justify-center py-6">
+                <button
                   onClick={toggleRecording}
                   disabled={isProcessing || isCurrentQuestionCorrect}
-                  className={`w-20 h-20 rounded-full transition-all shadow-lg ${
+                  className={`w-20 h-20 rounded-full transition-all shadow-lg flex items-center justify-center border-none ${
                     isCurrentQuestionCorrect 
                       ? 'bg-yellow-400 hover:bg-yellow-500'
                       : isRecording 
                         ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
                         : 'bg-blue-600 hover:bg-blue-700'
-                  } ${isProcessing ? 'cursor-not-allowed opacity-50' : ''}`}
+                  } ${isProcessing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                   style={{
                     WebkitTouchCallout: 'none',
                     WebkitUserSelect: 'none',
@@ -434,22 +489,24 @@ export function VideoAssignmentPlayer({
                     userSelect: 'none',
                   }}
                 >
-                  {isCurrentQuestionCorrect ? (
-                    <Star className="w-8 h-8 text-white" fill="white" />
-                  ) : isProcessing ? (
-                    <Loader2 className="w-8 h-8 text-white animate-spin" />
-                  ) : (
-                    <Mic className="w-8 h-8 text-white" />
-                  )}
-                </Button>
+                  <div className="flex items-center justify-center w-full h-full">
+                    {isCurrentQuestionCorrect ? (
+                      <Star className="w-10 h-10 text-white" fill="white" />
+                    ) : isProcessing ? (
+                      <Loader2 className="w-10 h-10 text-white animate-spin" />
+                    ) : (
+                      <Mic className="w-10 h-10 text-white" />
+                    )}
+                  </div>
+                </button>
                 
                 {/* Audio level indicator when recording */}
                 {isRecording && (
-                  <div className="mt-3 flex justify-center">
-                    <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="mt-4 flex flex-col items-center">
+                    <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden border">
                       <div 
                         className="h-full bg-green-500 transition-all duration-100"
-                        style={{ width: `${Math.min(audioLevel, 100)}%` }}
+                        style={{ width: `${Math.min(audioLevel || 0, 100)}%` }}
                       />
                     </div>
                   </div>

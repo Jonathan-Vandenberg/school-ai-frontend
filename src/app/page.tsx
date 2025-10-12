@@ -120,7 +120,7 @@ export default function SignInPage() {
           <CardHeader className="text-center pb-8 pt-8">
             <div className="flex flex-col items-center justify-center space-x-3 mb-6">
               <div className="w-24 h-24 pb-8">
-                <div className="w-full h-full bg-white flex items-center justify-center rounded-lg">
+                <div className="w-full h-full flex items-center justify-center">
                   <Image 
                     src={tenant?.branding?.logo_url || "/jis-logo.png"} 
                     alt={`${tenant?.display_name || 'School'} Portal`} 

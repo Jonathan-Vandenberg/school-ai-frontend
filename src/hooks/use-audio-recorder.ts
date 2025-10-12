@@ -49,17 +49,23 @@ export function useAudioRecorder({
       const dataArray = new Uint8Array(analyser.frequencyBinCount)
 
       const updateAudioLevel = () => {
-        if (analyserRef.current) {
+        if (analyserRef.current && audioContextRef.current && audioContextRef.current.state !== 'closed') {
           analyserRef.current.getByteFrequencyData(dataArray)
+          
+          // Use multiple methods to get a more accurate reading
           const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length
-          const level = (average / 255) * 100
+          const max = Math.max(...dataArray)
+          const rms = Math.sqrt(dataArray.reduce((sum, value) => sum + value * value, 0) / dataArray.length)
+          
+          // Combine average and RMS for better sensitivity, with amplification
+          const combinedLevel = Math.max(average, rms * 0.7) * 1.5 // Amplify by 2.5x
+          const level = Math.min(combinedLevel, 100) // Cap at 100%
           
           setAudioLevel(level)
-          setIsSpeaking(level > 5) // Threshold for speaking detection
+          setIsSpeaking(level > 8) // Lower threshold for better detection
           
-          if (isRecording) {
-            animationFrameRef.current = requestAnimationFrame(updateAudioLevel)
-          }
+          // Continue animation as long as we have an analyser
+          animationFrameRef.current = requestAnimationFrame(updateAudioLevel)
         }
       }
 
@@ -67,7 +73,7 @@ export function useAudioRecorder({
     } catch (error) {
       console.error('Error setting up audio analysis:', error)
     }
-  }, [isRecording])
+  }, [])
 
   // Sound effects for microphone activation/deactivation
   const playActivateSound = useCallback(() => {
@@ -125,12 +131,20 @@ export function useAudioRecorder({
         throw new Error('Speech recognition is not supported in this browser')
       }
 
-      // Request microphone permission
+      // Request microphone permission with enhanced isolation settings
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+          echoCancellation: true,        // Cancel echo from speakers
+          noiseSuppression: true,        // Suppress background noise
+          autoGainControl: true,         // Automatic gain control
+          channelCount: 1,              // Mono to reduce system audio pickup
+          // @ts-ignore - Advanced constraints for better isolation
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true,
+          googTypingNoiseDetection: true,
+          googAudioMirroring: false
         }
       })
 

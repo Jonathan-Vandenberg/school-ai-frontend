@@ -492,7 +492,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                       <summary className="font-semibold">
                         View Transcript
                       </summary>
-                      <div className="mt-2 p-2 bg-secondary rounded-md max-h-48 overflow-y-auto whitespace-pre-wrap">
+                      <div className="mt-2 p-2 rounded-md max-h-48 overflow-y-auto whitespace-pre-wrap">
                         {transcriptContent}
                       </div>
                     </details>
@@ -526,7 +526,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
             <CardContent className="space-y-4">
               <div className="space-y-2 max-h-96 overflow-y-auto pr-4">
                 {improvedQuestions.map((q, i) => (
-                  <div key={i} className="p-4 border rounded-md bg-secondary">
+                  <div key={i} className="p-4 border rounded-md">
                     <p className="font-semibold">
                       {i + 1}. {q.text}
                     </p>

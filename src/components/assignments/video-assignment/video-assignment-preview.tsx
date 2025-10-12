@@ -280,7 +280,7 @@ export function VideoAssignmentPreview({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="p-4 bg-secondary/50 rounded-lg">
+          <div className="p-4 rounded-lg">
             <p className="font-medium text-lg">{currentQuestion?.text}</p>
           </div>
 
