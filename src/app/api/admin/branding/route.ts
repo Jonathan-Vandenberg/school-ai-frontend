@@ -64,7 +64,9 @@ export async function POST(req: NextRequest) {
       console.log('Updating tenant display name to:', display_name)
       
       // First, get the tenant ID
-      const subdomain = host.split(':')[0].split('.')[0]
+      // Extract subdomain (everything before .speechanalyser.com)
+      const hostWithoutPort = host.split(':')[0]
+      const subdomain = hostWithoutPort.replace('.speechanalyser.com', '')
       console.log('Extracted subdomain:', subdomain)
       
       const tenantIdUrl = `${apiBase.replace(/\/$/, '')}/api/admin/tenant-id?subdomain=${encodeURIComponent(subdomain)}`

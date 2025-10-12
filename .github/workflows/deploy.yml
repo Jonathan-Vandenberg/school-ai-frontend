@@ -127,11 +127,11 @@ jobs:
           npx prisma generate
           
           # Stop existing PM2 process if running
-          pm2 stop japaneseinternationalschoolai || true
-          pm2 delete japaneseinternationalschoolai || true
+          pm2 stop school-ai || true
+          pm2 delete school-ai || true
           
           # Start the application with PM2
-          NODE_ENV=production pm2 start npm --name "japaneseinternationalschoolai" -- start
+          NODE_ENV=production pm2 start npm --name "school-ai" -- start
           
           # Save PM2 configuration
           pm2 save
