@@ -221,12 +221,12 @@ export default function AdminPage() {
   const resetToDefaults = () => {
     setFormData({
       display_name: '',
-      logo_url: '/jis-logo.png',
+      logo_url: tenant?.branding?.logo_url || '/jis-logo.png',
       primary_hex: '#4f46e5',
       secondary_hex: '#0ea5e9',
       accent_hex: '#22c55e'
     })
-    setPreviewUrl('/jis-logo.png')
+    setPreviewUrl(tenant?.branding?.logo_url || '/jis-logo.png')
     setSelectedFile(null)
   }
 

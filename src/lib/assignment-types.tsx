@@ -7,10 +7,10 @@ import {
   PlusCircle 
 } from "lucide-react";
 
-export const JISLogo = ({ className }: { className?: string }) => (
+export const JISLogo = ({ className, logoUrl }: { className?: string; logoUrl?: string }) => (
   <Image
-    src="/jis-logo.png"
-    alt="JIS Logo"
+    src={logoUrl || "/jis-logo.png"}
+    alt="School Logo"
     width={32}
     height={32}
     className={`object-contain ${className ?? ""}`}

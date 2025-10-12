@@ -123,8 +123,14 @@ export default function SignInPage() {
           <CardHeader className="text-center pb-8 pt-8">
             <div className="flex flex-col items-center justify-center space-x-3 mb-6">
               <div className="w-24 h-24 pb-8">
-                <div className="w-full h-full bg-white flex items-center justify-center">
-                  <Image src="/jis-logo.png" alt="JIS AI Portal" className="w-24 h-24" width={32} height={32} />
+                <div className="w-full h-full bg-white flex items-center justify-center rounded-lg">
+                  <Image 
+                    src={tenant?.branding?.logo_url || "/jis-logo.png"} 
+                    alt={`${tenant?.display_name || 'School'} Portal`} 
+                    className="w-20 h-20 object-contain" 
+                    width={80} 
+                    height={80} 
+                  />
                 </div>
               </div>
                               <div>
