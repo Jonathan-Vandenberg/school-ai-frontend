@@ -194,8 +194,13 @@ export default function AdminPage() {
       
       setMessage({ 
         type: 'success', 
-        text: 'Branding updated successfully! Please refresh the page to see changes.' 
+        text: 'Branding updated successfully! Refreshing page...' 
       })
+      
+      // Auto-refresh page after 1 second to show the new branding
+      setTimeout(() => {
+        window.location.reload()
+      }, 1000)
     } catch (error) {
       console.error('Form submission error:', error)
       setMessage({ 
