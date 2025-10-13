@@ -309,20 +309,21 @@ export function PronunciationAssignment({
       const currentQuestion = assignment.questions[currentIndex]
       const expectedText = currentQuestion.textAnswer || ''
       
-      console.log('Submitting for analysis:', {
-        expectedText,
+      console.log('🔍 Debug info:', {
+        questionId: currentQuestion.id,
+        expectedText: expectedText,
+        currentQuestionTextAnswer: currentQuestion.textAnswer,
+        currentQuestion: currentQuestion,
         transcript,
         audioFileSize: audioFile.size
       })
       
-      // Use pronunciation analysis with audio file
+      // Use pronunciation analysis with audio file (proper audio-based analysis)
       const formData = new FormData()
-      formData.append('expectedText', expectedText)
-      formData.append('browserTranscript', transcript)
-      formData.append('analysisType', 'PRONUNCIATION')
-      formData.append('audioFile', audioFile)
+      formData.append('expected_text', expectedText)  // Changed parameter name to match /pronunciation route
+      formData.append('file', audioFile)              // Changed parameter name to match /pronunciation route
       
-      const response = await fetch('/api/analysis/scripted', {
+      const response = await fetch('/api/analysis/pronunciation', {
         method: 'POST',
         body: formData,
         // Don't set Content-Type for FormData - let browser set it with boundary
@@ -334,23 +335,37 @@ export function PronunciationAssignment({
         throw new Error('Failed to analyze pronunciation')
       }
 
-      const { analysis } = await response.json()
+      const analysis = await response.json()
       
       // Determine correctness based on actual score instead of binary flag
-      const actualScore = analysis.pronunciationResult?.overall_score || 0
+      const actualScore = analysis.pronunciation?.overall_score || 0
       const isCorrectBasedOnScore = actualScore >= 80 // 80% threshold for "correct"
       
       // Set all the feedback states
       setIsCorrect(isCorrectBasedOnScore)
-      setFeedback(analysis.feedback)
-      setEncouragement(analysis.encouragement || '')
-      setPronunciationResult(analysis.pronunciationResult)
+      // Generate appropriate feedback based on score
+      const feedback = actualScore >= 90 ? "Excellent pronunciation!" :
+                      actualScore >= 80 ? "Very good! Small improvements possible." :
+                      actualScore >= 70 ? "Good effort! Keep practicing." :
+                      "Keep practicing to improve pronunciation."
+      
+      const encouragement = actualScore >= 80 ? "Great job!" : "Keep going!"
+      
+      setFeedback(feedback)
+      setEncouragement(encouragement)
+      setPronunciationResult(analysis.pronunciation)
       setShowFeedback(true)
       
       // Update progress with score-based correctness
       await onProgressUpdate(currentQuestion.id, isCorrectBasedOnScore, {
-        result: analysis,
-        actualScore: actualScore, // Include actual score in the result
+        result: {
+          isCorrect: isCorrectBasedOnScore,
+          feedback: feedback,
+          encouragement: encouragement,
+          pronunciationResult: analysis.pronunciation, // Map to expected field name
+          predictedText: analysis.predicted_text || '',
+          actualScore: actualScore
+        },
         timestamp: new Date().toISOString()
       }, 'PRONUNCIATION')
       
@@ -634,6 +649,7 @@ export function PronunciationAssignment({
           })}
         </div>
       </div>
+
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">

@@ -70,11 +70,6 @@ export function useAudioAnalysisRecorder({
           // Convert to percentage with enhanced scaling for better visibility
           const level = Math.min(rms * 600, 100) // Multiply by 6 for more sensitive range (2x more sensitive)
           
-          // Debug: Log audio level occasionally
-          if (Math.random() < 0.02) { // Log ~2% of the time to avoid spam
-            console.log('Raw RMS:', rms.toFixed(3), 'Scaled level:', level.toFixed(1), '%')
-          }
-          
           setAudioLevel(level)
           setIsSpeaking(level > 5) // Threshold for speaking detection
           
@@ -129,8 +124,6 @@ export function useAudioAnalysisRecorder({
           
           // Use the latest transcript from ref (more reliable than state)
           const finalTranscript = latestTranscriptRef.current.trim()
-          console.log('MediaRecorder stopped. Final transcript:', finalTranscript)
-          console.log('Audio file size:', audioFile.size, 'bytes')
           
           // Process transcript and audio - always call the callback even with empty transcript
           onTranscriptionComplete?.(finalTranscript, audioFile)

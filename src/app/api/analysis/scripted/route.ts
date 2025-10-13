@@ -16,7 +16,7 @@ interface AnalysisRequest {
 export async function POST(request: NextRequest) {
   try {
     // Authenticate user
-    const currentUser = await AuthService.getAuthenticatedUser()
+    await AuthService.getAuthenticatedUser()
     
     // Check if API key is configured
     if (!AUDIO_ANALYSIS_API_KEY) {
