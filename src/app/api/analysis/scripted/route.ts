@@ -105,23 +105,27 @@ export async function POST(request: NextRequest) {
     const hasAudioFile = audioFile && audioFile.size > 0
     
     console.log('🚀 [API] Transcript/Audio decision:', {
-      hasBrowserTranscript,
+      hasBrowserTranscript: !!hasBrowserTranscript,
       browserTranscriptLength: cleanBrowserTranscript?.length || 0,
       hasAudioFile,
       audioFileSize: audioFile?.size || 0
     })
+    
+    let useAudioValue = 'false'
     
     if (hasBrowserTranscript) {
       // Use browser transcript if available
       console.log('🚀 [API] Using browser transcript')
       backendFormData.append('browser_transcript', cleanBrowserTranscript)
       backendFormData.append('use_audio', 'false')
+      useAudioValue = 'false'
     } else if (hasAudioFile) {
       // If no browser transcript but we have audio, let backend use Whisper
       // Send empty browser transcript and tell backend to use audio transcription
       console.log('🚀 [API] No browser transcript available, falling back to Whisper transcription from audio')
       backendFormData.append('browser_transcript', '')
       backendFormData.append('use_audio', 'true')
+      useAudioValue = 'true'
     } else {
       // No transcript and no audio - this is an error case
       console.error('🚀 [API] No transcript or audio file provided')
@@ -177,9 +181,9 @@ export async function POST(request: NextRequest) {
         path,
         url: `${AUDIO_ANALYSIS_URL}${path}`,
         hasExpectedText: !!cleanExpectedText,
-        hasBrowserTranscript,
+        hasBrowserTranscript: !!hasBrowserTranscript,
         hasAudioFile,
-        useAudio: hasAudioFile ? 'true' : 'false'
+        useAudio: useAudioValue
       })
       
       response = await postFormToAudioApi(path, backendFormData)
