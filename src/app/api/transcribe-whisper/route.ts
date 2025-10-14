@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { AuthService } from '@/lib/services'
 import { postFormToAudioApi } from '@/app/lib/tenant-api'
 
-// Audio analysis backend URL and API key
-const AUDIO_ANALYSIS_URL = process.env.AUDIO_ANALYSIS_URL || 'http://localhost:8000'
+// Audio analysis API key
 const AUDIO_ANALYSIS_API_KEY = process.env.AUDIO_ANALYSIS_API_KEY
 
 export async function POST(request: NextRequest) {
-  console.log('🎤 [WHISPER] Whisper transcription request received')
+  console.log('🎤 [WHISPER] Transcription request received')
   
   try {
     // Authenticate user
@@ -74,14 +73,14 @@ export async function POST(request: NextRequest) {
     backendFormData.append('file', audioFile)
     backendFormData.append('transcribe_only', 'true') // Tell backend we only want transcription
     
-    console.log('🎤 [WHISPER] Calling Whisper transcription API')
+    console.log('🎤 [WHISPER] Calling /analyze/transcribe endpoint')
 
     // Call the audio analysis backend for transcription only
     let response
     try {
-      response = await postFormToAudioApi('/transcribe', backendFormData)
+      response = await postFormToAudioApi('/analyze/transcribe', backendFormData)
 
-      console.log('🎤 [WHISPER] Whisper API response:', {
+      console.log('🎤 [WHISPER] Transcribe API response:', {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok
@@ -89,20 +88,20 @@ export async function POST(request: NextRequest) {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('🎤 [WHISPER] Whisper API error:', {
+        console.error('🎤 [WHISPER] Transcribe API error:', {
           status: response.status,
           statusText: response.statusText,
           error: errorText
         })
         return NextResponse.json({ 
           error: 'Transcription failed', 
-          details: `Whisper service error: ${response.status} - ${errorText}` 
+          details: `Transcription service error: ${response.status} - ${errorText}` 
         }, { 
           status: 500 
         });
       }
     } catch (fetchError) {
-      console.error('🎤 [WHISPER] Fetch error to Whisper backend:', fetchError)
+      console.error('🎤 [WHISPER] Fetch error to transcription backend:', fetchError)
       return NextResponse.json({ 
         error: 'Transcription failed', 
         details: `Connection failed to transcription backend. Error: ${(fetchError as Error).message}` 
@@ -112,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json()
-    console.log('🎤 [WHISPER] Transcription result:', {
+    console.log('🎤 [WHISPER] Transcription successful:', {
       hasText: !!result.text,
       textLength: result.text?.length || 0
     })
