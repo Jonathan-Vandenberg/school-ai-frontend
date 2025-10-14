@@ -18,6 +18,147 @@ interface AudioAnalysisRecorderReturn {
   clearProcessing: () => void
 }
 
+// Mobile detection and browser capabilities
+const isMobile = () => {
+  if (typeof navigator === 'undefined') return false
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+}
+
+const isIOS = () => {
+  if (typeof navigator === 'undefined') return false
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+}
+
+const isSafari = () => {
+  if (typeof navigator === 'undefined') return false
+  return /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+}
+
+const isHTTPS = () => {
+  return typeof window !== 'undefined' && window.location.protocol === 'https:'
+}
+
+const isLocalhost = () => {
+  if (typeof window === 'undefined') return false
+  const hostname = window.location.hostname
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+}
+
+const isLocalIP = () => {
+  if (typeof window === 'undefined') return false
+  const hostname = window.location.hostname
+  // Match local IP patterns like 192.168.x.x, 10.x.x.x, 172.16-31.x.x
+  return /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(hostname)
+}
+
+const checkMediaDevicesSupport = () => {
+  if (typeof navigator === 'undefined') {
+    return { supported: false, error: 'Navigator not available' }
+  }
+
+  if (!navigator.mediaDevices) {
+    return { supported: false, error: 'MediaDevices API not available' }
+  }
+
+  if (!navigator.mediaDevices.getUserMedia) {
+    return { supported: false, error: 'getUserMedia not available' }
+  }
+
+  // Check for HTTPS requirement on iOS
+  if (isIOS() && !isHTTPS()) {
+    if (isLocalIP()) {
+      return { 
+        supported: false, 
+        error: 'Local IP requires HTTPS on iOS Safari for microphone access. Use localhost or enable HTTPS.' 
+      }
+    } else if (isLocalhost()) {
+      // Localhost should work on iOS Safari even without HTTPS, but might have issues
+      return { 
+        supported: true, 
+        error: null,
+        warning: 'Localhost on iOS Safari may have microphone limitations. Consider using HTTPS.' 
+      }
+    } else {
+      return { 
+        supported: false, 
+        error: 'HTTPS required for microphone access on iOS Safari' 
+      }
+    }
+  }
+
+  return { supported: true, error: null }
+}
+
+const getSpeechRecognitionSupport = () => {
+  const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition
+  const isSupported = !!SpeechRecognition
+  const isMobileDevice = isMobile()
+  const isIOSDevice = isIOS()
+  const isSafariBrowser = isSafari()
+  
+  return {
+    SpeechRecognition,
+    isSupported,
+    isMobileDevice,
+    isIOSDevice,
+    isSafariBrowser,
+    hasLimitations: isMobileDevice || (isIOSDevice && isSafariBrowser)
+  }
+}
+
+const getMobileFriendlyErrorMessage = (error: string, speechSupport: any, mediaSupport?: any) => {
+  // Handle getUserMedia specific errors first
+  if (mediaSupport && !mediaSupport.supported) {
+    if (mediaSupport.error === 'Local IP requires HTTPS on iOS Safari for microphone access. Use localhost or enable HTTPS.') {
+      return `🔧 Local Development Issue: iOS Safari requires HTTPS for microphone access, even on local networks.
+
+Solutions:
+1. Use localhost instead: http://localhost:3000
+2. Enable HTTPS for local development
+3. Test on a desktop browser for now
+
+Current URL: ${typeof window !== 'undefined' ? window.location.href : 'N/A'}`
+    }
+    if (mediaSupport.error === 'HTTPS required for microphone access on iOS Safari') {
+      return 'Microphone access requires a secure connection (HTTPS) on iOS Safari. Please access this site using HTTPS.'
+    }
+    if (mediaSupport.error === 'MediaDevices API not available') {
+      return 'Your browser does not support microphone access. Please try using a different browser or update your current browser.'
+    }
+    if (mediaSupport.error === 'getUserMedia not available') {
+      return 'Microphone access is not available in your browser. This may be due to privacy settings or browser limitations.'
+    }
+    return `Microphone access error: ${mediaSupport.error}`
+  }
+
+  // Handle speech recognition errors
+  if (speechSupport.isIOSDevice) {
+    switch (error) {
+      case 'aborted':
+        return 'Voice recognition was interrupted on iOS. This is common on mobile devices. Please try again by tapping the microphone button.'
+      case 'network':
+        return 'Network connection required for voice recognition on iOS. Please check your internet connection and try again.'
+      case 'no-speech':
+        return 'No speech detected. Please speak clearly into your device microphone and try again.'
+      default:
+        return `Voice recognition error on iOS: ${error}. Mobile voice recognition has limitations, but you can still record audio.`
+    }
+  } else if (speechSupport.isMobileDevice) {
+    switch (error) {
+      case 'aborted':
+        return 'Voice recognition was stopped. This can happen on mobile devices. Please try recording again.'
+      case 'network':
+        return 'Internet connection required for voice recognition. Please check your connection and try again.'
+      case 'no-speech':
+        return 'No speech detected. Please speak closer to your device microphone.'
+      default:
+        return `Voice recognition error: ${error}. Mobile devices may have limited voice recognition, but audio recording still works.`
+    }
+  }
+  
+  return `Speech recognition error: ${error}`
+}
+
 export function useAudioAnalysisRecorder({
   languageCode = 'en-US',
   onTranscriptionStart,
@@ -38,6 +179,9 @@ export function useAudioAnalysisRecorder({
   const animationFrameRef = useRef<number | undefined>(undefined)
   const streamRef = useRef<MediaStream | null>(null)
   const latestTranscriptRef = useRef<string>('')
+  const speechTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const restartAttemptsRef = useRef<number>(0)
+  const maxRestartAttempts = 3
 
   const startAudioAnalysis = useCallback((stream: MediaStream) => {
     try {
@@ -88,14 +232,34 @@ export function useAudioAnalysisRecorder({
     try {
       setTranscript('')
       latestTranscriptRef.current = ''
+      restartAttemptsRef.current = 0
       onTranscriptionStart?.()
+
+      // Check if getUserMedia is available before attempting to use it
+      const mediaSupport = checkMediaDevicesSupport()
+      if (!mediaSupport.supported) {
+        const errorMessage = getMobileFriendlyErrorMessage('', getSpeechRecognitionSupport(), mediaSupport)
+        throw new Error(errorMessage)
+      }
+
+      const speechSupport = getSpeechRecognitionSupport()
       
-      // Request microphone permission
+      // Request microphone permission with enhanced mobile settings
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          // Enhanced settings for mobile
+          channelCount: 1,
+          sampleRate: speechSupport.isMobileDevice ? 16000 : 44100,
+          // @ts-ignore - Enhanced mobile constraints
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true,
+          googTypingNoiseDetection: speechSupport.isMobileDevice ? false : true,
+          googAudioMirroring: false
         }
       })
 
@@ -104,8 +268,20 @@ export function useAudioAnalysisRecorder({
       // Start audio analysis
       startAudioAnalysis(stream)
 
-      // Set up MediaRecorder for audio capture
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" })
+      // Set up MediaRecorder for audio capture with mobile-friendly format
+      let mimeType = "audio/webm"
+      if (speechSupport.isIOSDevice) {
+        // iOS Safari doesn't support webm, try mp4 or fall back to default
+        if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4"
+        } else if (MediaRecorder.isTypeSupported("audio/mpeg")) {
+          mimeType = "audio/mpeg"
+        } else {
+          mimeType = "" // Let the browser choose
+        }
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
       mediaRecorderRef.current = mediaRecorder
       chunksRef.current = []
       
@@ -117,7 +293,7 @@ export function useAudioAnalysisRecorder({
       
       mediaRecorder.onstop = async () => {
         try {
-          const blob = new Blob(chunksRef.current, { type: "audio/webm" })
+          const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" })
           const audioFile = new File([blob], "recording.webm", { type: blob.type })
           
           setIsProcessing(true)
@@ -137,16 +313,33 @@ export function useAudioAnalysisRecorder({
 
       mediaRecorder.start()
 
-      // Set up Speech Recognition
-      try {
-        const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition
-        if (SpeechRecognition) {
-          const recognition = new SpeechRecognition()
+      // Set up Speech Recognition with mobile-specific handling
+      if (speechSupport.isSupported) {
+        try {
+          const recognition = new speechSupport.SpeechRecognition()
           recognition.lang = languageCode
-          recognition.continuous = true
-          recognition.interimResults = true
+          recognition.continuous = !speechSupport.hasLimitations // Disable continuous on mobile
+          recognition.interimResults = !speechSupport.isIOSDevice // iOS has issues with interim results
+          
+          // Mobile-specific settings
+          if (speechSupport.hasLimitations) {
+            recognition.maxAlternatives = 1
+            // Set shorter timeout for mobile to prevent aborts
+            speechTimeoutRef.current = setTimeout(() => {
+              if (speechRecRef.current && isRecording) {
+                console.log('Speech recognition timeout on mobile, restarting...')
+                restartSpeechRecognition()
+              }
+            }, 15000) // 15 seconds for mobile
+          }
 
           recognition.onresult = (event: any) => {
+            // Clear any existing timeout
+            if (speechTimeoutRef.current) {
+              clearTimeout(speechTimeoutRef.current)
+              speechTimeoutRef.current = null
+            }
+
             let fullTranscript = ""
             for (let i = 0; i < event.results.length; i++) {
               const result = event.results[i]
@@ -157,22 +350,65 @@ export function useAudioAnalysisRecorder({
             const trimmedTranscript = fullTranscript.trim()
             setTranscript(trimmedTranscript)
             latestTranscriptRef.current = trimmedTranscript
+            
+            // Reset restart attempts on successful result
+            restartAttemptsRef.current = 0
           }
 
           recognition.onerror = (event: any) => {
             console.error('Speech recognition error:', event.error)
-            onTranscriptionError?.(new Error(`Speech recognition error: ${event.error}`))
+            
+            // Handle specific mobile errors
+            if (speechSupport.hasLimitations && 
+                (event.error === 'aborted' || event.error === 'network')) {
+              // Try to restart on mobile for these common errors
+              if (restartAttemptsRef.current < maxRestartAttempts && isRecording) {
+                console.log(`Attempting to restart speech recognition (${restartAttemptsRef.current + 1}/${maxRestartAttempts})`)
+                setTimeout(() => restartSpeechRecognition(), 1000)
+                return
+              }
+            }
+            
+            // Only show error if we can't restart or have exhausted attempts
+            const friendlyMessage = getMobileFriendlyErrorMessage(event.error, speechSupport)
+            onTranscriptionError?.(new Error(friendlyMessage))
           }
 
           recognition.onend = () => {
-            // Recognition ended, but we'll handle this in stop recording
+            // Auto-restart on mobile if still recording and haven't reached max attempts
+            if (speechSupport.hasLimitations && isRecording && 
+                restartAttemptsRef.current < maxRestartAttempts) {
+              console.log('Speech recognition ended unexpectedly, restarting...')
+              setTimeout(() => restartSpeechRecognition(), 500)
+            }
+          }
+
+          const restartSpeechRecognition = () => {
+            if (restartAttemptsRef.current >= maxRestartAttempts || !isRecording) return
+            
+            try {
+              restartAttemptsRef.current++
+              if (speechRecRef.current) {
+                speechRecRef.current.stop()
+              }
+              
+              setTimeout(() => {
+                if (isRecording) {
+                  speechRecRef.current = recognition
+                  recognition.start()
+                }
+              }, 100)
+            } catch (error) {
+              console.error('Error restarting speech recognition:', error)
+            }
           }
 
           recognition.start()
           speechRecRef.current = recognition
+        } catch (error) {
+          console.error('Speech recognition not available:', error)
+          // Continue without speech recognition - audio will still be recorded
         }
-      } catch (error) {
-        console.error('Speech recognition not available:', error)
       }
 
       setIsRecording(true)
@@ -181,10 +417,16 @@ export function useAudioAnalysisRecorder({
       console.error('Error starting recording:', error)
       onTranscriptionError?.(error as Error)
     }
-  }, [languageCode, onTranscriptionStart, onTranscriptionComplete, onTranscriptionError, startAudioAnalysis, transcript])
+  }, [languageCode, onTranscriptionStart, onTranscriptionComplete, onTranscriptionError, startAudioAnalysis, isRecording])
 
   const stopRecording = useCallback(() => {
     setIsRecording(false)
+
+    // Clear speech timeout
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current)
+      speechTimeoutRef.current = null
+    }
 
     // Stop MediaRecorder
     if (mediaRecorderRef.current) {
@@ -216,9 +458,10 @@ export function useAudioAnalysisRecorder({
       audioContextRef.current.close()
     }
     
-    // Reset audio level
+    // Reset audio level and restart attempts
     setAudioLevel(0)
     setIsSpeaking(false)
+    restartAttemptsRef.current = 0
   }, [])
 
   const toggleRecording = useCallback(() => {
@@ -237,6 +480,12 @@ export function useAudioAnalysisRecorder({
     // Stop any ongoing recording
     if (isRecording) {
       stopRecording()
+    }
+    
+    // Clear speech timeout
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current)
+      speechTimeoutRef.current = null
     }
     
     // Stop audio analysis animation frame
@@ -265,6 +514,7 @@ export function useAudioAnalysisRecorder({
     streamRef.current = null
     chunksRef.current = []
     latestTranscriptRef.current = ''
+    restartAttemptsRef.current = 0
   }, [isRecording, stopRecording])
 
   return {
