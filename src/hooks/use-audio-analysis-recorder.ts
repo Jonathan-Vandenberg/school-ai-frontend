@@ -182,6 +182,7 @@ export function useAudioAnalysisRecorder({
   const speechTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const restartAttemptsRef = useRef<number>(0)
   const maxRestartAttempts = 3
+  const dataCollectionRef = useRef<NodeJS.Timeout | null>(null)
 
   const startAudioAnalysis = useCallback((stream: MediaStream) => {
     try {
@@ -270,39 +271,84 @@ export function useAudioAnalysisRecorder({
 
       // Set up MediaRecorder for audio capture with mobile-friendly format
       let mimeType = "audio/webm"
-      if (speechSupport.isIOSDevice) {
-        // iOS Safari doesn't support webm, try mp4 or fall back to default
-        if (MediaRecorder.isTypeSupported("audio/mp4")) {
-          mimeType = "audio/mp4"
-        } else if (MediaRecorder.isTypeSupported("audio/mpeg")) {
-          mimeType = "audio/mpeg"
-        } else {
-          mimeType = "" // Let the browser choose
+      
+      // Try different MIME types in order of mobile compatibility
+      const mimeTypes = [
+        'audio/webm',
+        'audio/mp4', 
+        'audio/wav',
+        'audio/ogg',
+        'audio/mpeg',
+        'audio/mpga',
+        'audio/x-m4a',
+        'audio/m4a'
+      ]
+      
+      for (const type of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type
+          break
         }
       }
       
-      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      let mediaRecorderOptions: any = {}
+      if (mimeType && MediaRecorder.isTypeSupported(mimeType)) {
+        mediaRecorderOptions.mimeType = mimeType
+        // Add audio bit rate for better quality/compatibility
+        mediaRecorderOptions.audioBitsPerSecond = 128000
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions)
       mediaRecorderRef.current = mediaRecorder
       chunksRef.current = []
       
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           chunksRef.current.push(event.data)
+        } else {
+          console.warn("Empty data chunk received")
         }
       }
       
       mediaRecorder.onstop = async () => {
         try {
-          const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" })
-          const audioFile = new File([blob], "recording.webm", { type: blob.type })
+          // Get final data chunk before processing
+          try {
+            mediaRecorder.requestData()
+          } catch (e) {
+            console.warn("Error requesting final data:", e)
+          }
           
-          setIsProcessing(true)
-          
-          // Use the latest transcript from ref (more reliable than state)
-          const finalTranscript = latestTranscriptRef.current.trim()
-          
-          // Process transcript and audio - always call the callback even with empty transcript
-          onTranscriptionComplete?.(finalTranscript, audioFile)
+          // Wait a brief moment for final data to arrive
+          setTimeout(async () => {
+            if (chunksRef.current.length === 0) {
+              console.error("No audio chunks collected")
+              const error = new Error("No audio was captured")
+              onTranscriptionError?.(error)
+              setIsProcessing(false)
+              return
+            }
+            
+            const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" })
+            
+            if (blob.size < 100) {
+              console.error("Audio blob is too small, likely no audio captured")
+              const error = new Error("Audio file too small - no audio captured")
+              onTranscriptionError?.(error)
+              setIsProcessing(false)
+              return
+            }
+            
+            const audioFile = new File([blob], "recording.webm", { type: blob.type })
+            
+            setIsProcessing(true)
+            
+            // Use the latest transcript from ref (more reliable than state)
+            const finalTranscript = latestTranscriptRef.current.trim()
+            
+            // Process transcript and audio - always call the callback even with empty transcript
+            onTranscriptionComplete?.(finalTranscript, audioFile)
+          }, 100)
         } catch (error) {
           console.error('Error processing recording:', error)
           onTranscriptionError?.(error as Error)
@@ -311,7 +357,22 @@ export function useAudioAnalysisRecorder({
         }
       }
 
-      mediaRecorder.start()
+      // Start recorder with small time slice for better data collection
+      mediaRecorder.start(250) // Collect data every 250ms
+      
+      // Force data collection at regular intervals - THIS IS KEY FOR MOBILE
+      dataCollectionRef.current = setInterval(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          try {
+            mediaRecorderRef.current.requestData()
+          } catch (e) {
+            console.warn("Error requesting data:", e)
+          }
+        } else if (dataCollectionRef.current) {
+          clearInterval(dataCollectionRef.current)
+          dataCollectionRef.current = null
+        }
+      }, 250) // Request data every 250ms
 
       // Set up Speech Recognition with mobile-specific handling
       if (speechSupport.isSupported) {
@@ -428,6 +489,12 @@ export function useAudioAnalysisRecorder({
       speechTimeoutRef.current = null
     }
 
+    // Clear data collection interval
+    if (dataCollectionRef.current) {
+      clearInterval(dataCollectionRef.current)
+      dataCollectionRef.current = null
+    }
+
     // Stop MediaRecorder
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop()
@@ -486,6 +553,12 @@ export function useAudioAnalysisRecorder({
     if (speechTimeoutRef.current) {
       clearTimeout(speechTimeoutRef.current)
       speechTimeoutRef.current = null
+    }
+
+    // Clear data collection interval
+    if (dataCollectionRef.current) {
+      clearInterval(dataCollectionRef.current)
+      dataCollectionRef.current = null
     }
     
     // Stop audio analysis animation frame

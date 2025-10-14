@@ -178,6 +178,7 @@ export function useAudioRecorder({
   const restartAttemptsRef = useRef<number>(0)
   const maxRestartAttempts = 3
   const streamRef = useRef<MediaStream | null>(null)
+  const dataCollectionRef = useRef<NodeJS.Timeout | null>(null)
 
   const startAudioAnalysis = useCallback((stream: MediaStream) => {
     try {
