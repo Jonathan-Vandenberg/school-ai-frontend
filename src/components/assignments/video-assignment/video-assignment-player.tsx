@@ -323,7 +323,7 @@ export function VideoAssignmentPlayer({
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <div className="container mx-auto md:p-6 max-w-4xl">
       {/* Header */}
       <div className="mb-6">
         {/* <div className="flex items-center gap-4 mb-4">
@@ -342,7 +342,7 @@ export function VideoAssignmentPlayer({
         </div> */}
 
         {/* Overall Progress */}
-        <div className="mb-4">
+        <div className="mb-4 px-4 md:px-0">
           <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
             <span>Overall Progress</span>
             <span>{completedQuestions}/{totalQuestions} questions</span>
@@ -538,19 +538,19 @@ export function VideoAssignmentPlayer({
               <CardTitle>Progress Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between px-4">
                 <span className="text-sm">Completed</span>
                 <Badge variant="secondary">
                   {completedQuestions}/{totalQuestions}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between px-4">
                 <span className="text-sm">Correct</span>
                 <Badge variant="default" className="bg-green-100 text-green-800">
                   {studentProgress.filter(p => p.isCorrect).length}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between px-4">
                 <span className="text-sm">Accuracy</span>
                 <Badge variant="outline">
                   {completedQuestions > 0 

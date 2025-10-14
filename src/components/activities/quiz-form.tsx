@@ -391,7 +391,7 @@ export function QuizForm({ data }: QuizFormProps) {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <div className="container mx-auto md:p-6 max-w-4xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Create Quiz</h1>
         <p className="text-muted-foreground">

@@ -721,7 +721,7 @@ export function IELTSAssignment({
         </div> */}
 
         {/* Overall Progress */}
-        <div className="mb-4">
+        <div className="mb-4 px-4 md:px-0">
           <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
             <span>Overall Progress</span>
             <span>{completedQuestions}/{totalQuestions} questions</span>
@@ -787,7 +787,7 @@ export function IELTSAssignment({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg relative">
+              <div className="border-none p-4 bg-blue-50 rounded-lg relative">
                 <p className="text-lg">
                   {assignment.questions[currentIndex]?.textAnswer || 'No question text available'}
                 </p>

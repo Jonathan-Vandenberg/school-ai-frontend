@@ -95,7 +95,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">My Profile</h1>
@@ -125,7 +125,7 @@ export default function ProfilePage() {
             {getRoleDescription(userRole || '')}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 px-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex items-center space-x-3">
               <Mail className="h-5 w-5 text-muted-foreground" />
@@ -160,7 +160,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm font-medium">My Classes</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6">
                 <div className="text-2xl font-bold">
                   {loading ? '...' : (stats?.classes || 0)}
                 </div>
@@ -175,7 +175,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm font-medium">My Assignments</CardTitle>
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6">
                 <div className="text-2xl font-bold">
                   {loading ? '...' : (stats?.assignments || 0)}
                 </div>
@@ -190,7 +190,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm font-medium">Students</CardTitle>
                 <GraduationCap className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6">
                 <div className="text-2xl font-bold">
                   {loading ? '...' : (stats?.students || 0)}
                 </div>
@@ -209,7 +209,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm font-medium">Assignments</CardTitle>
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6">
                 <div className="text-2xl font-bold">
                   {loading ? '...' : (stats?.assignments || 0)}
                 </div>
@@ -224,7 +224,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm font-medium">Completed</CardTitle>
                 <Award className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6">
                 <div className="text-2xl font-bold">
                   {loading ? '...' : (stats?.completedAssignments || 0)}
                 </div>
@@ -239,7 +239,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm font-medium">Average Score</CardTitle>
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6">
                 <div className="text-2xl font-bold">
                   {loading ? '...' : (stats?.averageScore ? `${stats.averageScore}%` : '--')}
                 </div>
@@ -258,7 +258,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm font-medium">Children</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6">
                 <div className="text-2xl font-bold">
                   {loading ? '...' : (stats?.children || 0)}
                 </div>
@@ -273,7 +273,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm font-medium">Progress</CardTitle>
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6">
                 <div className="text-2xl font-bold">--</div>
                 <p className="text-xs text-muted-foreground">
                   Average progress
@@ -286,7 +286,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-sm font-medium">Reports</CardTitle>
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6">
                 <div className="text-2xl font-bold">
                   {loading ? '...' : (stats?.reports || 0)}
                 </div>

@@ -135,15 +135,15 @@ export default function CalendarTeacherPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-6xl p-6 space-y-6">
+    <div className="container mx-auto max-w-6xl space-y-6">
       <div className="flex items-center gap-2 mb-6">
         <CalendarIcon className="h-6 w-6" />
-        <h1 className="text-3xl font-bold">My Created Assignments Calendar</h1>
+        <h1 className="text-2xl md:text-3xl font-bold">My Created Assignments Calendar</h1>
       </div>
 
-      <div className="mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
         {/* Calendar */}
-        <Card className="lg:col-span-2">
+        <Card className="md:col-span-1 h-fit">
           <CardHeader>
             <CardTitle>Calendar</CardTitle>
             <CardDescription>
@@ -161,13 +161,13 @@ export default function CalendarTeacherPage() {
               modifiersClassNames={{
                 hasAssignment: 'bg-primary/20 text-primary font-semibold'
               }}
-              className="rounded-md border w-full"
+              className="rounded-md w-full mx-auto [&_button]:rounded-md [&_td]:rounded-md [&_.rdp-day]:rounded-md [&_table]:w-full"
             />
           </CardContent>
         </Card>
 
         {/* Selected Date Assignments */}
-        <Card>
+        <Card className="md:col-span-1 h-fit">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
@@ -238,14 +238,14 @@ export default function CalendarTeacherPage() {
       </div>
 
       {/* Upcoming Assignments Summary */}
-      <Card>
+      <Card className="mt-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5" />
             Your Upcoming Assignments
           </CardTitle>
           <CardDescription>
-Assignments you created that are due in the next 7 days
+            Assignments you created that are due in the next 7 days
           </CardDescription>
         </CardHeader>
         <CardContent>

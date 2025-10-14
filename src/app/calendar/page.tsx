@@ -127,39 +127,34 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-6xl p-6 space-y-6">
-      <div className="flex items-center gap-2 mb-6">
-        <CalendarIcon className="h-6 w-6" />
-        <h1 className="text-3xl font-bold">My Assignment Calendar</h1>
+    <div className="p-4 md:p-6 space-y-6">
+      <div className="flex items-center mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold">My Assignment Calendar</h1>
       </div>
 
-      <div className="mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
         {/* Calendar */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Calendar</CardTitle>
-            <CardDescription>
-              Click on any date to view assignments. Dates with assignments are highlighted.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              modifiers={{
-                hasAssignment: assignmentDates
-              }}
-              modifiersClassNames={{
-                hasAssignment: 'bg-primary/20 text-primary font-semibold rounded-md'
-              }}
-              className="rounded-md border w-full [&_button]:rounded-md [&_td]:rounded-md [&_.rdp-day]:rounded-md"
-            />
-          </CardContent>
-        </Card>
+        <div className="w-full min-h-0">
+          <Card className="w-full h-fit">
+            <CardContent>
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                modifiers={{
+                  hasAssignment: assignmentDates
+                }}
+                modifiersClassNames={{
+                  hasAssignment: 'bg-primary/20 text-primary font-semibold rounded-md'
+                }}
+                className="rounded-lg w-full mx-auto [&_button]:rounded-md [&_td]:rounded-md [&_.rdp-day]:rounded-md [&_table]:w-full"
+              />
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Selected Date Assignments */}
-        <Card>
+        <Card className="h-fit">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
@@ -225,7 +220,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Upcoming Assignments Summary */}
-      <Card>
+      <Card className="mt-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5" />

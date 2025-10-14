@@ -250,7 +250,7 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
   const isTeacherOrAdmin = session?.user?.role === 'TEACHER' || session?.user?.role === 'ADMIN';
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6 mx-auto">
       {assignments.map((assignment) => {
         const cardStyle = getAssignmentCardStyle(assignment.evaluationSettings?.type);
         const isStudent = session?.user?.role === 'STUDENT';
@@ -288,144 +288,140 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
               </div>
 
               {/* Content Section */}
-              <div className="flex-1 flex flex-col justify-between p-3 sm:py-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-semibold truncate">
-                          {assignment.topic}
-                        </h3>
-                        {/* Gold star for perfect score (100% accuracy) */}
-                        {progress?.isPerfectScore && (
-                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                        )}
-                      </div>
-                      <Badge variant={statusInfo.variant} className="ml-2 flex-shrink-0 text-xs px-2 py-0.5">
-                        {statusInfo.label}
-                      </Badge>
-                    </div>
-                    
-                    {/* Assignment metadata - First row */}
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-muted-foreground mb-1">
-                    {assignment.classes && assignment.classes.length > 0 && (
-                        <div className="flex items-center space-x-1">
-                          <School className="h-3 w-3" />
-                          <span className="font-medium">
-                            {assignment.classes.length === 1 
-                              ? assignment.classes[0].class.name
-                              : `${assignment.classes.length} classes`
-                            }
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex items-center space-x-1">
-                        <User className="h-3 w-3" />
-                        <span className="font-medium">{assignment.teacher?.username}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        {assignment.type === 'CLASS' ? (
-                          <>
-                            <Users className="h-3 w-3" />
-                            <span>Class Assignment</span>
-                          </>
-                        ) : (
-                          <>
-                            <User className="h-3 w-3" />
-                            <span>Individual</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Student Progress - Show for students only */}
-                    {isStudent && progress && (
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs mb-1">
-                        <div className="flex items-center space-x-1 text-blue-600">
-                          <CheckCircle className="h-3 w-3" />
-                          <span className="font-medium">
-                            Progress: {progress.completed}/{progress.total} questions
-                          </span>
-                        </div>
-                        {progress.completed > 0 && (
-                          <div className="flex items-center space-x-1 text-green-600">
-                            <Star className="h-3 w-3" />
-                            <span className="font-medium">
-                              Accuracy: {progress.accuracy}%
-                            </span>
-                          </div>
-                        )}
-                      </div>
+              <div className="flex-1 flex flex-col justify-between p-4">
+                {/* Header with title, star, and status */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <h3 className="text-base font-semibold truncate">
+                      {assignment.topic}
+                    </h3>
+                    {progress?.isPerfectScore && (
+                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
                     )}
                   </div>
+                  <Badge variant={statusInfo.variant} className="ml-2 flex-shrink-0 text-xs px-2 py-0.5">
+                    {statusInfo.label}
+                  </Badge>
                 </div>
 
-                {/* Bottom row with dates and action button */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-muted-foreground">
+                {/* Assignment Metadata */}
+                <div className="space-y-2 mb-3">
+                  {/* Basic Info Row */}
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    {assignment.classes && assignment.classes.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        <School className="h-3 w-3" />
+                        <span className="font-medium">
+                          {assignment.classes.length === 1 
+                            ? assignment.classes[0].class.name
+                            : `${assignment.classes.length} classes`
+                          }
+                        </span>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      <span className="font-medium">{assignment.teacher?.username}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      {assignment.type === 'CLASS' ? (
+                        <>
+                          <Users className="h-3 w-3" />
+                          <span>Class Assignment</span>
+                        </>
+                      ) : (
+                        <>
+                          <User className="h-3 w-3" />
+                          <span>Individual</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dates Row */}
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     {assignment.publishedAt && (
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         <span>Published {format(new Date(assignment.publishedAt), "MMM d, yyyy")}</span>
                       </div>
                     )}
+                    
                     {assignment.scheduledPublishAt && assignment.scheduledPublishAt > new Date() && (
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         <span>Available {format(new Date(assignment.scheduledPublishAt), "MMM d, yyyy 'at' h:mm a")}</span>
                       </div>
                     )}
+                    
                     {assignment.dueDate && (
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         <span className={`${new Date(assignment.dueDate) < new Date() && !progress?.isFullyCompleted ? 'text-red-600 font-medium' : ''}`}>
                           Due {format(new Date(assignment.dueDate), "MMM d, yyyy 'at' h:mm a")}
                         </span>
                       </div>
                     )}
-                    {assignment.questions && assignment.questions.length > 0 && (
-                      <div className="flex items-center space-x-1">
-                        <FileText className="h-3 w-3" />
-                        <span>{assignment.questions.length} question{assignment.questions.length !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  {/* Student Progress - Show for students only */}
+                  {isStudent && progress && (
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <CheckCircle className="h-3 w-3" />
+                        <span className="font-medium">
+                          Progress: {progress.completed}/{progress.total} questions
+                        </span>
                       </div>
-                    )}
-                  </div>
-                  
-                  {/* Show different buttons based on user role */}
-                  <div className="flex-shrink-0 sm:ml-3">
-                    {session?.user?.role === 'STUDENT' ? (
-                      <>
-                        {statusInfo.status === 'scheduled' ? (
-                          <Button 
-                            size="sm"
-                            variant="outline" 
-                            disabled
-                            className="text-xs px-3 py-1.5 h-7 w-full sm:w-auto"
-                          >
-                            Not Yet Available
-                          </Button>
-                        ) : (
-                          <Button 
-                            size="sm"
-                            onClick={(e) => handleStartAssignment(e, assignment.id)}
-                            className="text-xs px-3 py-1.5 h-7 w-full sm:w-auto"
-                            variant={progress?.isFullyCompleted ? "outline" : "default"}
-                          >
-                            {getButtonTextForStudent(assignment)}
-                          </Button>
-                        )}
-                      </>
-                    ) : (
-                      <Button 
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => handleStartAssignment(e, assignment.id)}
-                        className="text-xs px-3 py-1.5 h-7 w-full sm:w-auto"
-                      >
-                        View Progress
-                      </Button>
-                    )}
-                  </div>
+                      
+                      {progress.completed > 0 && (
+                        <div className="flex items-center gap-1 text-green-600">
+                          <Star className="h-3 w-3" />
+                          <span className="font-medium">
+                            Accuracy: {progress.accuracy}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Button */}
+                <div className="flex justify-center md:justify-end py-3 md:py-0 w-full md:w-auto">
+                  {session?.user?.role === 'STUDENT' ? (
+                    <>
+                      {statusInfo.status === 'scheduled' ? (
+                        <Button 
+                          size="sm"
+                          variant="outline" 
+                          disabled
+                          className="text-sm px-4 py-2"
+                        >
+                          Not Yet Available
+                        </Button>
+                      ) : (
+                        <Button 
+                          size="sm"
+                          onClick={(e) => handleStartAssignment(e, assignment.id)}
+                          className="text-sm px-4 py-2 w-full md:w-auto"
+                          variant={progress?.isFullyCompleted ? "outline" : "default"}
+                        >
+                          {getButtonTextForStudent(assignment)}
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <Button 
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => handleStartAssignment(e, assignment.id)}
+                      className="text-sm px-4 py-2"
+                    >
+                      View Progress
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

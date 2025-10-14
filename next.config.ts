@@ -1,5 +1,12 @@
+// @ts-check
 import type { NextConfig } from "next";
 
+const {
+  PHASE_DEVELOPMENT_SERVER,
+  PHASE_PRODUCTION_BUILD,
+} = require("next/constants");
+
+/** @type {import("next").NextConfig} */
 const nextConfig: NextConfig = {
   /* config options here */
   images: {
@@ -34,4 +41,15 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = (phase: string) => {
+  if (phase === PHASE_DEVELOPMENT_SERVER || phase === PHASE_PRODUCTION_BUILD) {
+    const withPWA = require("@ducanh2912/next-pwa").default({
+      dest: "public",
+      disable: process.env.NODE_ENV === "development",
+      register: true,
+      skipWaiting: true,
+    });
+    return withPWA(nextConfig);
+  }
+  return nextConfig;
+};

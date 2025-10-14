@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import {
   DropdownMenu,
@@ -194,6 +195,7 @@ export function AppSidebar() {
   const { tenant } = useTenant()
   const pathname = usePathname()
   const { setRefreshCallback } = useStatsRefresh()
+  const { isMobile, setOpen, setOpenMobile } = useSidebar()
   const [studentStats, setStudentStats] = useState({
     assignments: 0,
     completedAssignments: 0,
@@ -202,6 +204,13 @@ export function AppSidebar() {
   const [statsLoading, setStatsLoading] = useState(false)
 
   const userRole = session?.user?.role || ''
+
+  // Function to handle navigation click and close sidebar on mobile
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
 
   const fetchStudentStats = React.useCallback(async () => {
     try {
@@ -281,7 +290,11 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="h-auto min-h-fit">
-              <Link href={userRole === 'STUDENT' ? '/assignments' : '/dashboard'} className="flex flex-col items-center text-center gap-2 py-2">
+              <Link 
+                href={userRole === 'STUDENT' ? '/assignments' : '/dashboard'} 
+                className="flex flex-col items-center text-center gap-2 py-2"
+                onClick={handleNavClick}
+              >
                 <div className="flex w-12 h-12 items-center justify-center rounded">
                   {normalizeLogoUrl(tenant?.branding?.logo_url) ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -312,7 +325,7 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton asChild isActive={isActive}>
-                      <Link href={item.href}>
+                      <Link href={item.href} onClick={handleNavClick}>
                         <Icon />
                         <span>{item.title}</span>
                         {item.badge && (
@@ -336,7 +349,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <Link href="/create-assignment">
+                  <Link href="/create-assignment" onClick={handleNavClick}>
                     <SidebarMenuButton>
                       <Plus />
                       <span>New Assignment</span>

@@ -29,7 +29,8 @@ import {
   AlertCircle,
   TrendingUp,
   BarChart3,
-  CheckCheck
+  CheckCheck,
+  ChevronLeft
 } from 'lucide-react'
 import { ReadingAssignment } from '@/components/assignments/reading-assignment/reading-assignment-component'
 import { PronunciationAssignment } from '@/components/assignments/pronunciation-assignment/pronunciation-assignment-component'
@@ -386,27 +387,22 @@ export default function AssignmentDetailPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            onClick={handleGoBack}
-            size="sm"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
+          <div onClick={handleGoBack} className="cursor-pointer m-4 p-2 rounded-full border border-gray-300">
+            <ChevronLeft className="h-8 w-8 text-gray-500" />
+          </div>
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              {getTypeIcon(assignment.type)}
+            <h1 className="md:text-3xl text-2xl font-bold flex items-center gap-3">
+              {/* {getTypeIcon(assignment.type)} */}
               {assignment.topic}
             </h1>
             <div className="flex items-center gap-4 mt-2">
-              <Badge className={getStatusColor(status)}>
+              {/* <Badge className={getStatusColor(status)}>
                 {getStatusIcon(status)}
                 <span className="ml-1">{status}</span>
               </Badge>
               <span className="text-muted-foreground">
-                Created {new Date(assignment.createdAt).toLocaleDateString()}
-              </span>
+                {new Date(assignment.createdAt).toLocaleDateString()}
+              </span> */}
             </div>
           </div>
         </div>
@@ -641,7 +637,12 @@ export default function AssignmentDetailPage() {
                     <CardContent>
                       <div className="text-2xl font-bold text-blue-600">{progressData.overallStats.studentsStarted}</div>
                       <p className="text-xs text-muted-foreground">
-                        Have begun the assignment
+                        {progressData.overallStats.studentsStarted === 0 
+                          ? "No-one has begun the assignment"
+                          : progressData.overallStats.studentsStarted === 1
+                          ? "Has begun the assignment"
+                          : "Have begun the assignment"
+                        }
                       </p>
                     </CardContent>
                   </Card>
