@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       console.log('🚀 [API] Processing FormData request')
       const formData = await request.formData()
       expectedText = formData.get('expectedText') as string
-      browserTranscript = formData.get('browserTranscript') as string || undefined
+      browserTranscript = (formData.get('browserTranscript') as string) || ''
       analysisType = formData.get('analysisType') as string || undefined
       audioFile = formData.get('audioFile') as File || undefined
       
