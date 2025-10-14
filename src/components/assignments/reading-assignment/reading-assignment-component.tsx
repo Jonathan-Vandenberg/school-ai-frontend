@@ -327,15 +327,53 @@ export function ReadingAssignment({
         transcript: transcript
       })
       
-      // Send FormData with audio file to enable Whisper fallback
-      console.log('📖 [READING] Creating FormData with audio file for Whisper fallback capability')
+      let finalTranscript = transcript
+      
+      // If browser transcript is empty, get transcript from Whisper first
+      if (!transcript || transcript.trim().length === 0) {
+        console.log('📖 [READING] Browser transcript empty, getting Whisper transcript first')
+        
+        try {
+          const whisperFormData = new FormData()
+          whisperFormData.append('audioFile', audioFile)
+          whisperFormData.append('languageCode', 'en-US')
+          
+          console.log('📖 [READING] Calling Whisper API for transcription')
+          const whisperResponse = await fetch('/api/transcribe-whisper', {
+            method: 'POST',
+            body: whisperFormData,
+          })
+          
+          if (whisperResponse.ok) {
+            const whisperResult = await whisperResponse.json()
+            finalTranscript = whisperResult.transcript || ''
+            console.log('📖 [READING] Whisper transcript received:', {
+              length: finalTranscript.length,
+              preview: finalTranscript.substring(0, 50) + '...'
+            })
+          } else {
+            console.error('📖 [READING] Whisper API failed:', whisperResponse.status)
+            throw new Error('Failed to get Whisper transcript')
+          }
+        } catch (whisperError) {
+          console.error('📖 [READING] Whisper transcription error:', whisperError)
+          throw new Error('Speech recognition failed and Whisper fallback also failed')
+        }
+      }
+      
+      // Now send the final transcript (either browser or Whisper) to analysis
+      console.log('📖 [READING] Sending analysis request with final transcript:', {
+        transcriptSource: transcript.trim().length > 0 ? 'browser' : 'whisper',
+        transcriptLength: finalTranscript.length
+      })
+      
       const formData = new FormData()
       formData.append('audioFile', audioFile)
-      formData.append('browserTranscript', transcript)
+      formData.append('browserTranscript', finalTranscript)
       formData.append('analysisType', 'READING')
       formData.append('expectedText', expectedText)
       
-      console.log('📖 [READING] Making API call to /api/analysis/scripted with FormData')
+      console.log('📖 [READING] Making API call to /api/analysis/scripted with final transcript')
       const response = await fetch('/api/analysis/scripted', {
         method: 'POST',
         body: formData,
