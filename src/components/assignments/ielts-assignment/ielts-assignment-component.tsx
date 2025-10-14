@@ -311,7 +311,18 @@ export function IELTSAssignment({
 
   // Submit transcript for IELTS analysis
   const submitTranscript = async (transcript: string, audioFile: File) => {
-    if (!assignment.questions[currentIndex]) return
+    console.log('📝 [SUBMIT] Starting submitTranscript')
+    console.log('📝 [SUBMIT] Input parameters:', {
+      transcriptLength: transcript.length,
+      audioFileSize: audioFile.size,
+      audioFileName: audioFile.name,
+      audioFileType: audioFile.type
+    })
+    
+    if (!assignment.questions[currentIndex]) {
+      console.error('📝 [SUBMIT] No current question found')
+      return
+    }
 
     setLocalProcessing(true)
     setCurrentTranscript(transcript)
@@ -320,15 +331,22 @@ export function IELTSAssignment({
       const currentQuestion = assignment.questions[currentIndex]
       const expectedText = currentQuestion.textAnswer || ''
       const questionText = currentQuestion.textQuestion || ''
-    
-      
-      // Determine which API to use based on assignment type
       const assignmentType = assignment.evaluationSettings?.type?.toLowerCase()
+      
+      console.log('📝 [SUBMIT] Assignment details:', {
+        questionId: currentQuestion.id,
+        assignmentType,
+        expectedTextLength: expectedText.length,
+        questionTextLength: questionText.length
+      })
+    
+      // Determine which API to use based on assignment type
       let apiEndpoint = ''
       let requestData: any = {}
       
       if (assignmentType === 'pronunciation') {
         // Use scripted API for pronunciation assignments
+        console.log('📝 [SUBMIT] Using scripted API for pronunciation')
         apiEndpoint = '/api/analysis/scripted'
         const formData = new FormData()
         formData.append('audioFile', audioFile)
@@ -339,6 +357,7 @@ export function IELTSAssignment({
         requestData = formData
       } else {
         // Use unscripted API for reading and question-answer assignments
+        console.log('📝 [SUBMIT] Using unscripted API for:', assignmentType)
         apiEndpoint = '/api/analysis/unscripted'
         const formData = new FormData()
         formData.append('audioFile', audioFile)
@@ -358,22 +377,44 @@ export function IELTSAssignment({
         requestData = formData
       }
       
+      console.log('📝 [SUBMIT] Making API call to:', apiEndpoint)
+      
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         body: requestData,
         // Don't set Content-Type for FormData - let browser set it with boundary
       })
 
+      console.log('📝 [SUBMIT] API response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      })
+
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('API Error:', errorText)
+        console.error('📝 [SUBMIT] API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText
+        })
         throw new Error('Failed to analyze response')
       }
 
+      console.log('📝 [SUBMIT] Parsing response JSON...')
       const result = await response.json()
+      console.log('📝 [SUBMIT] Raw result:', {
+        hasResult: !!result,
+        hasSuccess: 'success' in result,
+        success: result.success
+      })
       
       // Handle response structure from new API format
       const analysis = result.success ? result.analysis : result;
+      console.log('📝 [SUBMIT] Analysis extracted:', {
+        hasAnalysis: !!analysis,
+        type: assignmentType
+      })
       
       if (assignmentType === 'pronunciation') {
         // Handle pronunciation response
@@ -425,12 +466,17 @@ export function IELTSAssignment({
       }
       
     } catch (error) {
-      console.error('Error evaluating response:', error)
+      console.error('📝 [SUBMIT] Error evaluating response:', error)
+      console.error('📝 [SUBMIT] Error details:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack
+      })
       setFeedback('Error processing your response. Please try again.')
       setIsCorrect(false)
       setShowFeedback(true)
       setPronunciationResult(null)
     } finally {
+      console.log('📝 [SUBMIT] Cleaning up...')
       setLocalProcessing(false)
       clearProcessing() // Clear the audio recorder processing state
     }

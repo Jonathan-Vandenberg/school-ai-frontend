@@ -311,18 +311,26 @@ export function useAudioAnalysisRecorder({
       }
       
       mediaRecorder.onstop = async () => {
+        console.log('🎬 [AUDIO] MediaRecorder onstop triggered')
         try {
           // Get final data chunk before processing
           try {
             mediaRecorder.requestData()
+            console.log('🎬 [AUDIO] Final requestData() called')
           } catch (e) {
-            console.warn("Error requesting final data:", e)
+            console.warn("🎬 [AUDIO] Error requesting final data:", e)
           }
           
           // Wait a brief moment for final data to arrive
           setTimeout(async () => {
+            console.log('🎬 [AUDIO] Processing audio chunks:', {
+              chunksCount: chunksRef.current.length,
+              transcript: latestTranscriptRef.current,
+              mimeType: mimeType
+            })
+            
             if (chunksRef.current.length === 0) {
-              console.error("No audio chunks collected")
+              console.error("🎬 [AUDIO] No audio chunks collected")
               const error = new Error("No audio was captured")
               onTranscriptionError?.(error)
               setIsProcessing(false)
@@ -330,9 +338,13 @@ export function useAudioAnalysisRecorder({
             }
             
             const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" })
+            console.log('🎬 [AUDIO] Created blob:', {
+              size: blob.size,
+              type: blob.type
+            })
             
             if (blob.size < 100) {
-              console.error("Audio blob is too small, likely no audio captured")
+              console.error("🎬 [AUDIO] Audio blob is too small:", blob.size)
               const error = new Error("Audio file too small - no audio captured")
               onTranscriptionError?.(error)
               setIsProcessing(false)
@@ -340,19 +352,27 @@ export function useAudioAnalysisRecorder({
             }
             
             const audioFile = new File([blob], "recording.webm", { type: blob.type })
+            console.log('🎬 [AUDIO] Created audio file:', {
+              name: audioFile.name,
+              size: audioFile.size,
+              type: audioFile.type
+            })
             
             setIsProcessing(true)
             
             // Use the latest transcript from ref (more reliable than state)
             const finalTranscript = latestTranscriptRef.current.trim()
+            console.log('🎬 [AUDIO] Final transcript:', finalTranscript)
             
             // Process transcript and audio - always call the callback even with empty transcript
+            console.log('🎬 [AUDIO] Calling onTranscriptionComplete callback')
             onTranscriptionComplete?.(finalTranscript, audioFile)
           }, 100)
         } catch (error) {
-          console.error('Error processing recording:', error)
+          console.error('🎬 [AUDIO] Error processing recording:', error)
           onTranscriptionError?.(error as Error)
         } finally {
+          console.log('🎬 [AUDIO] MediaRecorder onstop processing complete')
           setIsProcessing(false)
         }
       }
@@ -481,54 +501,81 @@ export function useAudioAnalysisRecorder({
   }, [languageCode, onTranscriptionStart, onTranscriptionComplete, onTranscriptionError, startAudioAnalysis, isRecording])
 
   const stopRecording = useCallback(() => {
+    console.log('🛑 [AUDIO] Stop recording called')
+    console.log('🛑 [AUDIO] Current states:', {
+      isRecording,
+      mediaRecorderState: mediaRecorderRef.current?.state,
+      speechRecognitionActive: !!speechRecRef.current,
+      chunksCollected: chunksRef.current.length,
+      latestTranscript: latestTranscriptRef.current
+    })
+    
     setIsRecording(false)
 
     // Clear speech timeout
     if (speechTimeoutRef.current) {
       clearTimeout(speechTimeoutRef.current)
       speechTimeoutRef.current = null
+      console.log('🛑 [AUDIO] Cleared speech timeout')
     }
 
     // Clear data collection interval
     if (dataCollectionRef.current) {
       clearInterval(dataCollectionRef.current)
       dataCollectionRef.current = null
+      console.log('🛑 [AUDIO] Cleared data collection interval')
     }
 
     // Stop MediaRecorder
     if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop()
+      console.log('🛑 [AUDIO] Stopping MediaRecorder, state:', mediaRecorderRef.current.state)
+      try {
+        mediaRecorderRef.current.stop()
+        console.log('🛑 [AUDIO] MediaRecorder stop() called successfully')
+      } catch (error) {
+        console.error('🛑 [AUDIO] Error stopping MediaRecorder:', error)
+      }
+    } else {
+      console.log('🛑 [AUDIO] No MediaRecorder to stop')
     }
 
     // Stop Speech Recognition
     if (speechRecRef.current) {
       try {
         speechRecRef.current.stop()
+        console.log('🛑 [AUDIO] Speech recognition stopped')
       } catch (error) {
-        console.error('Error stopping speech recognition:', error)
+        console.error('🛑 [AUDIO] Error stopping speech recognition:', error)
       }
       speechRecRef.current = null
+    } else {
+      console.log('🛑 [AUDIO] No speech recognition to stop')
     }
 
     // Stop media stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop())
       streamRef.current = null
+      console.log('🛑 [AUDIO] Media stream stopped')
     }
 
     // Stop audio analysis
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = undefined
+      console.log('🛑 [AUDIO] Animation frame cancelled')
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close()
+      console.log('🛑 [AUDIO] Audio context closed')
     }
     
     // Reset audio level and restart attempts
     setAudioLevel(0)
     setIsSpeaking(false)
     restartAttemptsRef.current = 0
+    
+    console.log('🛑 [AUDIO] Stop recording completed')
   }, [])
 
   const toggleRecording = useCallback(() => {

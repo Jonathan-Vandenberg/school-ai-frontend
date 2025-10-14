@@ -301,7 +301,18 @@ export function ReadingAssignment({
 
   // Submit transcript for pronunciation analysis
   const submitTranscript = async (transcript: string, audioFile: File) => {
-    if (!assignment.questions[currentIndex]) return
+    console.log('📖 [READING] Starting submitTranscript')
+    console.log('📖 [READING] Input parameters:', {
+      transcriptLength: transcript.length,
+      audioFileSize: audioFile.size,
+      audioFileName: audioFile.name,
+      audioFileType: audioFile.type
+    })
+    
+    if (!assignment.questions[currentIndex]) {
+      console.error('📖 [READING] No current question found')
+      return
+    }
 
     setLocalProcessing(true)
     setCurrentTranscript(transcript)
@@ -310,34 +321,58 @@ export function ReadingAssignment({
       const currentQuestion = assignment.questions[currentIndex]
       const expectedText = currentQuestion.textAnswer || ''
       
-      console.log('Submitting for analysis:', {
-        expectedText,
-        transcript,
-        audioFileSize: audioFile.size
+      console.log('📖 [READING] Question details:', {
+        questionId: currentQuestion.id,
+        expectedTextLength: expectedText.length,
+        transcript: transcript
       })
       
-      // Use pronunciation analysis for reading assignments (text-only, no audio file needed)
+      // Send FormData with audio file to enable Whisper fallback
+      console.log('📖 [READING] Creating FormData with audio file for Whisper fallback capability')
+      const formData = new FormData()
+      formData.append('audioFile', audioFile)
+      formData.append('browserTranscript', transcript)
+      formData.append('analysisType', 'READING')
+      formData.append('expectedText', expectedText)
+      
+      console.log('📖 [READING] Making API call to /api/analysis/scripted with FormData')
       const response = await fetch('/api/analysis/scripted', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          expectedText,
-          browserTranscript: transcript,
-          analysisType: 'READING'
-        }),
+        body: formData,
+        // Don't set Content-Type for FormData - let browser set it with boundary
       })
 
+      console.log('📖 [READING] API response status:', response.status)
+      
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('API Error:', errorText)
+        console.error('📖 [READING] API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText: errorText
+        })
         throw new Error('Failed to analyze pronunciation')
       }
 
-      const { analysis } = await response.json()
+      const responseData = await response.json()
+      console.log('📖 [READING] API response received:', {
+        hasAnalysis: !!responseData.analysis,
+        analysisKeys: responseData.analysis ? Object.keys(responseData.analysis) : []
+      })
+      
+      const { analysis } = responseData
       
       // Determine correctness based on actual score instead of binary flag
       const actualScore = analysis.pronunciationResult?.overall_score || 0
       const isCorrectBasedOnScore = actualScore >= 80 // 80% threshold for "correct"
+      
+      console.log('📖 [READING] Processing analysis results:', {
+        actualScore: actualScore,
+        isCorrectBasedOnScore: isCorrectBasedOnScore,
+        feedbackLength: analysis.feedback?.length || 0,
+        hasEncouragement: !!analysis.encouragement,
+        hasPronunciationResult: !!analysis.pronunciationResult
+      })
       
       // Set all the feedback states
       setIsCorrect(isCorrectBasedOnScore)
@@ -346,6 +381,8 @@ export function ReadingAssignment({
       setPronunciationResult(analysis.pronunciationResult)
       setShowFeedback(true)
       
+      console.log('📖 [READING] Updating progress for question:', currentQuestion.id)
+      
       // Update progress with score-based correctness
       await onProgressUpdate(currentQuestion.id, isCorrectBasedOnScore, {
         result: analysis,
@@ -353,8 +390,11 @@ export function ReadingAssignment({
         timestamp: new Date().toISOString()
       }, 'READING')
       
+      console.log('📖 [READING] Progress update completed')
+      
       // Show confetti for correct answers
       if (isCorrectBasedOnScore) {
+        console.log('📖 [READING] Triggering success animation for correct answer')
         const button = document.querySelector('button[disabled]') as HTMLElement
         if (button) {
           button.style.animation = 'bounce 0.6s ease-in-out'
@@ -365,12 +405,16 @@ export function ReadingAssignment({
       }
       
     } catch (error) {
-      console.error('Error evaluating pronunciation:', error)
+      console.error('📖 [READING] Error in submitTranscript:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      })
       setFeedback('Error processing your pronunciation. Please try again.')
       setIsCorrect(false)
       setShowFeedback(true)
       setPronunciationResult(null)
     } finally {
+      console.log('📖 [READING] submitTranscript completed, clearing processing states')
       setLocalProcessing(false)
       clearProcessing() // Clear the audio recorder processing state
     }

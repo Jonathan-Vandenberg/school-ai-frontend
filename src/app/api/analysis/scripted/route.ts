@@ -14,12 +14,16 @@ interface AnalysisRequest {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('🚀 [API] Scripted analysis request received')
+  
   try {
     // Authenticate user
     await AuthService.getAuthenticatedUser()
+    console.log('🚀 [API] User authenticated successfully')
     
     // Check if API key is configured
     if (!AUDIO_ANALYSIS_API_KEY) {
+      console.error('🚀 [API] Audio analysis API key not configured')
       return NextResponse.json({ 
         error: 'Service configuration error', 
         details: 'Audio analysis API key not configured' 
@@ -29,6 +33,8 @@ export async function POST(request: NextRequest) {
     }
     
     const contentType = request.headers.get('content-type')
+    console.log('🚀 [API] Content type:', contentType)
+    
     let expectedText: string
     let browserTranscript: string | undefined
     let analysisType: string | undefined
@@ -37,17 +43,33 @@ export async function POST(request: NextRequest) {
     // Handle both JSON (reading) and FormData (pronunciation with audio)
     if (contentType?.includes('multipart/form-data')) {
       // FormData request (pronunciation with audio)
+      console.log('🚀 [API] Processing FormData request')
       const formData = await request.formData()
       expectedText = formData.get('expectedText') as string
       browserTranscript = formData.get('browserTranscript') as string || undefined
       analysisType = formData.get('analysisType') as string || undefined
       audioFile = formData.get('audioFile') as File || undefined
+      
+      console.log('🚀 [API] FormData extracted:', {
+        expectedTextLength: expectedText?.length || 0,
+        browserTranscriptLength: browserTranscript?.length || 0,
+        analysisType,
+        audioFileSize: audioFile?.size || 0,
+        audioFileName: audioFile?.name || 'none'
+      })
     } else {
       // JSON request (reading without audio)
+      console.log('🚀 [API] Processing JSON request')
       const body: AnalysisRequest = await request.json()
       expectedText = body.expectedText
       browserTranscript = body.browserTranscript
       analysisType = body.analysisType
+      
+      console.log('🚀 [API] JSON extracted:', {
+        expectedTextLength: expectedText?.length || 0,
+        browserTranscriptLength: browserTranscript?.length || 0,
+        analysisType
+      })
     }
 
     // Validate required fields
@@ -82,18 +104,27 @@ export async function POST(request: NextRequest) {
     const hasBrowserTranscript = cleanBrowserTranscript && cleanBrowserTranscript.length > 0
     const hasAudioFile = audioFile && audioFile.size > 0
     
+    console.log('🚀 [API] Transcript/Audio decision:', {
+      hasBrowserTranscript,
+      browserTranscriptLength: cleanBrowserTranscript?.length || 0,
+      hasAudioFile,
+      audioFileSize: audioFile?.size || 0
+    })
+    
     if (hasBrowserTranscript) {
       // Use browser transcript if available
+      console.log('🚀 [API] Using browser transcript')
       backendFormData.append('browser_transcript', cleanBrowserTranscript)
       backendFormData.append('use_audio', 'false')
     } else if (hasAudioFile) {
       // If no browser transcript but we have audio, let backend use Whisper
       // Send empty browser transcript and tell backend to use audio transcription
+      console.log('🚀 [API] No browser transcript available, falling back to Whisper transcription from audio')
       backendFormData.append('browser_transcript', '')
       backendFormData.append('use_audio', 'true')
-      console.log('🎤 No browser transcript available, falling back to Whisper transcription from audio')
     } else {
       // No transcript and no audio - this is an error case
+      console.error('🚀 [API] No transcript or audio file provided')
       return NextResponse.json({ 
         error: 'Failed to analyze speech', 
         details: 'No transcript or audio file provided for analysis' 
@@ -142,13 +173,30 @@ export async function POST(request: NextRequest) {
     let response
     try {
       const path = analysisType === 'PRONUNCIATION' ? '/analyze/pronunciation' : '/analyze/scripted'
+      console.log('🚀 [API] Calling backend API:', {
+        path,
+        url: `${AUDIO_ANALYSIS_URL}${path}`,
+        hasExpectedText: !!cleanExpectedText,
+        hasBrowserTranscript,
+        hasAudioFile,
+        useAudio: hasAudioFile ? 'true' : 'false'
+      })
+      
       response = await postFormToAudioApi(path, backendFormData)
 
-      console.log('Tenant API call path:', path)
+      console.log('🚀 [API] Backend response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      })
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('Audio analysis API error:', errorText)
+        console.error('🚀 [API] Audio analysis API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        })
         return NextResponse.json({ 
           error: 'Failed to analyze speech', 
           details: `Audio analysis service error: ${response.status} - ${errorText}` 
@@ -157,8 +205,8 @@ export async function POST(request: NextRequest) {
         });
       }
     } catch (fetchError) {
-      console.error('Fetch error to audio analysis backend:', fetchError)
-      console.error('Full error details:', {
+      console.error('🚀 [API] Fetch error to audio analysis backend:', fetchError)
+      console.error('🚀 [API] Full error details:', {
         message: (fetchError as Error).message,
         stack: (fetchError as Error).stack,
         url: `${AUDIO_ANALYSIS_URL}/analyze/scripted`
