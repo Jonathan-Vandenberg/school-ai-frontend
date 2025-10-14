@@ -77,14 +77,36 @@ export async function POST(request: NextRequest) {
     // Create FormData for the audio analysis API
     const backendFormData = new FormData()
     backendFormData.append('expected_text', cleanExpectedText)
-    if (cleanBrowserTranscript) {
+    
+    // Handle browser transcript vs audio transcription fallback
+    const hasBrowserTranscript = cleanBrowserTranscript && cleanBrowserTranscript.length > 0
+    const hasAudioFile = audioFile && audioFile.size > 0
+    
+    if (hasBrowserTranscript) {
+      // Use browser transcript if available
       backendFormData.append('browser_transcript', cleanBrowserTranscript)
+      backendFormData.append('use_audio', 'false')
+    } else if (hasAudioFile) {
+      // If no browser transcript but we have audio, let backend use Whisper
+      // Send empty browser transcript and tell backend to use audio transcription
+      backendFormData.append('browser_transcript', '')
+      backendFormData.append('use_audio', 'true')
+      console.log('🎤 No browser transcript available, falling back to Whisper transcription from audio')
+    } else {
+      // No transcript and no audio - this is an error case
+      return NextResponse.json({ 
+        error: 'Failed to analyze speech', 
+        details: 'No transcript or audio file provided for analysis' 
+      }, { 
+        status: 400 
+      });
     }
+    
     if (analysisType) {
       backendFormData.append('analysis_type', analysisType)
     }
     
-    // Add audio file if provided (for pronunciation analysis)
+    // Add audio file if provided
     if (audioFile) {
       backendFormData.append('file', audioFile)
     } else {
