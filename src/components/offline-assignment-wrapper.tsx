@@ -3,9 +3,8 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { WifiOff, CloudOff, Cloud, AlertCircle } from 'lucide-react'
-import { useOfflineAssignments } from '@/lib/offline-assignments'
+import { useOfflineAssignments } from '../lib/offline-assignments'
 
 interface OfflineAssignmentWrapperProps {
   assignmentId: string
@@ -42,29 +41,28 @@ export function OfflineAssignmentWrapper({ assignmentId, children }: OfflineAssi
 
       {/* Offline Alert */}
       {!isOnline && (
-        <Alert className="border-orange-200 bg-orange-50">
-          <CloudOff className="h-4 w-4" />
-          <AlertDescription className="text-orange-800">
+        <div className="border border-orange-200 bg-orange-50 p-3 rounded-lg flex items-start gap-2">
+          <CloudOff className="h-4 w-4 text-orange-600 mt-0.5" />
+          <div className="text-orange-800 text-sm">
             <strong>Working Offline:</strong> You can continue practicing, but answers won't be submitted until you're back online.
-          </AlertDescription>
-        </Alert>
+          </div>
+        </div>
       )}
 
       {/* Pending Sync Alert */}
       {isOnline && pendingCount > 0 && (
-        <Alert className="border-blue-200 bg-blue-50">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-blue-800 flex items-center justify-between">
-            <span>You have unsaved work from offline mode.</span>
-            <Button 
-              size="sm" 
-              onClick={syncData}
-              className="ml-2"
-            >
-              Sync Now
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <div className="border border-blue-200 bg-blue-50 p-3 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <span className="text-blue-800 text-sm">You have unsaved work from offline mode.</span>
+          </div>
+          <Button 
+            size="sm" 
+            onClick={syncData}
+          >
+            Sync Now
+          </Button>
+        </div>
       )}
 
       {/* Assignment Content */}

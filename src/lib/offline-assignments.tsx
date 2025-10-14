@@ -1,5 +1,5 @@
 // Offline assignment utilities for PWA functionality
-import React from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 export interface OfflineAssignmentData {
   assignmentId: string
@@ -176,10 +176,10 @@ export const offlineManager = new OfflineAssignmentManager()
 
 // React hook for using offline functionality
 export function useOfflineAssignments(assignmentId?: string) {
-  const [pendingCount, setPendingCount] = React.useState(0)
-  const [isOnline, setIsOnline] = React.useState(navigator.onLine)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Initial count
     setPendingCount(offlineManager.getPendingCount())
 
@@ -201,7 +201,7 @@ export function useOfflineAssignments(assignmentId?: string) {
     }
   }, [])
 
-  const saveProgress = React.useCallback((questionId: string, answer: any, type: 'text' | 'audio' | 'choice') => {
+  const saveProgress = useCallback((questionId: string, answer: any, type: 'text' | 'audio' | 'choice') => {
     if (!assignmentId) return false
     
     return offlineManager.saveOfflineProgress({
@@ -212,7 +212,7 @@ export function useOfflineAssignments(assignmentId?: string) {
     })
   }, [assignmentId])
 
-  const getAssignmentData = React.useCallback(() => {
+  const getAssignmentData = useCallback(() => {
     if (!assignmentId) return []
     return offlineManager.getAssignmentOfflineData(assignmentId)
   }, [assignmentId])
