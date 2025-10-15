@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService, handleServiceError } from '@/lib/services'
 import { postFormToAudioApi } from '@/app/lib/tenant-api'
+import { startAudioAnalysisTimer } from '@/app/lib/audioMetrics'
+import { withAppRouterMetrics } from '@/app/lib/withMetrics'
 
 // Audio analysis backend URL and API key
 const AUDIO_ANALYSIS_URL = process.env.AUDIO_ANALYSIS_URL || 'http://127.0.0.1:8000'
@@ -15,7 +17,7 @@ interface AnalysisRequest {
   context?: string
 }
 
-export async function POST(request: NextRequest) {
+async function unscriptedAnalysis(request: NextRequest) {
   try {
     // Authenticate user
     const currentUser = await AuthService.getAuthenticatedUser()
@@ -127,12 +129,23 @@ export async function POST(request: NextRequest) {
 
     // Call the audio analysis backend (it now handles all AI analysis when deep_analysis=true)
     let response
+    
+    // Start audio analysis timer for metrics tracking
+    const audioTimer = startAudioAnalysisTimer()
+    
+    // Estimate audio duration from file size (rough approximation: ~1MB per minute for typical audio)
+    const estimatedAudioDurationSeconds = audioFile ? Math.max(1, Math.round(audioFile.size / (1024 * 1024) * 60)) : 1
+    
     try {
       response = await postFormToAudioApi('/analyze/unscripted', backendFormData)
 
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Audio analysis API error:', errorText)
+        
+        // Record failed audio analysis metrics
+        audioTimer.end(estimatedAudioDurationSeconds, 'error')
+        
         return NextResponse.json({ 
           error: 'Failed to analyze speech', 
           details: `Audio analysis service error: ${response.status} - ${errorText}` 
@@ -142,6 +155,10 @@ export async function POST(request: NextRequest) {
       }
     } catch (fetchError) {
       console.error('Fetch error to audio analysis backend:', fetchError)
+      
+      // Record failed audio analysis metrics
+      audioTimer.end(estimatedAudioDurationSeconds, 'error')
+      
       return NextResponse.json({ 
         error: 'Failed to analyze speech', 
         details: `Connection failed to audio analysis backend at ${AUDIO_ANALYSIS_URL}. Error: ${(fetchError as Error).message}` 
@@ -151,6 +168,9 @@ export async function POST(request: NextRequest) {
     }
 
     const analysisResult = await response.json()
+    
+    // Record successful audio analysis metrics
+    audioTimer.end(estimatedAudioDurationSeconds, 'success')
     
     // Transform the backend response to match our frontend expectations
     const transformedResult = {
@@ -181,5 +201,8 @@ export async function POST(request: NextRequest) {
     });
   }
 }
+
+// Export the POST handler wrapped with metrics
+export const POST = withAppRouterMetrics(unscriptedAnalysis)
 
 

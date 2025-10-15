@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService, handleServiceError } from '@/lib/services'
 import { postFormToAudioApi } from '@/app/lib/tenant-api'
+import { startAudioAnalysisTimer } from '@/app/lib/audioMetrics'
 
 // Audio analysis backend URL and API key
 const AUDIO_ANALYSIS_URL = process.env.AUDIO_ANALYSIS_URL || 'http://localhost:8000'
@@ -70,6 +71,12 @@ export async function POST(request: NextRequest) {
       audioFileType: audioFile.type
     })
 
+    // Start audio analysis timer for metrics tracking
+    const audioTimer = startAudioAnalysisTimer()
+    
+    // Estimate audio duration from file size (rough approximation: ~1MB per minute for typical audio)
+    const estimatedAudioDurationSeconds = Math.max(1, Math.round(audioFile.size / (1024 * 1024) * 60))
+
     try {
       // Use the tenant API helper to make the request
       const response = await postFormToAudioApi('/analyze/pronunciation', backendFormData)
@@ -81,6 +88,9 @@ export async function POST(request: NextRequest) {
           statusText: response.statusText,
           error: errorText
         })
+        
+        // Record failed audio analysis metrics
+        audioTimer.end(estimatedAudioDurationSeconds, 'error')
         
         return NextResponse.json({
           error: 'Backend analysis failed',
@@ -97,10 +107,16 @@ export async function POST(request: NextRequest) {
         wordCount: result.pronunciation?.words?.length
       })
 
+      // Record successful audio analysis metrics
+      audioTimer.end(estimatedAudioDurationSeconds, 'success')
+
       return NextResponse.json(result)
 
     } catch (fetchError: any) {
       console.error('❌ Network error calling backend API:', fetchError)
+      
+      // Record failed audio analysis metrics
+      audioTimer.end(estimatedAudioDurationSeconds, 'error')
       
       return NextResponse.json({
         error: 'Network error',

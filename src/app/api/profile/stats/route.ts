@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { AuthService, ClassesService, AssignmentsService, handleServiceError } from '@/lib/services'
 import { StatisticsService } from '@/lib/services/statistics.service'
 import { prisma } from '@/lib/db'
+import { withAppRouterMetrics } from '@/app/lib/withMetrics'
 
 /**
  * GET /api/profile/stats
  * Get profile statistics for the current user
  * Returns different metrics based on user role (TEACHER, STUDENT, ADMIN)
  */
-export async function GET(request: NextRequest) {
+async function getProfileStats(request: NextRequest): Promise<Response> {
   try {
     // Authenticate user
     const currentUser = await AuthService.getAuthenticatedUser()
@@ -93,4 +94,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return handleServiceError(error)
   }
-} 
+}
+
+// Export the GET handler wrapped with metrics
+export const GET = withAppRouterMetrics(getProfileStats) 

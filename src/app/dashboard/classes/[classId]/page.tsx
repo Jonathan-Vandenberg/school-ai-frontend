@@ -8,28 +8,18 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
 import { StudentHelpCard } from '@/components/students/student-help-card'
 import { 
   ArrowLeft,
   School,
-  Users,
   BookOpen,
-  Calendar,
   Mail,
   GraduationCap,
   UserCheck,
-  Plus,
   Edit,
-  Trash2,
-  BarChart3,
   Target,
   Award,
   AlertCircle,
-  Activity,
-  TrendingUp,
-  Clock,
-  AlertTriangle
 } from 'lucide-react'
 
 interface User {

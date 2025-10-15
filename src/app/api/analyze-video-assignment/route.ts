@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { withAppRouterMetrics } from '@/app/lib/withMetrics';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function POST(req: NextRequest) {
+async function analyzeVideoAssignment(req: NextRequest) {
   try {
     const { transcript, topic } = await req.json();
 
@@ -63,4 +64,7 @@ Example format:
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return NextResponse.json({ error: 'Internal Server Error', details: errorMessage }, { status: 500 });
   }
-} 
+}
+
+// Export the POST handler wrapped with metrics
+export const POST = withAppRouterMetrics(analyzeVideoAssignment); 
