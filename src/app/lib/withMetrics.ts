@@ -1,4 +1,4 @@
-import { httpRequestCounter, httpRequestDuration, errorCounter } from "@/app/api/metrics/route";
+import { httpRequestCounter, httpRequestDuration, errorCounter } from "@/app/lib/metrics";
 import { NextRequest, NextResponse } from "next/server";
 
 // For App Router (NextRequest/NextResponse)

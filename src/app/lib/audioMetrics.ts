@@ -1,4 +1,4 @@
-import { audioAnalysisCounter, audioAnalysisDuration } from "@/app/api/metrics/route";
+import { audioAnalysisCounter, audioAnalysisDuration } from "@/app/lib/metrics";
 
 /**
  * Track audio analysis metrics
