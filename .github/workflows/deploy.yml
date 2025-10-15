@@ -75,11 +75,14 @@ jobs:
         cp -r .next deploy/
         cp -r public deploy/
         cp -r prisma deploy/
+        cp -r lib deploy/
+        cp -r src deploy/
         cp -r node_modules deploy/
         cp package.json deploy/
         cp package-lock.json deploy/
         cp .env deploy/
         cp next.config.ts deploy/
+        cp startup-production.js deploy/
         
         # Copy additional config files if they exist
         cp middleware.ts deploy/ || true
@@ -130,8 +133,8 @@ jobs:
           pm2 stop school-ai || true
           pm2 delete school-ai || true
           
-          # Start the application with PM2
-          NODE_ENV=production pm2 start npm --name "school-ai" -- start
+          # Start the application with PM2 (includes cron jobs)
+          NODE_ENV=production pm2 start startup-production.js --name "school-ai"
           
           # Save PM2 configuration
           pm2 save
@@ -139,3 +142,13 @@ jobs:
           
           # Show PM2 status
           pm2 list
+          
+          # Wait a moment for processes to start
+          sleep 5
+          
+          # Verify cron jobs are running
+          echo "Checking if cron jobs are running..."
+          pm2 logs school-ai --lines 20 | grep -i "cron\|scheduled" || echo "No cron logs found yet"
+          
+          # Check if the application is responding
+          curl -f http://localhost:3000/api/health || echo "Health check failed"
