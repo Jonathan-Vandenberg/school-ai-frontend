@@ -1316,8 +1316,11 @@ export class AssignmentsService {
         throw new Error('Failed to retrieve created reading assignment');
       }
 
-      // Initialize assignment statistics WITHIN the transaction
-      await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
+      if(completeAssignment.isActive) {
+        // Initialize assignment statistics WITHIN the transaction
+        await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
+      }
+
 
       return completeAssignment as AssignmentWithDetails;
     });
@@ -1674,6 +1677,11 @@ export class AssignmentsService {
       
       const completionPercentage = totalQuestions > 0 ? (uniqueQuestionsAnswered / totalQuestions) * 100 : 0
       const accuracy = uniqueQuestionsAnswered > 0 ? (correctAnswers / uniqueQuestionsAnswered) * 100 : 0
+
+      if(totalQuestions === uniqueQuestionsAnswered) {
+        console.log(`[STATS] Updating class statistics for class ${assignment.classes[0].classId}`)
+        await StatisticsService.updateClassStatistics(assignment.classes[0].classId)
+      }
 
       // Update statistics incrementally using the new scalable service
       // These updates MUST be part of the transaction to ensure data integrity

@@ -1,0 +1,77 @@
+{
+    "id": null,
+    "title": "Next.js Frontend Metrics",
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "type": "stat",
+        "title": "Active Connections",
+        "targets": [
+          {
+            "expr": "http_active_connections",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 }
+      },
+      {
+        "type": "graph",
+        "title": "Total HTTP Requests (5m)",
+        "targets": [
+          {
+            "expr": "sum(increase(http_requests_total[5m])) by (route)",
+            "legendFormat": "{{route}}"
+          }
+        ],
+        "gridPos": { "x": 6, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "HTTP Error Rate (5m)",
+        "targets": [
+          {
+            "expr": "sum(rate(http_errors_total[5m])) by (error_type)",
+            "legendFormat": "{{error_type}}"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "Request Duration (95th Percentile)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route))",
+            "legendFormat": "{{route}}"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "Audio Analysis Requests",
+        "targets": [
+          {
+            "expr": "sum(increase(audio_analysis_requests_total[5m])) by (status)",
+            "legendFormat": "{{status}}"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "Audio Analysis Duration (avg by status)",
+        "targets": [
+          {
+            "expr": "avg(rate(audio_analysis_duration_seconds_sum[5m]) / rate(audio_analysis_duration_seconds_count[5m])) by (status)",
+            "legendFormat": "{{status}}"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 }
+      }
+    ]
+  }
+  

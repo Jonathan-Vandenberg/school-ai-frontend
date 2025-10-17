@@ -22,6 +22,7 @@ async function initializeStudentStats() {
       // Get all assignments accessible to this student
       const assignments = await prisma.assignment.findMany({
         where: {
+          isActive: true,
           OR: [
             // Class assignments - student is in the class
             {

@@ -1,5 +1,6 @@
 import cron from 'node-cron'
 import { prisma, withTransaction, DatabaseError } from '../db'
+import { AssignmentsService } from '@/lib/services/assignments.service'
 
 /**
  * Scheduled task to activate assignments that have reached their scheduled publish time
@@ -62,6 +63,9 @@ export function createPublishScheduledAssignmentsTask() {
                 publishedAt: now,
               },
             })
+
+            console.log(`[STATS] Initializing assignment statistics for assignment ${assignment.id}`)
+            await AssignmentsService.initializeAssignmentStatistics(assignment.id, tx)
             
             console.log(`   ✅ Activated: "${assignment.topic}" (ID: ${assignment.id})`)
           }

@@ -44,6 +44,7 @@ jobs:
         echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
         echo "AUDIO_ANALYSIS_URL=${{ secrets.AUDIO_ANALYSIS_URL }}" >> .env
         echo "AUDIO_ANALYSIS_API_KEY=${{ secrets.AUDIO_ANALYSIS_API_KEY }}" >> .env
+        echo "APIFY_API_TOKEN=${{ secrets.APIFY_API_TOKEN }}" >> .env
         
         # Copy .env to .env.local for build process
         cp .env .env.local
@@ -65,6 +66,7 @@ jobs:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         AUDIO_ANALYSIS_URL: ${{ secrets.AUDIO_ANALYSIS_URL }}
         AUDIO_ANALYSIS_API_KEY: ${{ secrets.AUDIO_ANALYSIS_API_KEY }}
+        APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
 
     - name: Prepare for deployment
       run: |
@@ -124,6 +126,7 @@ jobs:
           export OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
           export AUDIO_ANALYSIS_URL="${{ secrets.AUDIO_ANALYSIS_URL }}"
           export AUDIO_ANALYSIS_API_KEY="${{ secrets.AUDIO_ANALYSIS_API_KEY }}"
+          export APIFY_API_TOKEN="${{ secrets.APIFY_API_TOKEN }}"
           
           # Run database migrations
           npx prisma db push --accept-data-loss || true
@@ -142,13 +145,3 @@ jobs:
           
           # Show PM2 status
           pm2 list
-          
-          # Wait a moment for processes to start
-          sleep 5
-          
-          # Verify cron jobs are running
-          echo "Checking if cron jobs are running..."
-          pm2 logs school-ai --lines 20 | grep -i "cron\|scheduled" || echo "No cron logs found yet"
-          
-          # Check if the application is responding
-          curl -f http://localhost:3000/api/health || echo "Health check failed"

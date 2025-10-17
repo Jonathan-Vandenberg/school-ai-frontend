@@ -952,12 +952,6 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
 
         <div className="flex justify-end gap-4">
           <div className="flex flex-col items-end gap-2">
-            {!isPreviewAvailable() && (
-              <p className="text-xs text-muted-foreground">
-                Preview requires: topic, video URL, and at least one complete
-                question
-              </p>
-            )}
             <div className="flex gap-4">
               <Dialog>
                 <DialogTrigger asChild>
