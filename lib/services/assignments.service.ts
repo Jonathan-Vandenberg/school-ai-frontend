@@ -1544,7 +1544,8 @@ export class AssignmentsService {
     questionId: string,
     isCorrect: boolean,
     result: any,
-    type: 'VIDEO' | 'READING' | 'PRONUNCIATION' | 'IELTS'
+    type: 'VIDEO' | 'READING' | 'PRONUNCIATION' | 'IELTS',
+    actualScore?: number
   ) {
     return withTransaction(async (tx) => {
       // Check if student has access to this assignment
@@ -1634,6 +1635,7 @@ export class AssignmentsService {
           },
           data: {
             isCorrect,
+            actualScore,
             languageConfidenceResponse,
             isComplete: true,
             updatedAt: new Date()
@@ -1647,6 +1649,7 @@ export class AssignmentsService {
             assignmentId: assignmentId,
             questionId: questionId,
             isCorrect,
+            actualScore,
             languageConfidenceResponse,
             isComplete: true
           }
@@ -1678,20 +1681,18 @@ export class AssignmentsService {
       const completionPercentage = totalQuestions > 0 ? (uniqueQuestionsAnswered / totalQuestions) * 100 : 0
       const accuracy = uniqueQuestionsAnswered > 0 ? (correctAnswers / uniqueQuestionsAnswered) * 100 : 0
 
-      if(totalQuestions === uniqueQuestionsAnswered) {
-        console.log(`[STATS] Updating class statistics for class ${assignment.classes[0].classId}`)
-        await StatisticsService.updateClassStatistics(assignment.classes[0].classId)
-      }
+      // Check if this is a new submission or a re-attempt
+      const isNewSubmission = !existingProgress
 
       // Update statistics incrementally using the new scalable service
       // These updates MUST be part of the transaction to ensure data integrity
-      console.log(`[STATS] Updating assignment statistics for assignment ${assignmentId}, student ${studentId}`)
-      await StatisticsService.updateAssignmentStatistics(assignmentId, studentId, isCorrect, true, tx)
-      
-      console.log(`[STATS] Updating student statistics for student ${studentId}, assignment ${assignmentId}`)
-      await StatisticsService.updateStudentStatistics(studentId, assignmentId, isCorrect, true, tx, questionId)
-      
-      console.log(`[STATS] Statistics update completed successfully`)
+      await StatisticsService.updateAssignmentStatistics(assignmentId, studentId, isCorrect, isNewSubmission, tx)
+      await StatisticsService.updateStudentStatistics(studentId, assignmentId, isCorrect, isNewSubmission, tx, questionId)
+
+      // Update class statistics AFTER student and assignment statistics are updated
+      if(totalQuestions === uniqueQuestionsAnswered || !isNewSubmission) {
+        await StatisticsService.updateClassStatistics(assignment.classes[0].classId, tx)
+      }
 
       // Update help status based on completion and performance
       const { StudentsNeedingHelpService } = await import('./students-needing-help.service')

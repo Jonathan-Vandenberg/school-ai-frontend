@@ -61,6 +61,7 @@ interface AssignmentProgress {
   completionRate: number
   accuracyRate: number
   isComplete: boolean
+  status: 'Not Started' | 'In Progress' | 'Complete'
   lastActivity: number | null
 }
 
@@ -135,10 +136,13 @@ export default function StudentDetailsPage() {
     return username.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
 
-  const getStatusColor = (completionRate: number) => {
-    if (completionRate >= 80) return 'bg-green-100 text-green-800'
-    if (completionRate >= 60) return 'bg-yellow-100 text-yellow-800'
-    return 'bg-red-100 text-red-800'
+  const getStatusColor = (status: 'Not Started' | 'In Progress' | 'Complete') => {
+    switch (status) {
+      case 'Complete': return 'bg-green-100 text-green-800'
+      case 'In Progress': return 'bg-yellow-100 text-yellow-800'
+      case 'Not Started': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
   }
 
   const getSeverityColor = (severity: string) => {
@@ -402,8 +406,8 @@ export default function StudentDetailsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(assignment.completionRate)}>
-                          {assignment.isComplete ? 'Complete' : 'In Progress'}
+                        <Badge className={getStatusColor(assignment.status)}>
+                          {assignment.status}
                         </Badge>
                       </TableCell>
                       <TableCell>

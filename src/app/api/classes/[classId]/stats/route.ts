@@ -85,6 +85,7 @@ export async function GET(
         stats: {
           totalStudents: classStats.totalStudents,
           totalAssignments: classStats.totalAssignments,
+          activeAssignments: classStats.activeAssignments,
           averageCompletion: classStats.averageCompletion,
           averageScore: classStats.averageScore,
           totalQuestions: classStats.totalQuestions,

@@ -654,7 +654,7 @@ export default function AssignmentDetailPage() {
                     </CardHeader>
                     <CardContent>
                       <div className={`text-2xl font-bold ${getProgressColor(progressData.overallStats.completionRate)}`}>
-                        {progressData.overallStats.completionRate}%
+                        {progressData.overallStats.completionRate.toFixed(1)}%
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {progressData.overallStats.studentsCompleted} of {progressData.overallStats.totalStudents} completed

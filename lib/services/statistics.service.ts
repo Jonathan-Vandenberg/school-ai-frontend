@@ -128,6 +128,21 @@ export class StatisticsService {
           updates.inProgressStudents = { increment: 1 }
           updates.notStartedStudents = { decrement: 1 }
         }
+      } else {
+        // For re-attempts, recalculate the statistics to reflect the new score
+        const allProgressRecords = await tx.studentAssignmentProgress.findMany({
+          where: {
+            assignmentId,
+            isComplete: true
+          },
+          select: { isCorrect: true, actualScore: true }
+        })
+        
+        const totalAnswers = allProgressRecords.length
+        const totalCorrectAnswers = allProgressRecords.filter((p: any) => p.isCorrect).length
+        
+        updates.totalAnswers = totalAnswers
+        updates.totalCorrectAnswers = totalCorrectAnswers
       }
 
       // Update assignment stats
@@ -156,26 +171,36 @@ export class StatisticsService {
           },
           select: {
             studentId: true,
-            isCorrect: true
+            isCorrect: true,
+            actualScore: true
           }
         })
 
         // Group by student and calculate scores
-        const studentScores = new Map<string, { correct: number, total: number }>()
+        const studentScores = new Map<string, { correct: number, total: number, actualScores: number[] }>()
         completedStudents.forEach((progress: any) => {
           if (!studentScores.has(progress.studentId)) {
-            studentScores.set(progress.studentId, { correct: 0, total: 0 })
+            studentScores.set(progress.studentId, { correct: 0, total: 0, actualScores: [] })
           }
           const student = studentScores.get(progress.studentId)!
           student.total++
           if (progress.isCorrect) student.correct++
+          if (progress.actualScore !== null && progress.actualScore !== undefined) {
+            student.actualScores.push(progress.actualScore)
+          }
         })
 
         // Calculate average score only for students who completed all questions
         const fullyCompletedScores: number[] = []
         studentScores.forEach((scores, studentId) => {
           if (scores.total >= updatedStats.totalQuestions) {
-            const score = scores.total > 0 ? (scores.correct / scores.total) * 100 : 0
+            // Use actual scores if available, otherwise fall back to boolean calculation
+            let score = 0
+            if (scores.actualScores.length > 0) {
+              score = scores.actualScores.reduce((sum, s) => sum + s, 0) / scores.actualScores.length
+            } else {
+              score = scores.total > 0 ? (scores.correct / scores.total) * 100 : 0
+            }
             fullyCompletedScores.push(score)
           }
         })
@@ -398,6 +423,30 @@ export class StatisticsService {
       }
     }
 
+    // For re-attempts, recalculate the statistics to reflect the new score
+    if (!isNewSubmission) {
+      const allProgressRecords = await tx.studentAssignmentProgress.findMany({
+        where: {
+          studentId,
+          isComplete: true
+        },
+        select: { isCorrect: true, actualScore: true }
+      })
+      
+      const totalAnswers = allProgressRecords.length
+      const totalCorrectAnswers = allProgressRecords.filter((p: any) => p.isCorrect).length
+      
+      // Calculate average score from actual scores (fallback to boolean for backward compatibility)
+      const scoresWithValues = allProgressRecords.filter((p: any) => p.actualScore !== null && p.actualScore !== undefined)
+      const averageScore = scoresWithValues.length > 0 
+        ? scoresWithValues.reduce((sum: number, p: any) => sum + p.actualScore, 0) / scoresWithValues.length
+        : (totalCorrectAnswers / totalAnswers) * 100
+      
+      updates.totalAnswers = totalAnswers
+      updates.totalCorrectAnswers = totalCorrectAnswers
+      updates.averageScore = averageScore
+    }
+
     // Update student stats
     const updatedStats = await tx.studentStats.update({
       where: { studentId },
@@ -455,7 +504,8 @@ export class StatisticsService {
         select: {
           assignmentId: true,
           questionId: true,
-          isCorrect: true
+          isCorrect: true,
+          actualScore: true
         }
       })
 
@@ -469,8 +519,18 @@ export class StatisticsService {
         
         // Only include if all questions have been answered
         if (totalQuestions > 0 && uniqueQuestionsAnswered >= totalQuestions) {
-          const correctAnswers = assignmentProgress.filter((p: any) => p.isCorrect).length
-          const score = (correctAnswers / totalQuestions) * 100
+          // Check if this assignment has actual scores or just boolean values
+          const scoresWithValues = assignmentProgress.filter((p: any) => p.actualScore !== null && p.actualScore !== undefined)
+          
+          let score: number
+          if (scoresWithValues.length > 0) {
+            // Use actual scores if available
+            score = scoresWithValues.reduce((sum: number, p: any) => sum + p.actualScore, 0) / scoresWithValues.length
+          } else {
+            // Fallback to boolean calculation
+            const correctAnswers = assignmentProgress.filter((p: any) => p.isCorrect).length
+            score = (correctAnswers / totalQuestions) * 100
+          }
           completedAssignmentScores.push(score)
         }
       }
@@ -496,8 +556,19 @@ export class StatisticsService {
   /**
    * Update class statistics incrementally
    */
-  static async updateClassStatistics(classId: string) {
-    return withTransaction(async (tx) => {
+  static async updateClassStatistics(classId: string, providedTx?: any) {
+    if (providedTx) {
+      // Use the provided transaction
+      return this._updateClassStatisticsWithTx(providedTx, classId)
+    } else {
+      // Create our own transaction
+      return withTransaction(async (tx) => {
+        return this._updateClassStatisticsWithTx(tx, classId)
+      })
+    }
+  }
+
+  private static async _updateClassStatisticsWithTx(tx: any, classId: string) {
       // Get all students in the class (exclude teachers and other roles)
       const classUsers = await tx.userClass.findMany({
         where: { 
@@ -508,7 +579,7 @@ export class StatisticsService {
         },
         select: { userId: true }
       })
-      const studentIds = classUsers.map(u => u.userId)
+      const studentIds = classUsers.map((u: any) => u.userId)
 
       // Get all assignments for this class
       const classAssignments = await tx.assignment.findMany({
@@ -519,7 +590,7 @@ export class StatisticsService {
         },
         select: { id: true }
       })
-      const assignmentIds = classAssignments.map(a => a.id)
+      const assignmentIds = classAssignments.map((a: any) => a.id)
 
       // Get individual student stats to calculate proper averages
       const studentStatsRecords = await tx.studentStats.findMany({
@@ -560,15 +631,18 @@ export class StatisticsService {
       })
 
       // Group by student and assignment to calculate scores per completed assignment
-      const assignmentCompletions = new Map<string, { correct: number, total: number }>()
+      const assignmentCompletions = new Map<string, { correct: number, total: number, actualScores: number[] }>()
       completedAssignmentProgresses.forEach((progress: any) => {
         const key = `${progress.studentId}-${progress.assignmentId}`
         if (!assignmentCompletions.has(key)) {
-          assignmentCompletions.set(key, { correct: 0, total: 0 })
+          assignmentCompletions.set(key, { correct: 0, total: 0, actualScores: [] })
         }
         const completion = assignmentCompletions.get(key)!
         completion.total++
         if (progress.isCorrect) completion.correct++
+        if (progress.actualScore !== null && progress.actualScore !== undefined) {
+          completion.actualScores.push(progress.actualScore)
+        }
       })
 
       // Calculate scores for each completed assignment and average them
@@ -579,7 +653,14 @@ export class StatisticsService {
         const assignment = completedAssignmentProgresses.find((p: any) => p.assignmentId === assignmentId)?.assignment
         if (assignment && completion.total >= assignment.questions.length) {
           // Only include if student completed all questions in the assignment
-          const score = assignment.questions.length > 0 ? (completion.correct / assignment.questions.length) * 100 : 0
+          let score: number
+          if (completion.actualScores.length > 0) {
+            // Use actual scores if available
+            score = completion.actualScores.reduce((sum, s) => sum + s, 0) / completion.actualScores.length
+          } else {
+            // Fallback to boolean calculation
+            score = assignment.questions.length > 0 ? (completion.correct / assignment.questions.length) * 100 : 0
+          }
           assignmentScores.push(score)
         }
       }
@@ -599,28 +680,79 @@ export class StatisticsService {
           questions: { select: { id: true } }
         }
       })
-      const totalQuestions = classAssignmentsWithQuestions.reduce((sum, assignment) => sum + assignment.questions.length, 0)
+      const totalQuestions = classAssignmentsWithQuestions.reduce((sum: number, assignment: any) => sum + assignment.questions.length, 0)
 
-      // Calculate other aggregates from all students
-      const totalAnswers = studentStatsRecords.reduce((sum, student) => sum + student.totalAnswers, 0)
-      const totalCorrectAnswers = studentStatsRecords.reduce((sum, student) => sum + student.totalCorrectAnswers, 0)
+      // Calculate total answers and correct answers directly from progress records
+      const allProgressRecords = await tx.studentAssignmentProgress.findMany({
+        where: {
+          studentId: { in: studentIds },
+          isComplete: true,
+          assignment: {
+            classes: {
+              some: { classId }
+            }
+          }
+        },
+        select: {
+          isCorrect: true,
+          actualScore: true
+        }
+      })
       
-      const averageCompletionRate = studentStatsRecords.length > 0
-        ? studentStatsRecords.reduce((sum, student) => sum + student.completionRate, 0) / studentStatsRecords.length
+      const totalAnswers = allProgressRecords.length
+      const totalCorrectAnswers = allProgressRecords.filter((p: any) => p.isCorrect).length
+      
+      // Calculate completion rate from actual progress records
+      const classAssignmentsForCompletion = await tx.assignment.findMany({
+        where: {
+          classes: {
+            some: { classId }
+          }
+        },
+        include: {
+          questions: { select: { id: true } }
+        }
+      })
+      
+      // Calculate completion rate per student
+      const studentCompletionRates: number[] = []
+      for (const studentId of studentIds) {
+        let completedAssignments = 0
+        for (const assignment of classAssignmentsForCompletion) {
+          const studentProgress = await tx.studentAssignmentProgress.findMany({
+            where: {
+              studentId,
+              assignmentId: assignment.id,
+              isComplete: true
+            },
+            select: { questionId: true }
+          })
+          const uniqueQuestionsAnswered = new Set(studentProgress.map((p: any) => p.questionId)).size
+          if (uniqueQuestionsAnswered >= assignment.questions.length) {
+            completedAssignments++
+          }
+        }
+        const completionRate = classAssignmentsForCompletion.length > 0 
+          ? (completedAssignments / classAssignmentsForCompletion.length) * 100 
+          : 0
+        studentCompletionRates.push(completionRate)
+      }
+      
+      const averageCompletionRate = studentCompletionRates.length > 0
+        ? studentCompletionRates.reduce((sum: number, rate: number) => sum + rate, 0) / studentCompletionRates.length
         : 0
 
-      const averageAccuracyRate = studentStatsRecords.length > 0
-        ? studentStatsRecords.reduce((sum, student) => sum + student.accuracyRate, 0) / studentStatsRecords.length
-        : 0
+      // Calculate accuracy rate from actual progress records
+      const accuracyRate = totalAnswers > 0 ? (totalCorrectAnswers / totalAnswers) * 100 : 0
 
       // Count active students (those with recent activity)
-      const activeStudents = studentStatsRecords.filter(student => 
+      const activeStudents = studentStatsRecords.filter((student: any) => 
         student.lastActivityDate && 
         student.lastActivityDate >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
       ).length
 
       // Students needing help (low completion rate or accuracy)
-      const studentsNeedingHelp = studentStatsRecords.filter(student =>
+      const studentsNeedingHelp = studentStatsRecords.filter((student: any) =>
         student.completionRate < 50 || student.accuracyRate < 60
       ).length
 
@@ -635,7 +767,7 @@ export class StatisticsService {
           totalQuestions,
           totalAnswers,
           totalCorrectAnswers,
-          accuracyRate: parseFloat(averageAccuracyRate.toFixed(2)),
+          accuracyRate: parseFloat(accuracyRate.toFixed(2)),
           activeStudents,
           studentsNeedingHelp,
           lastActivityDate: new Date(),
@@ -650,13 +782,12 @@ export class StatisticsService {
           totalQuestions,
           totalAnswers,
           totalCorrectAnswers,
-          accuracyRate: parseFloat(averageAccuracyRate.toFixed(2)),
+          accuracyRate: parseFloat(accuracyRate.toFixed(2)),
           activeStudents,
           studentsNeedingHelp,
           lastActivityDate: new Date()
         }
       })
-    })
   }
 
   /**

@@ -364,6 +364,7 @@ model StudentAssignmentProgress {
   id                         String     @id @default(cuid())
   isComplete                 Boolean    @default(false)
   isCorrect                  Boolean    @default(false)
+  actualScore                Float?     // Store the actual pronunciation/reading score (0-100)
   languageConfidenceResponse Json?
   grammarCorrected           Json?
   createdAt                  DateTime   @default(now())

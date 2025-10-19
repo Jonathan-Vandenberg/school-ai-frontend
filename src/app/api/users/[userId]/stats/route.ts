@@ -104,7 +104,13 @@ export async function GET(
         },
         progresses: {
           where: { studentId: userId },
-          include: {
+          select: {
+            id: true,
+            questionId: true,
+            isComplete: true,
+            isCorrect: true,
+            actualScore: true,
+            updatedAt: true,
             question: {
               select: { id: true, textQuestion: true }
             }
@@ -126,8 +132,32 @@ export async function GET(
       const correctAnswers = assignment.progresses.filter(p => p.isCorrect).length
       
       const completionRate = totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0
-      const accuracyRate = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0
       
+      // Calculate accuracy rate using actualScore when available, fallback to boolean
+      let accuracyRate = 0
+      if (completedQuestions > 0) {
+        const completedProgresses = assignment.progresses.filter(p => p.isComplete)
+        const scoresWithValues = completedProgresses.filter(p => p.actualScore !== null && p.actualScore !== undefined)
+        
+        if (scoresWithValues.length > 0) {
+          // Use actual scores if available
+          accuracyRate = scoresWithValues.reduce((sum, p) => sum + (p.actualScore || 0), 0) / scoresWithValues.length
+        } else {
+          // Fallback to boolean calculation
+          accuracyRate = (correctAnswers / completedQuestions) * 100
+        }
+      }
+      
+      // Determine status based on progress
+      let status: 'Not Started' | 'In Progress' | 'Complete'
+      if (completedQuestions >= totalQuestions) {
+        status = 'Complete'
+      } else if (assignment.progresses.length > 0) {
+        status = 'In Progress'
+      } else {
+        status = 'Not Started'
+      }
+
       return {
         id: assignment.id,
         topic: assignment.topic,
@@ -141,6 +171,7 @@ export async function GET(
         completionRate: Math.round(completionRate),
         accuracyRate: Math.round(accuracyRate),
         isComplete: completedQuestions >= totalQuestions,
+        status,
         lastActivity: assignment.progresses.length > 0 
           ? Math.max(...assignment.progresses.map(p => p.updatedAt.getTime()))
           : null

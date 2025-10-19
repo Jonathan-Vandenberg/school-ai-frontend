@@ -6,6 +6,7 @@ import { AssignmentsService } from '../../../../../../lib/services/assignments.s
 interface SubmitProgressRequest {
   questionId: string
   isCorrect: boolean
+  actualScore?: number  // The actual pronunciation/reading score (0-100)
   result: any
   type: 'VIDEO' | 'READING'
 }
@@ -24,11 +25,14 @@ export async function POST(
 
     const { assignmentId } = await params
     const body: SubmitProgressRequest = await request.json()
-    const { questionId, isCorrect, result, type } = body
+    const { questionId, isCorrect, actualScore, result, type } = body
 
     if (!questionId || typeof isCorrect !== 'boolean' || !result || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+
+    // Extract actualScore from result object if not provided at top level
+    const finalActualScore = actualScore || result?.actualScore
 
     const response = await AssignmentsService.submitStudentProgress(
       user.id,
@@ -36,7 +40,8 @@ export async function POST(
       questionId,
       isCorrect,
       result,
-      type
+      type,
+      finalActualScore
     )
 
     return NextResponse.json(response)

@@ -40,6 +40,9 @@ export interface ClassWithDetails {
       customRole: string
     }
   }>
+  detailedStats?: {
+    activeAssignments: number
+  }
 }
 
 export interface ClassListParams {
@@ -235,6 +238,11 @@ export class ClassesService {
                   customRole: true,
                 },
               },
+            },
+          },
+          detailedStats: {
+            select: {
+              activeAssignments: true,
             },
           },
         },
