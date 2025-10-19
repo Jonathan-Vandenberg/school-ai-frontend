@@ -64,6 +64,7 @@ interface ClassStatsData {
   currentStats: {
     totalStudents: number
     totalAssignments: number
+    activeAssignments: number
     averageCompletion: number
     averageScore: number
     totalQuestions: number

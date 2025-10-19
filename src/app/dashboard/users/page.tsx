@@ -186,7 +186,7 @@ export default function UsersPage() {
   }
 
   useEffect(() => {
-    if (session?.user?.role === 'ADMIN') {
+    if (session?.user?.role === 'ADMIN' || session?.user?.role === 'TEACHER') {
       // Determine if this is a search operation
       const isSearch = searchTerm.length > 0
       loadUsers(1, isSearch)
@@ -330,7 +330,7 @@ export default function UsersPage() {
     return items
   }
 
-  if (session?.user?.role !== 'ADMIN') {
+  if (session?.user?.role === 'STUDENT' || session?.user?.role === 'PARENT') {
     return (
       <Alert variant="destructive">
         <AlertDescription>Access denied. Admin privileges required.</AlertDescription>

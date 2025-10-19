@@ -64,8 +64,9 @@ export function createPublishScheduledAssignmentsTask() {
               },
             })
 
-            console.log(`[STATS] Initializing assignment statistics for assignment ${assignment.id}`)
-            await AssignmentsService.initializeAssignmentStatistics(assignment.id, tx)
+            // Now that the assignment is active, increment student statistics
+            console.log(`[STATS] Incrementing student statistics for newly active assignment ${assignment.id}`)
+            await AssignmentsService.incrementStudentStatsForActiveAssignment(assignment.id, tx)
             
             console.log(`   ✅ Activated: "${assignment.topic}" (ID: ${assignment.id})`)
           }

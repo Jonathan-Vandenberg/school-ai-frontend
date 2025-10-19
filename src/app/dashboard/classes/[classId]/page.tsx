@@ -59,6 +59,7 @@ interface ClassDetails {
 interface ClassStats {
   totalStudents: number
   totalAssignments: number
+  activeAssignments: number
   averageCompletion: number
   averageScore: number
   totalQuestions: number
@@ -280,15 +281,15 @@ export default function ClassProfilePage() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assignments</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Assignments</CardTitle>
             <BookOpen className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {classDetails._count.assignments}
+              {classStats ? classStats.activeAssignments : 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              {classStats ? `${classStats.totalQuestions} questions` : 'Available assignments'}
+              {classStats ? `${classStats.totalAssignments} total assignments` : 'Available assignments'}
             </p>
           </CardContent>
         </Card>

@@ -314,7 +314,7 @@ export class AssignmentsService {
         tx
       )
 
-      // Initialize assignment statistics WITHIN the transaction
+      // Initialize assignment statistics WITHIN the transaction (only for active assignments) (only for active assignments)
       await AssignmentsService.initializeAssignmentStatistics(assignment.id, tx)
 
       return assignment as AssignmentWithDetails
@@ -1107,7 +1107,7 @@ export class AssignmentsService {
         throw new Error('Failed to retrieve created assignment');
       }
 
-      // Initialize assignment statistics WITHIN the transaction
+      // Initialize assignment statistics WITHIN the transaction (only for active assignments)
       await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
 
       return completeAssignment as AssignmentWithDetails;
@@ -1317,7 +1317,7 @@ export class AssignmentsService {
       }
 
       if(completeAssignment.isActive) {
-        // Initialize assignment statistics WITHIN the transaction
+        // Initialize assignment statistics WITHIN the transaction (only for active assignments)
         await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
       }
 
@@ -1528,7 +1528,7 @@ export class AssignmentsService {
         throw new Error('Failed to retrieve created reading assignment');
       }
 
-      // Initialize assignment statistics WITHIN the transaction
+      // Initialize assignment statistics WITHIN the transaction (only for active assignments)
       await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
 
       return completeAssignment as AssignmentWithDetails;
@@ -1720,6 +1720,7 @@ export class AssignmentsService {
 
   /**
    * Initialize assignment statistics when assignment is created
+   * Only increments student stats for active assignments
    */
   static async initializeAssignmentStatistics(assignmentId: string, tx?: any) {
     try {
@@ -1757,6 +1758,11 @@ export class AssignmentsService {
         return
       }
 
+      // Check if assignment is active (either isActive=true or scheduledPublishAt is in the past)
+      const now = new Date()
+      const isActive = assignment.isActive || 
+        (assignment.scheduledPublishAt && assignment.scheduledPublishAt <= now)
+
       // 1. Initialize assignment statistics record
       await StatisticsService.updateAssignmentStatistics(assignmentId, '', false, false, tx)
 
@@ -1769,24 +1775,97 @@ export class AssignmentsService {
       const individualStudentIds = assignment.students.map((s: any) => s.userId)
       const allStudentIds = [...new Set([...classStudentIds, ...individualStudentIds])]
 
-      // 3. Update each student's assignment count
-      for (const studentId of allStudentIds) {
-        await StatisticsService.incrementStudentAssignmentCount(studentId, tx)
+      // 3. Update each student's assignment count ONLY if assignment is active
+      if (isActive) {
+        for (const studentId of allStudentIds) {
+          await StatisticsService.incrementStudentAssignmentCount(studentId, tx)
+        }
       }
 
       // 4. Update class statistics for class assignments
       if (assignment.type === 'CLASS') {
         for (const classAssignment of assignment.classes) {
-          await StatisticsService.incrementClassAssignmentCount(classAssignment.classId, tx)
+          await StatisticsService.incrementClassAssignmentCount(classAssignment.classId, isActive, tx)
         }
       }
 
       // 5. Update school-wide statistics
       await StatisticsService.incrementSchoolAssignmentCount(true, !!assignment.scheduledPublishAt, tx)
 
-      console.log(`Initialized statistics for assignment ${assignmentId} (${allStudentIds.length} students affected)`)
+      console.log(`Initialized statistics for assignment ${assignmentId} (${allStudentIds.length} students affected, active: ${isActive})`)
     } catch (error) {
       console.error('Error initializing assignment statistics:', error)
+      // Throw error to rollback the transaction if we're in one
+      if (tx) {
+        throw error
+      }
+    }
+  }
+
+  /**
+   * Increment student statistics when an assignment becomes active
+   * This is called by the scheduled task when assignments are activated
+   */
+  static async incrementStudentStatsForActiveAssignment(assignmentId: string, tx?: any) {
+    try {
+      // Use the provided transaction or fallback to prisma
+      const db = tx || prisma
+
+      // Get assignment details to determine scope
+      const assignment = await db.assignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          classes: {
+            include: {
+              class: {
+                include: {
+                  users: { 
+                    select: { 
+                      userId: true,
+                      user: {
+                        select: {
+                          customRole: true
+                        }
+                      }
+                    } 
+                  }
+                }
+              }
+            }
+          },
+          students: { select: { userId: true } }
+        }
+      })
+
+      if (!assignment) {
+        console.error(`Assignment ${assignmentId} not found for student stats increment`)
+        return
+      }
+
+      // Get all affected students (only actual students, not teachers)
+      const classStudentIds = assignment.classes.flatMap((ac: any) => 
+        ac.class.users
+          .filter((u: any) => u.user?.customRole === 'STUDENT') // Only include students, not teachers
+          .map((u: any) => u.userId)
+      )
+      const individualStudentIds = assignment.students.map((s: any) => s.userId)
+      const allStudentIds = [...new Set([...classStudentIds, ...individualStudentIds])]
+
+      // Update each student's assignment count now that the assignment is active
+      for (const studentId of allStudentIds) {
+        await StatisticsService.incrementStudentAssignmentCount(studentId, tx)
+      }
+
+      // Update class statistics for class assignments (increment active assignments)
+      if (assignment.type === 'CLASS') {
+        for (const classAssignment of assignment.classes) {
+          await StatisticsService.incrementClassAssignmentCount(classAssignment.classId, true, tx)
+        }
+      }
+
+      console.log(`Incremented student and class statistics for active assignment ${assignmentId} (${allStudentIds.length} students affected)`)
+    } catch (error) {
+      console.error('Error incrementing student stats for active assignment:', error)
       // Throw error to rollback the transaction if we're in one
       if (tx) {
         throw error
@@ -2131,7 +2210,7 @@ export class IELTSAssignmentsService {
         throw new Error('Failed to retrieve created IELTS assignment');
       }
 
-      // Initialize assignment statistics WITHIN the transaction
+      // Initialize assignment statistics WITHIN the transaction (only for active assignments)
       await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
 
       return completeAssignment as AssignmentWithDetails;

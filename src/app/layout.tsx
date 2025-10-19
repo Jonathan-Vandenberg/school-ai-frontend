@@ -32,7 +32,7 @@ export default async function RootLayout({
   const host = hdrs.get('host') || ''
   const tenant = host ? await getTenantConfigForHost(host) : null
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="light" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

@@ -1006,28 +1006,44 @@ export class StatisticsService {
   }
 
   private static async _incrementStudentAssignmentCountWithTx(tx: any, studentId: string) {
-      // Calculate the actual total ASSIGNMENTS ONLY for this student
+      // Calculate the actual total ACTIVE ASSIGNMENTS ONLY for this student
       const assignmentCount = await tx.assignment.count({
         where: {
-          OR: [
+          AND: [
             {
-              students: {
-                some: { userId: studentId }
-              }
+              OR: [
+                { isActive: true },
+                {
+                  AND: [
+                    { isActive: false },
+                    { scheduledPublishAt: { not: null } },
+                    { scheduledPublishAt: { lte: new Date() } }
+                  ]
+                }
+              ]
             },
             {
-              classes: {
-                some: {
-                  class: {
-                    users: {
-                      some: { 
-                        userId: studentId,
-                        user: { customRole: 'STUDENT' }
+              OR: [
+                {
+                  students: {
+                    some: { userId: studentId }
+                  }
+                },
+                {
+                  classes: {
+                    some: {
+                      class: {
+                        users: {
+                          some: { 
+                            userId: studentId,
+                            user: { customRole: 'STUDENT' }
+                          }
+                        }
                       }
                     }
                   }
                 }
-              }
+              ]
             }
           ]
         }
@@ -1084,19 +1100,19 @@ export class StatisticsService {
   /**
    * Increment class assignment count when a new class assignment is created
    */
-  static async incrementClassAssignmentCount(classId: string, providedTx?: any) {
+  static async incrementClassAssignmentCount(classId: string, isActive: boolean = true, providedTx?: any) {
     if (providedTx) {
       // Use the provided transaction
-      return this._incrementClassAssignmentCountWithTx(providedTx, classId)
+      return this._incrementClassAssignmentCountWithTx(providedTx, classId, isActive)
     } else {
       // Create our own transaction
       return withTransaction(async (tx) => {
-        return this._incrementClassAssignmentCountWithTx(tx, classId)
+        return this._incrementClassAssignmentCountWithTx(tx, classId, isActive)
       })
     }
   }
 
-  private static async _incrementClassAssignmentCountWithTx(tx: any, classId: string) {
+  private static async _incrementClassAssignmentCountWithTx(tx: any, classId: string, isActive: boolean = true) {
       // Get or create class stats
       let classStats = await tx.classStatsDetailed.findUnique({
         where: { classId }
@@ -1118,18 +1134,25 @@ export class StatisticsService {
             classId,
             totalStudents: classData.users.length,
             totalAssignments: 1,
+            activeAssignments: isActive ? 1 : 0,
             averageCompletion: 0.0,
             averageScore: 0.0
           }
         })
       } else {
-        // Increment total assignments
+        // Increment total assignments and active assignments if applicable
+        const updateData: any = {
+          totalAssignments: { increment: 1 },
+          lastUpdated: new Date()
+        }
+        
+        if (isActive) {
+          updateData.activeAssignments = { increment: 1 }
+        }
+
         await tx.classStatsDetailed.update({
           where: { classId },
-          data: {
-            totalAssignments: { increment: 1 },
-            lastUpdated: new Date()
-          }
+          data: updateData
         })
       }
 

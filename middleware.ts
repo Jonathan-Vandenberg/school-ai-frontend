@@ -11,11 +11,12 @@ const protectedRoutes = {
   '/classes': ['ADMIN', 'TEACHER'],
   '/assignments': ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT'],
   '/tools': ['ADMIN', 'TEACHER'],
-  '/dashboard': ['ADMIN'],
+  '/dashboard': ['ADMIN', 'TEACHER'],
   '/api/admin': ['ADMIN'],
   '/api/teachers': ['ADMIN', 'TEACHER'],
   '/api/students': ['ADMIN', 'TEACHER'],
   '/api/classes': ['ADMIN', 'TEACHER'],
+  '/api/users': ['ADMIN', 'TEACHER'],
   '/api/assignments': ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT'],
   '/api/tools': ['ADMIN', 'TEACHER'],
 } as const
@@ -52,7 +53,7 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
   const userRole = token.role as string
-  if (pathname === '/dashboard' && userRole !== 'ADMIN') {
+  if (pathname === '/dashboard' && (userRole !== 'ADMIN' && userRole !== 'TEACHER')) {
     return NextResponse.redirect(new URL('/profile', request.url))
   }
 

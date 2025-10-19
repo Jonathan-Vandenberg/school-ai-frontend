@@ -29,7 +29,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
 import {
   School,
   BarChart3,
@@ -481,7 +480,6 @@ export function AppSidebar() {
             <Badge className={getRoleColor(session.user.role || '')} variant="outline">
               {session.user.role}
             </Badge>
-            <ThemeToggle />
           </div>
         )}
       </SidebarFooter>

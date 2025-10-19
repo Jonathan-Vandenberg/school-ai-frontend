@@ -382,14 +382,14 @@ model StudentAssignmentProgress {
 model ActivityLog {
   id           String          @id @default(cuid())
   type         ActivityLogType
-  action       String?
-  details      Json?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   publishedAt  DateTime?
   userId       String?
   classId      String?
   assignmentId String?
+  action       String?
+  details      Json?
   quizId       String?
   assignment   Assignment?     @relation(fields: [assignmentId], references: [id])
   class        Class?          @relation(fields: [classId], references: [id])
@@ -558,6 +558,7 @@ model ClassStatsDetailed {
   classId             String    @unique
   totalStudents       Int       @default(0)
   totalAssignments    Int       @default(0)
+  activeAssignments   Int       @default(0)
   averageCompletion   Float     @default(0.0)
   averageScore        Float     @default(0.0)
   totalQuestions      Int       @default(0)
@@ -765,6 +766,11 @@ enum EvaluationType {
 }
 
 enum ActivityLogType {
+  STUDENT_CREATED
+  TEACHER_CREATED
+  CLASS_CREATED
+  ASSIGNMENT_CREATED
+  INDIVIDUAL_ASSIGNMENT_CREATED
   USER_CREATED
   USER_UPDATED
   USER_DELETED
@@ -773,25 +779,20 @@ enum ActivityLogType {
   USER_CONFIRMED
   USER_PASSWORD_CHANGED
   USER_ROLE_CHANGED
-  CLASS_CREATED
   CLASS_UPDATED
   CLASS_DELETED
   CLASS_USERS_ADDED
   CLASS_USERS_REMOVED
-  ASSIGNMENT_CREATED
   ASSIGNMENT_UPDATED
   ASSIGNMENT_DELETED
   ASSIGNMENT_PUBLISHED
   ASSIGNMENT_ARCHIVED
-  INDIVIDUAL_ASSIGNMENT_CREATED
   INDIVIDUAL_ASSIGNMENT_DELETED
   USER_LOGIN
   USER_LOGOUT
   USER_LOGIN_FAILED
   SYSTEM_BACKUP_CREATED
   SYSTEM_MAINTENANCE
-  STUDENT_CREATED
-  TEACHER_CREATED
 }
 
 enum AssignmentCategoryType {

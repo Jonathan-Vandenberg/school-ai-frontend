@@ -71,7 +71,7 @@ export class UsersService {
     currentUser: AuthenticatedUser,
     userData: CreateUserData
   ): Promise<UserWithDetails> {
-    AuthService.requireAdmin(currentUser)
+    AuthService.requireTeacherOrAdmin(currentUser)
 
     // Helper function to generate 3 random numbers
     const generateRandomSuffix = () => Math.floor(100 + Math.random() * 900).toString()
