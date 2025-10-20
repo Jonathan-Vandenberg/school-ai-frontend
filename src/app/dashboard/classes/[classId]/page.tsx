@@ -301,7 +301,7 @@ export default function ClassProfilePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-600">
-              {classStats ? `${classStats.averageCompletion.toFixed(1)}%` : 'N/A'}
+              {classStats ? `${classStats.averageCompletion.toFixed(0)}%` : 'N/A'}
             </div>
             <p className="text-xs text-muted-foreground">
               Class Average
@@ -316,7 +316,7 @@ export default function ClassProfilePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {classStats ? `${classStats.averageScore.toFixed(1)}%` : 'N/A'}
+              {classStats ? `${classStats.averageScore.toFixed(0)}%` : 'N/A'}
             </div>
             <p className="text-xs text-muted-foreground">
               Class Average

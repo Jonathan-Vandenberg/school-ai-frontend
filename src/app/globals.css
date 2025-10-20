@@ -126,6 +126,11 @@
   body {
     @apply bg-background text-foreground;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
 }
 
 /* Animation for correct answer feedback */

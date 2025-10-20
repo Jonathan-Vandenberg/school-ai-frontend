@@ -252,6 +252,7 @@ interface StudentProgress {
   isCorrect: boolean
   submittedAt: string | null
   languageConfidenceResponse: any
+  actualScore?: number | null
 }
 
 interface PronunciationAssignmentProps {
@@ -845,10 +846,21 @@ export function PronunciationAssignment({
               <div className="flex items-center justify-between px-4">
                 <span className="text-sm">Accuracy</span>
                 <Badge variant="outline">
-                  {completedQuestions > 0 
-                    ? Math.round((studentProgress.filter(p => p.isCorrect).length / completedQuestions) * 100)
-                    : 0
-                  }%
+                  {(() => {
+                    if (completedQuestions === 0) return 0;
+                    
+                    const completedProgresses = studentProgress.filter(p => p.isComplete);
+                    const scoresWithValues = completedProgresses.filter(p => p.actualScore !== null && p.actualScore !== undefined);
+                    
+                    if (scoresWithValues.length > 0) {
+                      // Use actual scores if available
+                      const averageScore = scoresWithValues.reduce((sum, p) => sum + (p.actualScore || 0), 0) / scoresWithValues.length;
+                      return Math.round(averageScore);
+                    } else {
+                      // Fallback to boolean calculation
+                      return Math.round((studentProgress.filter(p => p.isCorrect).length / completedQuestions) * 100);
+                    }
+                  })()}%
                 </Badge>
               </div>
             </CardContent>

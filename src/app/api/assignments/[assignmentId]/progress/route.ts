@@ -160,7 +160,15 @@ export async function GET(
         assignmentId: assignmentId,
         ...(isStudent && { studentId: currentUser.id })
       },
-      include: {
+      select: {
+        id: true,
+        studentId: true,
+        questionId: true,
+        isComplete: true,
+        isCorrect: true,
+        actualScore: true,
+        languageConfidenceResponse: true,
+        createdAt: true,
         student: {
           select: {
             id: true,
@@ -202,7 +210,22 @@ export async function GET(
       const correctAnswers = studentProgresses.filter(p => p.isCorrect).length
       
       const completionRate = totalQuestions > 0 ? (uniqueQuestionsAnswered / totalQuestions) * 100 : 0
-      const accuracyRate = uniqueQuestionsAnswered > 0 ? (correctAnswers / uniqueQuestionsAnswered) * 100 : 0
+      
+      // Calculate accuracy rate using actualScore when available, fallback to boolean
+      let accuracyRate = 0
+      if (uniqueQuestionsAnswered > 0) {
+        const completedProgresses = studentProgresses.filter(p => p.isComplete)
+        const scoresWithValues = completedProgresses.filter(p => p.actualScore !== null && p.actualScore !== undefined)
+        
+        if (scoresWithValues.length > 0) {
+          // Use actual scores if available
+          accuracyRate = scoresWithValues.reduce((sum, p) => sum + (p.actualScore || 0), 0) / scoresWithValues.length
+        } else {
+          // Fallback to boolean calculation
+          accuracyRate = (correctAnswers / uniqueQuestionsAnswered) * 100
+        }
+      }
+      
       const isComplete = uniqueQuestionsAnswered >= totalQuestions
       
       return {
@@ -229,7 +252,8 @@ export async function GET(
             isComplete: questionProgress?.isComplete || false,
             isCorrect: questionProgress?.isCorrect || false,
             submittedAt: questionProgress?.createdAt || null,
-            languageConfidenceResponse: questionProgress?.languageConfidenceResponse || null
+            languageConfidenceResponse: questionProgress?.languageConfidenceResponse || null,
+            actualScore: questionProgress?.actualScore || null
           }
         })
       }
