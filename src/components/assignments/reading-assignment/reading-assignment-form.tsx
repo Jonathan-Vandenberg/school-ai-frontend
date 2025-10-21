@@ -29,7 +29,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { PlusCircle, Trash2, Eye, Clock } from "lucide-react";
+import { PlusCircle, Trash2, Eye, Clock, Sparkles, Upload, X } from "lucide-react";
 import { Class, User } from "@prisma/client";
 import { Switch } from "@/components/ui/switch";
 import { useState, useEffect } from "react";
@@ -48,7 +48,9 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 // import { VideoAssignmentPreview } from "./video-assignment-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
@@ -71,6 +73,8 @@ const formSchema = z.object({
   dueDate: z.date().optional().nullable(),
   hasTranscript: z.boolean().optional(),
   languageId: z.string().optional(),
+  vocabularyLevel: z.string().optional(),
+  sentencesPerPage: z.number().optional(),
 });
 
 type ReadingFormValues = z.infer<typeof formSchema>;
@@ -94,6 +98,16 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
     message: string;
   } | null>(null);
 
+  // State for AI generation
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedPassages, setGeneratedPassages] = useState<
+    { title: string; text: string }[]
+  >([]);
+  const [aiContext, setAiContext] = useState("");
+  const [numQuestions, setNumQuestions] = useState(3);
+  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
   const form = useForm<ReadingFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -106,10 +120,12 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
       dueDate: null,
       hasTranscript: false,
       languageId: "", // Will default to English on backend
+      vocabularyLevel: "5", // Default to middle school level
+      sentencesPerPage: 3,
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "questions",
   });
@@ -212,6 +228,159 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
     }
   }
 
+  // Function to generate reading passages with AI
+  const generatePassagesWithAI = async (existingPassages: { title: string; text: string }[] = []) => {
+    if (!aiContext.trim() && !uploadedImage) {
+      setFormMessage({
+        type: "error",
+        message: "Please provide context or upload an image for the reading assignment.",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    setFormMessage(null);
+
+    try {
+      const formData = form.getValues();
+
+      // Create FormData to handle both text and image
+      const requestData = new FormData();
+      requestData.append("context", aiContext);
+      requestData.append("numQuestions", numQuestions.toString());
+      requestData.append("topic", formData.topic || "Reading Comprehension");
+      requestData.append("vocabularyLevel", formData.vocabularyLevel || "5");
+      requestData.append("sentencesPerPage", (formData.sentencesPerPage || 3).toString());
+      requestData.append("existingPassages", JSON.stringify(existingPassages));
+      
+      if (uploadedImage) {
+        requestData.append("image", uploadedImage);
+      }
+
+      const response = await fetch("/api/generate-reading-assignment", {
+        method: "POST",
+        body: requestData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.generatedPassages?.passages) {
+        const newPassages = result.generatedPassages.passages;
+        
+        if (existingPassages.length > 0) {
+          // Append new passages to existing ones
+          setGeneratedPassages(prev => [...prev, ...newPassages]);
+          setFormMessage({
+            type: "success",
+            message: `Successfully generated ${newPassages.length} additional reading passages.`,
+          });
+        } else {
+          // First generation - replace the list
+          setGeneratedPassages(newPassages);
+          setFormMessage({
+            type: "success",
+            message: `Successfully generated ${newPassages.length} reading passages.`,
+          });
+        }
+      } else {
+        throw new Error(result.error || "AI generation failed");
+      }
+    } catch (error) {
+      console.error("Error generating passages:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to generate AI passages.";
+      setFormMessage({ type: "error", message });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const applyOneGeneratedPassage = (passage: { title: string; text: string }) => {
+    // Check if the first question is empty and replace it, otherwise append.
+    const firstQuestion = form.getValues("questions")[0];
+    if (
+      form.getValues("questions").length === 1 &&
+      !firstQuestion.text &&
+      !firstQuestion.title
+    ) {
+      replace([{ title: passage.title || "", text: passage.text }]);
+    } else {
+      append({ title: passage.title || "", text: passage.text });
+    }
+
+    // Remove the used passage from the generated passages list
+    setGeneratedPassages((prev) =>
+      prev.filter(
+        (p) =>
+          !(
+            p.text.trim() === passage.text.trim() &&
+            p.title.trim() === passage.title.trim()
+          )
+      )
+    );
+
+    setFormMessage({ type: "success", message: "Passage added." });
+  };
+
+  const applyAllGeneratedPassages = () => {
+    if (generatedPassages.length === 0) return;
+    replace(generatedPassages.map(p => ({ title: p.title || "", text: p.text })));
+
+    // Clear all generated passages since they've all been applied
+    setGeneratedPassages([]);
+
+    setFormMessage({
+      type: "success",
+      message: "All generated passages have been applied.",
+    });
+  };
+
+  // Function to handle image upload
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setFormMessage({
+          type: "error",
+          message: "Please upload an image file.",
+        });
+        return;
+      }
+      
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setFormMessage({
+          type: "error",
+          message: "Image file size must be less than 10MB.",
+        });
+        return;
+      }
+
+      setUploadedImage(file);
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Function to remove uploaded image
+  const removeImage = () => {
+    setUploadedImage(null);
+    setImagePreview(null);
+  };
+
   const currentFormData = form.watch();
 
   return (
@@ -240,6 +409,222 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
             />
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>AI Generation</CardTitle>
+            <CardDescription>
+              Generate reading passages using AI based on your context.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" className="w-full">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate Assignment with AI
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogTitle>Generate Reading Assignment with AI</DialogTitle>
+                <DialogDescription>
+                  Provide context about what you want the reading assignment to cover, and AI will generate relevant passages for you.
+                </DialogDescription>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-context">Context</Label>
+                    <Textarea
+                      id="ai-context"
+                      placeholder="e.g., Create a reading assignment about ancient civilizations, focusing on their daily life, architecture, and cultural achievements. Make it suitable for middle school students."
+                      value={aiContext}
+                      onChange={(e) => setAiContext(e.target.value)}
+                      rows={4}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="image-upload">Image Context (Optional)</Label>
+                    <div className="space-y-2">
+                      {!imagePreview ? (
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                          <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                          <div className="mt-2">
+                            <label htmlFor="image-upload" className="cursor-pointer">
+                              <span className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                                Click to upload
+                              </span>
+                              <span className="text-sm text-gray-500"> or drag and drop</span>
+                            </label>
+                            <p className="text-xs text-gray-500 mt-1">
+                              PNG, JPG, GIF up to 10MB
+                            </p>
+                          </div>
+                          <input
+                            id="image-upload"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                          />
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <img
+                            src={imagePreview}
+                            alt="Uploaded context"
+                            className="w-full h-48 object-cover rounded-lg border"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2"
+                            onClick={removeImage}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Upload an image to provide visual context for the AI to generate relevant reading passages.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="num-questions">Number of Passages</Label>
+                      <Select value={numQuestions.toString()} onValueChange={(value) => setNumQuestions(parseInt(value))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="2">2 passages</SelectItem>
+                          <SelectItem value="3">3 passages</SelectItem>
+                          <SelectItem value="4">4 passages</SelectItem>
+                          <SelectItem value="5">5 passages</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vocabulary-level">Vocabulary Level</Label>
+                      <FormField
+                        control={form.control}
+                        name="vocabularyLevel"
+                        render={({ field }) => (
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select level" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">Level 1 - Kindergarten</SelectItem>
+                              <SelectItem value="2">Level 2 - Grade 1</SelectItem>
+                              <SelectItem value="3">Level 3 - Grade 2</SelectItem>
+                              <SelectItem value="4">Level 4 - Grade 3-4</SelectItem>
+                              <SelectItem value="5">Level 5 - Grade 5-6</SelectItem>
+                              <SelectItem value="6">Level 6 - Grade 7-8</SelectItem>
+                              <SelectItem value="7">Level 7 - Grade 9-10</SelectItem>
+                              <SelectItem value="8">Level 8 - Grade 11-12</SelectItem>
+                              <SelectItem value="9">Level 9 - College Prep</SelectItem>
+                              <SelectItem value="10">Level 10 - Advanced</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sentences-per-page">Sentences per Passage</Label>
+                    <FormField
+                      control={form.control}
+                      name="sentencesPerPage"
+                      render={({ field }) => (
+                        <Select value={field.value?.toString()} onValueChange={(value) => field.onChange(parseInt(value))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select sentences" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="2">2 sentences</SelectItem>
+                            <SelectItem value="3">3 sentences</SelectItem>
+                            <SelectItem value="4">4 sentences</SelectItem>
+                            <SelectItem value="5">5 sentences</SelectItem>
+                            <SelectItem value="6">6 sentences</SelectItem>
+                            <SelectItem value="7">7 sentences</SelectItem>
+                            <SelectItem value="8">8 sentences</SelectItem>
+                            <SelectItem value="10">10 sentences</SelectItem>
+                            <SelectItem value="12">12 sentences</SelectItem>
+                            <SelectItem value="15">15 sentences</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        generatePassagesWithAI();
+                      }}
+                      disabled={isGenerating || (!aiContext.trim() && !uploadedImage)}
+                    >
+                      {isGenerating ? "Generating..." : "Generate Passages"}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
+
+        {generatedPassages.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Generated Passages</CardTitle>
+              <CardDescription>
+                These passages have been generated by AI based on your context. You can add them individually or all at once.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-4">
+                {generatedPassages.map((passage, i) => (
+                  <div key={i} className="p-4 border rounded-md">
+                    {passage.title && (
+                      <p className="font-semibold text-lg mb-2">{passage.title}</p>
+                    )}
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {passage.text}
+                    </p>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyOneGeneratedPassage(passage)}
+                      >
+                        Use This Passage
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-4 mt-4 justify-end">
+                <Button type="button" onClick={applyAllGeneratedPassages}>
+                  Use All Generated Passages
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    generatePassagesWithAI(generatedPassages);
+                  }}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? "Generating more..." : "Generate More Passages"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -311,6 +696,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
             </Button>
           </CardContent>
         </Card>
+
 
         <Card>
           <CardHeader>
