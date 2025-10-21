@@ -171,11 +171,17 @@ export default function SignInPage() {
                   />
                   <button
                     type="button"
-                    className="absolute right-4 top-4 h-4 w-4 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    className="absolute right-4 top-4 h-5 w-5 text-gray-400 hover:text-gray-600 focus:outline-none z-10 flex items-center justify-center"
                     onClick={() => setShowPassword(!showPassword)}
                     disabled={isLoading}
+                    style={{ minWidth: '16px', minHeight: '16px' }}
+                    title={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </div>
