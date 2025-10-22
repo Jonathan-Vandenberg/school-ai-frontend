@@ -55,6 +55,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { ReadingAssignmentPreview } from "./reading-assignment-preview";
 
 const formSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
@@ -107,6 +108,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
   const [numQuestions, setNumQuestions] = useState(3);
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const form = useForm<ReadingFormValues>({
     resolver: zodResolver(formSchema),
@@ -286,6 +288,8 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
             type: "success",
             message: `Successfully generated ${newPassages.length} reading passages.`,
           });
+          // Close the dialog after successful generation
+          setIsDialogOpen(false);
         }
       } else {
         throw new Error(result.error || "AI generation failed");
@@ -418,7 +422,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Dialog>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button type="button" variant="outline" className="w-full">
                   <Sparkles className="mr-2 h-4 w-4" />
@@ -501,6 +505,11 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                           <SelectItem value="3">3 passages</SelectItem>
                           <SelectItem value="4">4 passages</SelectItem>
                           <SelectItem value="5">5 passages</SelectItem>
+                          <SelectItem value="6">6 passages</SelectItem>
+                          <SelectItem value="7">7 passages</SelectItem>
+                          <SelectItem value="8">8 passages</SelectItem>
+                          <SelectItem value="9">9 passages</SelectItem>
+                          <SelectItem value="10">10 passages</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -542,6 +551,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                             <SelectValue placeholder="Select sentences" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="1">1 sentences</SelectItem>
                             <SelectItem value="2">2 sentences</SelectItem>
                             <SelectItem value="3">3 sentences</SelectItem>
                             <SelectItem value="4">4 sentences</SelectItem>
@@ -1030,30 +1040,29 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
 
         <div className="flex justify-end gap-4">
           <div className="flex flex-col items-end gap-2">
-            {/* {!isPreviewAvailable() && (
+            {!isPreviewAvailable() && (
               <p className="text-xs text-muted-foreground">
-                Preview requires: topic, video URL, and at least one complete
-                question
+                Preview requires: topic and at least one complete passage
               </p>
-            )} */}
+            )}
             <div className="flex gap-4">
               <Dialog>
-                {/* <DialogTrigger asChild>
+                <DialogTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
                     disabled={!isPreviewAvailable()}
                     title={
                       !isPreviewAvailable()
-                        ? "Please fill in topic, video URL, and at least one complete question to preview"
+                        ? "Please fill in topic and at least one complete passage to preview"
                         : "Preview assignment as students will experience it"
                     }
                   >
                     <Eye className="mr-2 h-4 w-4" />
                     Preview
                   </Button>
-                </DialogTrigger> */}
-                <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] p-0">
+                </DialogTrigger>
+                <DialogContent className="max-w-7xl w-[98vw] max-h-[90vh] p-0 sm:max-w-7xl">
                   <div className="flex flex-col h-full max-h-[90vh]">
                     <div className="flex items-center justify-between rounded-lg p-6 border-b flex-shrink-0">
                       <div>
@@ -1066,12 +1075,12 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                       </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-6">
-                      {/* <VideoAssignmentPreview
+                      <ReadingAssignmentPreview
                         topic={currentFormData.topic}
-                        videoUrl={currentFormData.videoUrl}
                         questions={currentFormData.questions}
-                        transcriptContent={transcriptContent}
-                      /> */}
+                        vocabularyLevel={currentFormData.vocabularyLevel}
+                        sentencesPerPage={currentFormData.sentencesPerPage}
+                      />
                     </div>
                   </div>
                 </DialogContent>
