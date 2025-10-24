@@ -30,7 +30,8 @@ import {
   TrendingUp,
   BarChart3,
   CheckCheck,
-  ChevronLeft
+  ChevronLeft,
+  Edit
 } from 'lucide-react'
 import { ReadingAssignment } from '@/components/assignments/reading-assignment/reading-assignment-component'
 import { PronunciationAssignment } from '@/components/assignments/pronunciation-assignment/pronunciation-assignment-component'
@@ -406,6 +407,20 @@ export default function AssignmentDetailPage() {
             </div>
           </div>
         </div>
+        
+        {/* Edit button for teachers and admins */}
+        {isTeacherOrAdmin && (
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => router.push(`/assignments/${assignmentId}/edit`)}
+              variant="outline"
+              size="sm"
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Edit Assignment
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Tab Navigation for Teachers/Admins */}

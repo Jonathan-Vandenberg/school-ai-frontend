@@ -225,7 +225,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
             ? error.message
             : "An unexpected error occurred.",
       });
-    } finally {
+      // Only reset isSubmitting on error, keep it true during success redirect
       setIsSubmitting(false);
     }
   }
