@@ -12,6 +12,7 @@ import {
   User,
   BookOpen,
   Target,
+  ChevronLeft,
 } from 'lucide-react'
 import { ReadingAssignment } from '@/components/assignments/reading-assignment/reading-assignment-component'
 import { PronunciationAssignment } from '@/components/assignments/pronunciation-assignment/pronunciation-assignment-component'
@@ -188,10 +189,9 @@ export default function StudentAssignmentViewPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={handleGoBack}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+        <div onClick={handleGoBack} className="cursor-pointer m-4 p-2 rounded-full border border-gray-300">
+            <ChevronLeft className="h-8 w-8 text-gray-500" />
+          </div>
           <div>
             <h1 className="text-3xl font-bold">{assignment.topic || 'Untitled Assignment'}</h1>
             <p className="text-muted-foreground flex items-center gap-2">

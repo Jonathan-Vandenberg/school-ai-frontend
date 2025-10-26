@@ -99,6 +99,7 @@ export default function UsersPage() {
   const [confirmationAction, setConfirmationAction] = useState<'delete' | 'block' | 'unblock'>('delete')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [isFiltering, setIsFiltering] = useState(false)
   const [pagination, setPagination] = useState<PaginationData>({
     page: 1,
     limit: 10,
@@ -191,17 +192,22 @@ export default function UsersPage() {
     if (session?.user?.role === 'ADMIN' || session?.user?.role === 'TEACHER') {
       // Determine if this is a search operation
       const isSearch = searchTerm.length > 0
+      setIsFiltering(true)
       loadUsers(1, isSearch)
       setCurrentPage(1)
     }
   }, [session, searchTerm, roleFilter, pageSize])
 
   useEffect(() => {
-    if (session?.user?.role === 'ADMIN') {
-      // Load users for any page change (including going back to page 1)
+    if (session?.user?.role === 'ADMIN' && !isFiltering) {
+      // Only load users for page changes when not filtering
       loadUsers(currentPage, false)
     }
-  }, [currentPage])
+    // Reset filtering flag after pagination
+    if (isFiltering) {
+      setIsFiltering(false)
+    }
+  }, [currentPage, isFiltering])
 
   const handleUserCreated = () => {
     loadUsers(currentPage, false) // Refresh without search loading

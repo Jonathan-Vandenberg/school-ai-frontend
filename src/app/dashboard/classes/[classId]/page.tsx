@@ -20,6 +20,7 @@ import {
   Target,
   Award,
   AlertCircle,
+  ChevronLeft,
 } from 'lucide-react'
 
 interface User {
@@ -215,14 +216,9 @@ export default function ClassProfilePage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            onClick={handleGoBack}
-            size="sm"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
+        <div onClick={handleGoBack} className="cursor-pointer m-4 p-2 rounded-full border border-gray-300">
+            <ChevronLeft className="h-8 w-8 text-gray-500" />
+          </div>
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <School className="h-8 w-8" />
