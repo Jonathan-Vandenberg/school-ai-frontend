@@ -211,6 +211,10 @@ export default function StudentsNeedingHelpPage() {
   const warningStudents = students.filter(s => s.severity === 'WARNING').length
   const recentStudents = students.filter(s => s.severity === 'RECENT').length
 
+  const handleStudentClick = (studentId: string) => {
+    router.push(`/dashboard/students/${studentId}`)
+  }
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -361,7 +365,11 @@ export default function StudentsNeedingHelpPage() {
                   return severityOrder[a.severity] - severityOrder[b.severity]
                 })
                 .map((student) => (
-                  <StudentHelpCard key={student.id} student={student} />
+                  <StudentHelpCard 
+                    key={student.id} 
+                    student={student} 
+                    onClick={() => handleStudentClick(student.studentId)}
+                  />
                 ))}
             </div>
           </CardContent>

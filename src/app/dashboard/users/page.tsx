@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -83,6 +84,7 @@ interface PaginationData {
 
 export default function UsersPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -290,6 +292,18 @@ export default function UsersPage() {
     setCurrentPage(1) // Reset to first page when changing page size
   }
 
+  const handleRowClick = (user: User) => {
+    // Only navigate for students
+    if (user.customRole === 'STUDENT') {
+      router.push(`/dashboard/students/${user.id}`)
+    }
+  }
+
+  const handleDropdownClick = (e: React.MouseEvent) => {
+    // Prevent row click when dropdown is clicked
+    e.stopPropagation()
+  }
+
   // Generate pagination numbers with ellipsis
   const generatePaginationItems = () => {
     const items = []
@@ -483,7 +497,11 @@ export default function UsersPage() {
                   </TableHeader>
                   <TableBody>
                     {users.map((user) => (
-                      <TableRow key={user.id}>
+                      <TableRow 
+                        key={user.id}
+                        className={`${user.customRole === 'STUDENT' ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                        onClick={() => handleRowClick(user)}
+                      >
                         <TableCell>
                           <div>
                             <div className="font-medium">{user.username}</div>
@@ -506,7 +524,11 @@ export default function UsersPage() {
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={handleDropdownClick}
+                              >
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>

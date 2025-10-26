@@ -259,12 +259,14 @@ interface PronunciationAssignmentProps {
   assignment: Assignment
   studentProgress: StudentProgress[]
   onProgressUpdate: (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING' | 'PRONUNCIATION') => Promise<void>
+  isViewingOnly?: boolean
 }
 
 export function PronunciationAssignment({ 
   assignment, 
   studentProgress,
-  onProgressUpdate 
+  onProgressUpdate,
+  isViewingOnly = false
 }: PronunciationAssignmentProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -686,7 +688,7 @@ export function PronunciationAssignment({
                 </p>
                 
                 {/* Speaker icon for full text - only show if answer is correct */}
-                {isCorrect && (
+                {isCorrect && !isViewingOnly && (
                   <button
                     onClick={playFullCorrectAnswer}
                     disabled={isPlayingFullText}
@@ -712,6 +714,7 @@ export function PronunciationAssignment({
               </div>
 
               {/* Microphone Control */}
+              {!isViewingOnly && (
               <div className="text-center py-6">
                 <div
                   onClick={isProcessing || (pronunciationResult?.overall_score && Math.round(pronunciationResult?.overall_score)) >= 95 ? undefined : toggleRecording}
@@ -760,6 +763,7 @@ export function PronunciationAssignment({
                   </div>
                 )}
               </div>
+              )}
 
               {/* Feedback */}
               {/* {(showFeedback || isProcessing) && (!pronunciationResult && !pronunciationResult?.words) && (

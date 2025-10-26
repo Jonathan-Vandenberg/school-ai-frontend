@@ -251,6 +251,10 @@ export default function AssignmentDetailPage() {
     router.back()
   }
 
+  const handleStudentClick = (studentId: string) => {
+    router.push(`/assignments/${assignmentId}/student/${studentId}`)
+  }
+
   const getStatus = (assignment: Assignment) => {
     if (assignment.isActive) {
       return 'PUBLISHED'
@@ -715,7 +719,11 @@ export default function AssignmentDetailPage() {
                       </TableHeader>
                       <TableBody>
                         {progressData.studentProgress.map((studentProgress) => (
-                          <TableRow key={studentProgress.student.id}>
+                          <TableRow 
+                            key={studentProgress.student.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => handleStudentClick(studentProgress.student.id)}
+                          >
                             <TableCell>
                               <div>
                                 <div className="font-medium">{studentProgress.student.username}</div>
