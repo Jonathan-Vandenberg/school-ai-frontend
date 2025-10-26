@@ -5,7 +5,7 @@ import { prisma } from '@/db';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { assignmentId: string; studentId: string } }
+  { params }: { params: Promise<{ assignmentId: string; studentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { assignmentId, studentId } = params
+    const { assignmentId, studentId } = await params
 
     // Get student's progress for this specific assignment
     const studentProgress = await prisma.studentAssignmentProgress.findMany({
