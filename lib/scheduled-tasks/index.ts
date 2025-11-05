@@ -2,6 +2,7 @@ import { createPublishScheduledAssignmentsTask } from './publish-scheduled-assig
 import { createDashboardSnapshotTask } from './dashboard-snapshot'
 import { createStudentsNeedingHelpTask } from './update-students-needing-help'
 import { createStatisticsUpdateTask } from './update-statistics'
+import { createWeeklyParentReportsTask } from './weekly-parent-reports'
 
 interface ScheduledTask {
   name: string
@@ -48,6 +49,14 @@ class ScheduledTaskManager {
       this.tasks.set('students-needing-help', {
         name: 'Students Needing Help Analysis',
         task: studentsHelpTask,
+        isActive: true,
+      })
+
+      // Start weekly parent reports task (runs every Sunday at 6:00 PM)
+      const weeklyReportsTask = createWeeklyParentReportsTask()
+      this.tasks.set('weekly-parent-reports', {
+        name: 'Weekly Parent Reports',
+        task: weeklyReportsTask,
         isActive: true,
       })
 
@@ -148,9 +157,12 @@ class ScheduledTaskManager {
         case 'students-needing-help':
           newTask = createStudentsNeedingHelpTask()
           break
-        default:
-          console.error(`Unknown task key: ${taskKey}`)
-          return false
+        case 'weekly-parent-reports':
+          newTask = createWeeklyParentReportsTask()
+          break
+        case 'update-statistics':
+          newTask = createStatisticsUpdateTask()
+          break
       }
 
       // Update the task

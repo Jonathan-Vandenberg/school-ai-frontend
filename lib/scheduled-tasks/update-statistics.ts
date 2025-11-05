@@ -20,11 +20,9 @@ export function createStatisticsUpdateTask() {
   const task = cron.schedule('0 * * * *', async () => {
     const now = new Date()
     const timestamp = now.toISOString()
-    console.log(`\n📊 [${timestamp}] CRON: Starting hourly statistics update...`)
     
     try {
       await updateDailyStatistics()
-      console.log(`✅ [${timestamp}] CRON: Statistics update completed successfully\n`)
     } catch (error) {
       console.error(`❌ [${timestamp}] Error in scheduled statistics update:`, error)
     }

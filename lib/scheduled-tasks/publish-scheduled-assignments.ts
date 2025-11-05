@@ -7,13 +7,10 @@ import { AssignmentsService } from '@/lib/services/assignments.service'
  * This function will run every minute to check for assignments that need to be activated
  */
 export function createPublishScheduledAssignmentsTask() {
-  console.log('Registering scheduled assignments publication task...')
-  
   // Schedule the task to run every minute
   const task = cron.schedule('* * * * *', async () => {
     const now = new Date()
     const timestamp = now.toISOString()
-    console.log(`\n🕐 [${timestamp}] CRON: Starting scheduled assignment publication check...`)
     
     try {
       // Use transaction to ensure data integrity
@@ -87,8 +84,6 @@ export function createPublishScheduledAssignmentsTask() {
         console.error('🔌 Database error during assignment activation:', error.cause)
       }
     }
-    
-    console.log(`✅ [${timestamp}] CRON: Assignment publication check completed\n`)
   })
 
   return task

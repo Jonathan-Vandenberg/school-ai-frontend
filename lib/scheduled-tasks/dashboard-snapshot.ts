@@ -8,13 +8,11 @@ import { StatisticsService } from '../services/statistics.service'
  * Optimized to use existing statistics instead of heavy real-time calculations
  */
 export function createDashboardSnapshotTask() {
-  console.log('Registering dashboard snapshot task...')
   
   // Schedule the task to run every hour (more reasonable than every minute)
   const task = cron.schedule('0 * * * *', async () => {
     const now = new Date()
     const timestamp = now.toISOString()
-    console.log(`\n📸 [${timestamp}] CRON: Starting hourly dashboard snapshot...`)
     
     try {
       await withTransaction(async (tx) => {
@@ -111,7 +109,6 @@ export function createDashboardSnapshotTask() {
         }
       })
       
-      console.log(`✅ [${timestamp}] CRON: Dashboard snapshot completed successfully\n`)
     } catch (error) {
       console.error(`❌ [${timestamp}] Error in dashboard snapshot task:`, error)
       

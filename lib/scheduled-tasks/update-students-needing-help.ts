@@ -14,7 +14,6 @@ export function createStudentsNeedingHelpTask() {
   const task = cron.schedule('*/10 * * * *', async () => {
     const now = new Date()
     const timestamp = now.toISOString()
-    console.log(`\n👥 [${timestamp}] CRON: Starting students needing help analysis...`)
     
     try {
       await withTransaction(async (tx) => {
@@ -36,8 +35,6 @@ export function createStudentsNeedingHelpTask() {
     } catch (error) {
       console.error(`❌ [${timestamp}] Error in students needing help task:`, error)
     }
-    
-    console.log(`✅ [${timestamp}] CRON: Students needing help analysis completed\n`)
   })
 
   return task

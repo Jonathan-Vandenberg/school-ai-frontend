@@ -43,7 +43,8 @@ import {
   Users,
   Filter,
   BookOpen,
-  Calendar
+  Calendar,
+  Mail
 } from 'lucide-react'
 
 // Import dialog components
@@ -91,6 +92,10 @@ export default function ClassesPage() {
     total: 0,
     totalPages: 0
   })
+  
+  // Weekly reports state
+  const [weeklyReportsLoading, setWeeklyReportsLoading] = useState<string | null>(null)
+  const [weeklyReportsResult, setWeeklyReportsResult] = useState<any>(null)
 
   const loadClasses = async (page = currentPage) => {
     try {
@@ -162,11 +167,120 @@ export default function ClassesPage() {
       case 'view-assignments':
         router.push(`/dashboard/classes/${classId}/assignments`)
         break
+      case 'send-weekly-reports':
+        await handleSendWeeklyReports(classId, classItem.name)
+        break
     }
   }
 
   const handleRowClick = (classId: string) => {
     router.push(`/dashboard/classes/${classId}`)
+  }
+
+  const handleSendWeeklyReports = async (classId: string, className: string) => {
+    try {
+      setWeeklyReportsLoading(classId)
+      setWeeklyReportsResult(null)
+
+      // Get students in this class
+      const studentsResponse = await fetch(`/api/classes/${classId}/available-users`)
+      const studentsData = await studentsResponse.json()
+      
+      if (!studentsData.success) {
+        throw new Error('Failed to fetch students')
+      }
+
+      const students = studentsData.data.students
+      
+      if (students.length === 0) {
+        setWeeklyReportsResult({
+          success: false,
+          message: 'No students found in this class',
+          processed: 0,
+          sent: 0,
+          failed: 0,
+          errors: []
+        })
+        return
+      }
+
+      // Send weekly reports for each student
+      let processed = 0
+      let sent = 0
+      let failed = 0
+      const errors: string[] = []
+
+      console.log(`📧 Starting to send weekly reports for ${students.length} students in class ${className}`)
+
+      for (const student of students) {
+        try {
+          console.log(`📧 Sending report for student: ${student.username} (${student.id})`)
+          
+          const response = await fetch('/api/classes/send-weekly-reports', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              studentId: student.id,
+              language: 'both'
+            }),
+          })
+
+          console.log(`📧 Response status for ${student.username}:`, response.status)
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            console.error(`❌ HTTP error for ${student.username}:`, response.status, errorText)
+            failed++
+            errors.push(`HTTP ${response.status}: Failed to send reports for ${student.username}`)
+            continue
+          }
+
+          const result = await response.json()
+          console.log(`📧 Result for ${student.username}:`, result)
+          
+          if (result.success) {
+            processed += result.data.processed
+            sent += result.data.sent
+            failed += result.data.failed
+            if (result.data.errors) {
+              errors.push(...result.data.errors)
+            }
+          } else {
+            failed++
+            errors.push(`Failed to send reports for ${student.username}: ${result.error}`)
+            console.error(`❌ Failed to send reports for: ${student.username}`, result.error)
+          }
+        } catch (error) {
+          failed++
+          const errorMsg = `Error sending reports for ${student.username}: ${error}`
+          errors.push(errorMsg)
+          console.error(`❌ ${errorMsg}`)
+        }
+      }
+
+      setWeeklyReportsResult({
+        success: true,
+        message: `Weekly reports processed for ${className}`,
+        processed,
+        sent,
+        failed,
+        errors: errors.slice(0, 10) // Limit to first 10 errors
+      })
+
+    } catch (error) {
+      setWeeklyReportsResult({
+        success: false,
+        message: `Failed to send weekly reports for ${className}`,
+        processed: 0,
+        sent: 0,
+        failed: 1,
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      })
+    } finally {
+      setWeeklyReportsLoading(null)
+    }
   }
 
   const handleConfirmDelete = async (classItem: ClassListItem) => {
@@ -428,6 +542,16 @@ export default function ClassesPage() {
                               {(session.user.role === 'ADMIN' || session.user.role === 'TEACHER') && (
                                 <>
                                   <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleClassAction('send-weekly-reports', classItem.id)
+                                    }}
+                                    disabled={weeklyReportsLoading === classItem.id}
+                                  >
+                                    <Mail className="mr-2 h-4 w-4" />
+                                    {weeklyReportsLoading === classItem.id ? 'Sending Reports...' : 'Send Weekly Reports'}
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem onClick={(e) => {
                                     e.stopPropagation()
                                     handleClassAction('edit', classItem.id)
@@ -567,6 +691,40 @@ export default function ClassesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Weekly Reports Results */}
+      {weeklyReportsResult && (
+        <div className="mb-6">
+          <Alert className={weeklyReportsResult.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}>
+            <AlertDescription>
+              <div className="space-y-2">
+                <p className="font-medium">{weeklyReportsResult.message}</p>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium">Processed:</span> {weeklyReportsResult.processed}
+                  </div>
+                  <div>
+                    <span className="font-medium">Sent:</span> {weeklyReportsResult.sent}
+                  </div>
+                  <div>
+                    <span className="font-medium">Failed:</span> {weeklyReportsResult.failed}
+                  </div>
+                </div>
+                {weeklyReportsResult.errors.length > 0 && (
+                  <div>
+                    <p className="font-medium text-sm">Errors:</p>
+                    <ul className="text-sm list-disc list-inside ml-4">
+                      {weeklyReportsResult.errors.map((error: string, index: number) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Classes management dialogs */}
       <ClassCreationDialog

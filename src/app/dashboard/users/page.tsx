@@ -541,11 +541,17 @@ export default function UsersPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleUserAction('edit', user.id)}>
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation()
+                                handleUserAction('edit', user.id)
+                              }}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit User
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleUserAction('toggle-status', user.id)}>
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation()
+                                handleUserAction('toggle-status', user.id)
+                              }}>
                                 {user.blocked ? (
                                   <>
                                     <UserCheck className="mr-2 h-4 w-4" />
@@ -560,7 +566,10 @@ export default function UsersPage() {
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
-                                onClick={() => handleUserAction('delete', user.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleUserAction('delete', user.id)
+                                }}
                                 className="text-red-600"
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />

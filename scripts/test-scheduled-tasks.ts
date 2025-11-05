@@ -31,7 +31,6 @@ async function testScheduledTasks() {
 
   try {
     // 1. Check scheduled assignments
-    console.log('1️⃣  Checking scheduled assignments...')
     const scheduledAssignments: ScheduledAssignment[] = await prisma.assignment.findMany({
       where: {
         isActive: false,

@@ -324,15 +324,12 @@ export class StudentsNeedingHelpService {
             })
           }
         }
-
-        console.log(`[HELP] Student ${student.username} needs help: ${reasons.join(', ')} (overall completion: ${overallCompletionRate}%, overall accuracy: ${overallAverageScore}%, overdue: ${overdueAssignments})`)
       } else if (overallCompletionRate >= 50 && overallAverageScore >= 50 && overdueAssignments === 0) {
         // Student's overall performance is good and no overdue assignments, remove help record if it exists
         if (existingRecord) {
           await db.studentsNeedingHelp.delete({
             where: { id: existingRecord.id }
           })
-          console.log(`[HELP] Removed help status for ${student.username} - good overall performance (completion: ${overallCompletionRate}%, accuracy: ${overallAverageScore}%, overdue: ${overdueAssignments})`)
         }
       }
 

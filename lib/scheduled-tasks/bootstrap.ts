@@ -3,6 +3,14 @@
 // Bootstrap script for scheduled tasks
 // This is called by the startup.js script to initialize cron jobs
 
+// Load environment variables first
+import { config } from 'dotenv'
+import { resolve } from 'path'
+
+// Load .env.local file
+config({ path: resolve(process.cwd(), '.env.local') })
+config({ path: resolve(process.cwd(), '.env') })
+
 import { bootstrapScheduledTasks } from './index'
 
 async function bootstrap() {

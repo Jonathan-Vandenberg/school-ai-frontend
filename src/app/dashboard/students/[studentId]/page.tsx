@@ -132,6 +132,10 @@ export default function StudentDetailsPage() {
     router.back()
   }
 
+  const handleViewAssignment = (assignmentId: string) => {
+    router.push(`/assignments/${assignmentId}/student/${studentId}`)
+  }
+
   const getUserInitials = (username: string) => {
     return username.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
@@ -369,7 +373,11 @@ export default function StudentDetailsPage() {
                 </TableHeader>
                 <TableBody>
                   {studentData.assignments.map((assignment) => (
-                    <TableRow key={assignment.id}>
+                    <TableRow 
+                      key={assignment.id}
+                      onClick={() => handleViewAssignment(assignment.id)}
+                      className="cursor-pointer hover:bg-muted/50"
+                    >
                                              <TableCell>
                          <div className="flex items-center gap-2">
                            <div className="font-medium">{assignment.topic}</div>

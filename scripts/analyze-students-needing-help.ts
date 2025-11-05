@@ -28,8 +28,6 @@ interface StudentAnalysis {
 }
 
 async function analyzeStudentsNeedingHelp() {
-  console.log('🔍 Starting analysis of students needing help...')
-  
   const currentDate = new Date()
   const analyses: StudentAnalysis[] = []
 
@@ -46,72 +44,26 @@ async function analyzeStudentsNeedingHelp() {
       }
     })
 
-    console.log(`📊 Found ${students.length} students to analyze`)
-
     for (const student of students) {
-      console.log(`\n🔍 Analyzing student: ${student.username} (${student.id})`)
-      
       try {
         const analysis = await analyzeStudent(student, currentDate)
         analyses.push(analysis)
-        
-        if (analysis.needsHelp) {
-          console.log(`  ⚠️  ${student.username} needs help: ${analysis.reasons.join(', ')}`)
-          console.log(`      Completion Rate: ${analysis.completionRate.toFixed(1)}%`)
-          console.log(`      Average Score: ${analysis.averageScore.toFixed(1)}%`)
-          console.log(`      Overdue Assignments: ${analysis.overdueAssignments}`)
-          console.log(`      Severity: ${analysis.severity}`)
-        } else {
-          console.log(`  ✅ ${student.username} is performing well`)
-        }
       } catch (error) {
         console.error(`  ❌ Error analyzing ${student.username}:`, error)
       }
     }
 
     // Clear existing records
-    console.log('\n🧹 Clearing existing StudentsNeedingHelp records...')
     await prisma.studentsNeedingHelpTeacher.deleteMany({})
     await prisma.studentsNeedingHelpClass.deleteMany({})
     await prisma.studentsNeedingHelp.deleteMany({})
 
     // Insert new records
     const studentsNeedingHelp = analyses.filter(a => a.needsHelp)
-    console.log(`\n💾 Inserting ${studentsNeedingHelp.length} students needing help...`)
 
     for (const analysis of studentsNeedingHelp) {
       await insertStudentNeedingHelp(analysis)
     }
-
-    // Print summary
-    console.log('\n📈 ANALYSIS SUMMARY')
-    console.log('==================')
-    console.log(`Total Students Analyzed: ${analyses.length}`)
-    console.log(`Students Needing Help: ${studentsNeedingHelp.length}`)
-    console.log(`Critical (>14 days): ${studentsNeedingHelp.filter(s => s.severity === 'CRITICAL').length}`)
-    console.log(`Warning (7-14 days): ${studentsNeedingHelp.filter(s => s.severity === 'WARNING').length}`)
-    console.log(`Recent (≤7 days): ${studentsNeedingHelp.filter(s => s.severity === 'RECENT').length}`)
-
-    console.log('\n📋 DETAILED BREAKDOWN')
-    console.log('====================')
-    
-    const severityGroups = {
-      CRITICAL: studentsNeedingHelp.filter(s => s.severity === 'CRITICAL'),
-      WARNING: studentsNeedingHelp.filter(s => s.severity === 'WARNING'),
-      RECENT: studentsNeedingHelp.filter(s => s.severity === 'RECENT')
-    }
-
-    for (const [severity, students] of Object.entries(severityGroups)) {
-      if (students.length > 0) {
-        console.log(`\n${severity} (${students.length} students):`)
-        students.forEach(s => {
-          console.log(`  - ${s.student.username}: ${s.reasons.join(', ')} (${s.daysNeedingHelp} days)`)
-        })
-      }
-    }
-
-    console.log('\n✅ Analysis complete!')
-
   } catch (error) {
     console.error('❌ Error during analysis:', error)
     throw error
@@ -353,8 +305,6 @@ async function insertStudentNeedingHelp(analysis: StudentAnalysis) {
         }
       })
     }
-
-    console.log(`  💾 Inserted record for ${analysis.student.username}`)
   } catch (error) {
     console.error(`  ❌ Error inserting record for ${analysis.student.username}:`, error)
   }
