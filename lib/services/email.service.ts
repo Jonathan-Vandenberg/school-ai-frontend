@@ -1,6 +1,34 @@
 import nodemailer from 'nodemailer'
 import { StudentWeeklyResult, AssignmentResult, QuizResult, QuestionResult } from './student-weekly-results.service'
-import { getTenantConfigForHost, TenantConfig } from '@/app/lib/tenant'
+
+// Minimal Tenant types duplicated here to avoid importing Next.js `server-only` modules from cron/Node context
+type TenantBranding = {
+  logo_url?: string | null
+  primary_hex?: string | null
+  secondary_hex?: string | null
+  accent_hex?: string | null
+  dark_mode?: boolean | null
+}
+
+type TenantConfig = {
+  id: string
+  subdomain: string
+  display_name: string
+  status: string
+  branding: TenantBranding
+}
+
+async function getTenantConfigForHostSafe(host: string): Promise<TenantConfig | null> {
+  try {
+    const apiBase = process.env.AUDIO_ANALYSIS_URL || 'http://localhost:8000'
+    const url = `${apiBase.replace(/\/$/, '')}/tenants/config?host=${encodeURIComponent(host)}`
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    return (await res.json()) as TenantConfig
+  } catch {
+    return null
+  }
+}
 
 interface EmailConfig {
   host: string
@@ -139,7 +167,7 @@ export class EmailService {
       let tenantConfig: TenantConfig | null = null
       if (host) {
         try {
-          tenantConfig = await getTenantConfigForHost(host)
+          tenantConfig = await getTenantConfigForHostSafe(host)
         } catch (error) {
           console.warn('Failed to get tenant config:', error)
         }
@@ -206,7 +234,8 @@ export class EmailService {
    */
   private async generateAIAnalysis(studentResult: StudentWeeklyResult, language: 'en' | 'vi'): Promise<any> {
     try {
-      const response = await fetch('/api/analysis/student-weekly-report', {
+      const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '')
+      const response = await fetch(`${baseUrl}/api/analysis/student-weekly-report`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

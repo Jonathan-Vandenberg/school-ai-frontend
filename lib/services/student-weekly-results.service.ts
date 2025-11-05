@@ -209,14 +209,12 @@ export class StudentWeeklyResultsService {
         },
       })
 
-      // Get assignment progress for the student in the given week
+      // Get assignment progress for the student (all-time) so status and scores are accurate
+      // We still limit which assignments we include above by publish date and assignment list,
+      // but progress should reflect the student's overall work on those assignments.
       const assignmentProgresses = await prismaClient.studentAssignmentProgress.findMany({
         where: {
           studentId,
-          createdAt: {
-            gte: weekStart,
-            lte: weekEnd,
-          },
         },
         include: {
           assignment: {
