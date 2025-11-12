@@ -274,14 +274,11 @@ export default function TemplateDetailPage() {
                           <span className="text-sm font-medium">{index + 1}</span>
                         </div>
                         <div className="flex-1 space-y-2">
-                          {/* For READING assignments, show text question prominently without answer */}
+                          {/* For READING assignments, show text answer (the reading passage) prominently without title */}
                           {template.evaluationSettings?.type === 'READING' ? (
                             <>
-                              {/* {question.textAnswer && (
-                                <p className="text-sm text-muted-foreground mb-1">{question.textAnswer}</p>
-                              )} */}
-                              {question.textQuestion && (
-                                <p className="text-lg leading-relaxed">{question.textQuestion}</p>
+                              {question.textAnswer && (
+                                <p className="text-lg leading-relaxed">{question.textAnswer}</p>
                               )}
                             </>
                           ) : (

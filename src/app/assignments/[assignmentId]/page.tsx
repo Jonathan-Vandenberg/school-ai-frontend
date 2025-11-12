@@ -520,11 +520,11 @@ export default function AssignmentDetailPage() {
                                 <span className="text-sm font-medium">{index + 1}</span>
                               </div>
                               <div className="flex-1 space-y-2">
-                                {/* For READING assignments, show text question prominently without answer */}
+                                {/* For READING assignments, show text answer (the reading passage) prominently without title */}
                                 {assignment.evaluationSettings?.type === 'READING' ? (
                                   <>
-                                    {question.textQuestion && (
-                                      <p className="text-lg leading-relaxed">{question.textQuestion}</p>
+                                    {question.textAnswer && (
+                                      <p className="text-lg leading-relaxed">{question.textAnswer}</p>
                                     )}
                                   </>
                                 ) : (
