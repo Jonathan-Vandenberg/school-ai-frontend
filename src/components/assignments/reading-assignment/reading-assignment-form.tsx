@@ -32,6 +32,7 @@ import {
 import { PlusCircle, Trash2, Eye, Clock, Sparkles, Upload, X } from "lucide-react";
 import { Class, User } from "@prisma/client";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import {
   Popover,
@@ -56,9 +57,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { ReadingAssignmentPreview } from "./reading-assignment-preview";
+import { LevelSelector } from "@/components/templates/level-selector";
+import { LevelType, CEFRLevel, GradeLevel } from "@prisma/client";
 
 const formSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
+  description: z.string().optional(),
   questions: z
     .array(
       z.object({
@@ -76,6 +80,11 @@ const formSchema = z.object({
   languageId: z.string().optional(),
   vocabularyLevel: z.string().optional(),
   sentencesPerPage: z.number().optional(),
+  levels: z.array(z.object({
+    levelType: z.nativeEnum(LevelType),
+    cefrLevel: z.nativeEnum(CEFRLevel).optional(),
+    gradeLevel: z.nativeEnum(GradeLevel).optional(),
+  })).optional().default([]),
 });
 
 type ReadingFormValues = z.infer<typeof formSchema>;
@@ -104,6 +113,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
   const [generatedPassages, setGeneratedPassages] = useState<
     { title: string; text: string }[]
   >([]);
+  const [selectedPassageIndices, setSelectedPassageIndices] = useState<Set<number>>(new Set());
   const [aiContext, setAiContext] = useState("");
   const [numQuestions, setNumQuestions] = useState(3);
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
@@ -111,9 +121,10 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const form = useForm<ReadingFormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       topic: "",
+      description: "",
       questions: [{ text: "", title: "" }],
       classIds: [],
       studentIds: [],
@@ -124,6 +135,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
       languageId: "", // Will default to English on backend
       vocabularyLevel: "5", // Default to middle school level
       sentencesPerPage: 3,
+      levels: [],
     },
   });
 
@@ -251,7 +263,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
       requestData.append("context", aiContext);
       requestData.append("numQuestions", numQuestions.toString());
       requestData.append("topic", formData.topic || "Reading Comprehension");
-      requestData.append("vocabularyLevel", formData.vocabularyLevel || "5");
+      requestData.append("levels", JSON.stringify(formData.levels || []));
       requestData.append("sentencesPerPage", (formData.sentencesPerPage || 3).toString());
       requestData.append("existingPassages", JSON.stringify(existingPassages));
       
@@ -339,10 +351,60 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
 
     // Clear all generated passages since they've all been applied
     setGeneratedPassages([]);
+    setSelectedPassageIndices(new Set());
 
     setFormMessage({
       type: "success",
       message: "All generated passages have been applied.",
+    });
+  };
+
+  const togglePassageSelection = (index: number) => {
+    const newSelection = new Set(selectedPassageIndices);
+    if (newSelection.has(index)) {
+      newSelection.delete(index);
+    } else {
+      newSelection.add(index);
+    }
+    setSelectedPassageIndices(newSelection);
+  };
+
+  const applySelectedPassages = () => {
+    if (selectedPassageIndices.size === 0) {
+      setFormMessage({ type: "error", message: "Please select at least one passage." });
+      return;
+    }
+
+    const selectedPassages = Array.from(selectedPassageIndices)
+      .sort((a, b) => a - b)
+      .map(i => generatedPassages[i]);
+
+    // Get current questions
+    const currentQuestions = form.getValues("questions");
+    const firstQuestion = currentQuestions[0];
+
+    // If only one empty question exists, replace it with selected passages
+    if (
+      currentQuestions.length === 1 &&
+      !firstQuestion.text &&
+      !firstQuestion.title
+    ) {
+      replace(selectedPassages.map(p => ({ title: p.title || "", text: p.text })));
+    } else {
+      // Otherwise, append selected passages
+      selectedPassages.forEach(p => {
+        append({ title: p.title || "", text: p.text });
+      });
+    }
+
+    // Remove applied passages from generated list
+    const remainingPassages = generatedPassages.filter((_, i) => !selectedPassageIndices.has(i));
+    setGeneratedPassages(remainingPassages);
+    setSelectedPassageIndices(new Set());
+
+    setFormMessage({
+      type: "success",
+      message: `${selectedPassageIndices.size} passage(s) added.`,
     });
   };
 
@@ -389,7 +451,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-8">
         <Card>
           <CardHeader>
             <CardTitle>Reading Assignment Details</CardTitle>
@@ -407,6 +469,46 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Brief description of this assignment..."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    This helps other teachers understand what this assignment is about.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="levels"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Educational Levels</FormLabel>
+                  <FormControl>
+                    <LevelSelector
+                      value={field.value || []}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Select the CEFR or Grade levels this assignment is appropriate for.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -429,7 +531,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                   Generate Assignment with AI
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogTitle>Generate Reading Assignment with AI</DialogTitle>
                 <DialogDescription>
                   Provide context about what you want the reading assignment to cover, and AI will generate relevant passages for you.
@@ -493,7 +595,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                       Upload an image to provide visual context for the AI to generate relevant reading passages.
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="num-questions">Number of Passages</Label>
                       <Select value={numQuestions.toString()} onValueChange={(value) => setNumQuestions(parseInt(value))}>
@@ -514,30 +616,20 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="vocabulary-level">Vocabulary Level</Label>
+                      <Label>Educational Levels</Label>
                       <FormField
                         control={form.control}
-                        name="vocabularyLevel"
+                        name="levels"
                         render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select level" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="1">Level 1 - Kindergarten</SelectItem>
-                              <SelectItem value="2">Level 2 - Grade 1</SelectItem>
-                              <SelectItem value="3">Level 3 - Grade 2</SelectItem>
-                              <SelectItem value="4">Level 4 - Grade 3-4</SelectItem>
-                              <SelectItem value="5">Level 5 - Grade 5-6</SelectItem>
-                              <SelectItem value="6">Level 6 - Grade 7-8</SelectItem>
-                              <SelectItem value="7">Level 7 - Grade 9-10</SelectItem>
-                              <SelectItem value="8">Level 8 - Grade 11-12</SelectItem>
-                              <SelectItem value="9">Level 9 - College Prep</SelectItem>
-                              <SelectItem value="10">Level 10 - Advanced</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <LevelSelector
+                            value={field.value || []}
+                            onChange={field.onChange}
+                          />
                         )}
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Select the appropriate CEFR or Grade levels for the AI to generate passages at the right difficulty.
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -590,47 +682,59 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
             <CardHeader>
               <CardTitle>Generated Passages</CardTitle>
               <CardDescription>
-                These passages have been generated by AI based on your context. You can add them individually or all at once.
+                These passages have been generated by AI based on your context. Select the passages you want to add.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 max-h-96 overflow-y-auto pr-4">
                 {generatedPassages.map((passage, i) => (
-                  <div key={i} className="p-4 border rounded-md">
-                    {passage.title && (
-                      <p className="font-semibold text-lg mb-2">{passage.title}</p>
-                    )}
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {passage.text}
-                    </p>
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyOneGeneratedPassage(passage)}
-                      >
-                        Use This Passage
-                      </Button>
+                  <div 
+                    key={i} 
+                    className={`p-4 border rounded-md transition-colors ${
+                      selectedPassageIndices.has(i) ? 'border-primary bg-primary/5' : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={selectedPassageIndices.has(i)}
+                        onCheckedChange={() => togglePassageSelection(i)}
+                      />
+                      <div className="flex-1">
+                        {passage.title && (
+                          <p className="text-xs text-muted-foreground mb-1">{passage.title}</p>
+                        )}
+                        <p className="text-base">
+                          {passage.text}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="flex items-center gap-4 mt-4 justify-end">
-                <Button type="button" onClick={applyAllGeneratedPassages}>
-                  Use All Generated Passages
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    generatePassagesWithAI(generatedPassages);
-                  }}
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? "Generating more..." : "Generate More Passages"}
-                </Button>
+              <div className="flex items-center gap-4 mt-4 justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {selectedPassageIndices.size} of {generatedPassages.length} selected
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      generatePassagesWithAI(generatedPassages);
+                    }}
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? "Generating more..." : "Generate More Passages"}
+                  </Button>
+                  <Button 
+                    type="button" 
+                    onClick={applySelectedPassages}
+                    disabled={selectedPassageIndices.size === 0}
+                  >
+                    Add Selected ({selectedPassageIndices.size})
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -722,23 +826,20 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Classes</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange([value])}
-                    defaultValue={field.value?.[0]}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a class" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {classes.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <MultiSelect
+                      options={classes.map((c) => ({
+                        label: c.name,
+                        value: c.id,
+                      }))}
+                      selected={field.value || []}
+                      onChange={field.onChange}
+                      placeholder="Select classes"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Select one or more classes to assign this to
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

@@ -28,6 +28,20 @@ export default async function CreateAssignmentPage({ searchParams }: CreateAssig
 
     const formData = { classes };
 
+    // If no type specified, show assignment type selection
+    if (!type) {
+      const { AssignmentCreationCards } = await import('@/components/assignments/assignment-creation-cards');
+      return (
+        <div className="container mx-auto p-6">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold">Create Assignment</h1>
+            <p className="text-muted-foreground">Choose the type of assignment you want to create</p>
+          </div>
+          <AssignmentCreationCards />
+        </div>
+      );
+    }
+
     switch (type) {
       case "video":
        return (
@@ -35,7 +49,7 @@ export default async function CreateAssignmentPage({ searchParams }: CreateAssig
           <div className="container mx-auto p-6">
             <h1 className="text-2xl font-bold mb-2">Create Video Assignment</h1>
             <p className="text-muted-foreground">
-              Video exercises to improve students&apos; listening, speaking and comprehension skills.
+              Video exercises help to improve students&apos; listening, speaking and comprehension skills.
             </p>
           </div>
           <VideoAssignmentForm data={formData} />

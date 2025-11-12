@@ -31,6 +31,11 @@ interface EvaluationRequest {
     name: string
   } | null
   topic: string
+  levels?: Array<{
+    levelType: string
+    cefrLevel?: string
+    gradeLevel?: string
+  }>
 }
 
 export async function POST(request: NextRequest) {
@@ -50,7 +55,8 @@ export async function POST(request: NextRequest) {
       feedbackSettings = {},
       transcriptContent,
       language,
-      topic 
+      topic,
+      levels = []
     } = body
 
     // Capitalize the answer
@@ -65,7 +71,8 @@ export async function POST(request: NextRequest) {
       videoTranscript: transcriptContent,
       rules,
       feedbackSettings,
-      language: language?.name || 'English'
+      language: language?.name || 'English',
+      levels
     })
 
     return NextResponse.json({
@@ -89,6 +96,11 @@ interface EvaluationParams {
     encouragementEnabled?: boolean
   }
   language: string
+  levels: Array<{
+    levelType: string
+    cefrLevel?: string
+    gradeLevel?: string
+  }>
 }
 
 async function evaluateAnswerWithAI(params: EvaluationParams) {
@@ -100,8 +112,58 @@ async function evaluateAnswerWithAI(params: EvaluationParams) {
     videoTranscript,
     rules,
     feedbackSettings,
-    language
+    language,
+    levels
   } = params
+
+  // Generate level description for vocabulary guidance
+  const getLevelDescription = (levels: Array<{ levelType: string; cefrLevel?: string; gradeLevel?: string }>) => {
+    if (!levels || levels.length === 0) {
+      return "Use clear, simple language appropriate for middle school students.";
+    }
+
+    const descriptions: string[] = [];
+    
+    for (const level of levels) {
+      if (level.levelType === 'CEFR' && level.cefrLevel) {
+        const cefrDescriptions: Record<string, string> = {
+          'A1': 'Use EXTREMELY simple words (3-5 letter words) that a beginner would know. Think: cat, dog, run, play, eat.',
+          'A2': 'Use simple, common words. Short sentences. Basic vocabulary only.',
+          'B1': 'Use everyday vocabulary. Clear, straightforward language.',
+          'B2': 'Use common vocabulary with some variety. Standard language.',
+          'C1': 'Use varied vocabulary. Natural, fluent language.',
+          'C2': 'Use sophisticated vocabulary freely. Advanced language is acceptable.'
+        };
+        descriptions.push(cefrDescriptions[level.cefrLevel] || '');
+      } else if (level.levelType === 'GRADE' && level.gradeLevel) {
+        const gradeDescriptions: Record<string, string> = {
+          'PRE_K': 'Use EXTREMELY simple 2-4 letter words only (cat, dog, red, run). Think preschool vocabulary.',
+          'KINDERGARTEN': 'Use very basic 3-5 letter words (play, jump, ball, fun). Think kindergarten level.',
+          'GRADE_1': 'Use simple sight words and basic vocabulary. Short, clear words.',
+          'GRADE_2': 'Use basic elementary vocabulary. Simple, familiar words.',
+          'GRADE_3': 'Use elementary school vocabulary. Clear, simple language.',
+          'GRADE_4': 'Use upper elementary vocabulary. Straightforward language.',
+          'GRADE_5': 'Use middle school vocabulary. Moderately complex words are okay.',
+          'GRADE_6': 'Use middle school vocabulary. Some complex words acceptable.',
+          'GRADE_7': 'Use junior high vocabulary. Clear but varied language.',
+          'GRADE_8': 'Use junior high vocabulary. Moderately advanced language is fine.',
+          'GRADE_9': 'Use high school vocabulary. Varied, standard language.',
+          'GRADE_10': 'Use high school vocabulary. More complex language acceptable.',
+          'GRADE_11': 'Use advanced high school vocabulary. Sophisticated language is fine.',
+          'GRADE_12': 'Use college-prep vocabulary. Advanced language fully acceptable.'
+        };
+        descriptions.push(gradeDescriptions[level.gradeLevel] || '');
+      }
+    }
+
+    if (descriptions.length === 0) {
+      return "Use clear, simple language appropriate for middle school students.";
+    }
+
+    return descriptions.join(' ');
+  };
+
+  const vocabularyGuidance = getLevelDescription(levels);
 
   // Build the system prompt based on settings
   let systemPrompt = `You are an educational assistant evaluating a student's answer to a question about a video. 
@@ -110,6 +172,8 @@ The question is: "${questionText}"
 The expected answer is: "${expectedAnswer}"
 
 ${videoTranscript ? `The video transcript contains the following text: "${videoTranscript.substring(0, 2000)}${videoTranscript.length > 2000 ? '...' : ''}"` : ''}
+
+CRITICAL VOCABULARY REQUIREMENT: ${vocabularyGuidance}
 
 Your task is to evaluate whether the student's answer demonstrates understanding of the video content and correctly addresses the question.`;
 
@@ -134,7 +198,13 @@ Your task is to evaluate whether the student's answer demonstrates understanding
 Respond with a JSON object containing:
 - 'isCorrect' (boolean): whether the answer demonstrates understanding of the concept
 - 'feedback' (string): a very brief explanation about why the answer is correct or incorrect, in very basic language, in 10 words or less. IMPORTANT: Refer to the user as 'you' or 'your' instead of 'the student' or 'the user'.
-${feedbackSettings.detailedFeedback ? '- \'details\' (string): feedback in very basic language, in 10 words or less. with suggestions for improvement. IMPORTANT: Do not give the user the actual correct answer. Give them a clue.' : ''}
+${feedbackSettings.detailedFeedback ? `- 'details' (string): ⚠️ ABSOLUTELY CRITICAL ⚠️ 
+  IF INCORRECT: You MUST give a HINT ONLY - NEVER say the actual answer word. Guide them with questions or clues.
+  ❌ FORBIDDEN: Never say "${expectedAnswer}" or any word from it directly.
+  ✅ ALLOWED: "Think about what sweet food comes from bees", "What did the bear want from the beehive?", "Remember what the bear was searching for in the tree"
+  Use phrases like "Think about...", "Remember when...", "What was the bear looking for...", "Consider what..." 
+  Keep it in very basic language matching the student's level. Maximum 15 words.
+  IF CORRECT: Provide brief positive feedback instead.` : ''}
 ${feedbackSettings.encouragementEnabled ? '- \'encouragement\' (string): encouraging feedback in 3 or fewer words' : ''}`;
 
   // Build the user prompt

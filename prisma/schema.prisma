@@ -46,6 +46,7 @@ model User {
   assignmentsAssigned         UserAssignment[]
   classes                     UserClass[]
   role                        Role?                        @relation(fields: [roleId], references: [id])
+  templatesCreated            AssignmentTemplate[]         @relation("CreatorTemplates")
 
   @@map("users")
 }
@@ -111,13 +112,14 @@ model UserClass {
 }
 
 model Language {
-  id          String       @id @default(cuid())
+  id          String               @id @default(cuid())
   language    LanguageType
   code        String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   publishedAt DateTime?
   assignments Assignment[]
+  templates   AssignmentTemplate[] @relation("TemplateLanguage")
 
   @@map("languages")
 }
@@ -847,4 +849,101 @@ enum TimeFrame {
   DAILY
   WEEKLY
   MONTHLY
+}
+
+enum LevelType {
+  CEFR
+  GRADE
+}
+
+enum CEFRLevel {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+}
+
+enum GradeLevel {
+  PRE_K
+  KINDERGARTEN
+  GRADE_1
+  GRADE_2
+  GRADE_3
+  GRADE_4
+  GRADE_5
+  GRADE_6
+  GRADE_7
+  GRADE_8
+  GRADE_9
+  GRADE_10
+  GRADE_11
+  GRADE_12
+}
+
+model AssignmentTemplate {
+  id                     String                          @id @default(cuid())
+  topic                  String
+  description            String?
+  color                  String?
+  vocabularyItems        Json?
+  videoUrl               String?
+  videoTranscript        String?
+  languageAssessmentType LanguageAssessmentType?
+  isIELTS                Boolean?                        @default(false)
+  context                String?
+  isActive               Boolean                         @default(true)
+  usageCount             Int                             @default(0)
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
+  creatorId              String
+  languageId             String?
+  creator                User                            @relation("CreatorTemplates", fields: [creatorId], references: [id])
+  language               Language?                       @relation("TemplateLanguage", fields: [languageId], references: [id])
+  evaluationSettings     TemplateEvaluationSettings?
+  questions              TemplateQuestion[]
+  levels                 AssignmentTemplateLevel[]
+
+  @@map("assignment_templates")
+}
+
+model TemplateEvaluationSettings {
+  id                  String             @id @default(cuid())
+  type                EvaluationType
+  customPrompt        String?
+  rules               Json?
+  acceptableResponses Json?
+  feedbackSettings    Json               @default("{}")
+  templateId          String             @unique
+  template            AssignmentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("template_evaluation_settings")
+}
+
+model TemplateQuestion {
+  id           String             @id @default(cuid())
+  image        String?
+  textQuestion String?
+  videoUrl     String?
+  textAnswer   String?
+  order        Int                @default(0)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  templateId   String
+  template     AssignmentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("template_questions")
+}
+
+model AssignmentTemplateLevel {
+  id         String             @id @default(cuid())
+  levelType  LevelType
+  cefrLevel  CEFRLevel?
+  gradeLevel GradeLevel?
+  templateId String
+  template   AssignmentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, levelType, cefrLevel, gradeLevel])
+  @@map("assignment_template_levels")
 }

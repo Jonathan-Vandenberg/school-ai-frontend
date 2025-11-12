@@ -520,17 +520,29 @@ export default function AssignmentDetailPage() {
                                 <span className="text-sm font-medium">{index + 1}</span>
                               </div>
                               <div className="flex-1 space-y-2">
-                                {question.textQuestion && (
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Question</label>
-                                    <p className="text-sm">{question.textQuestion}</p>
-                                  </div>
-                                )}
-                                {question.textAnswer && (
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Expected Answer</label>
-                                    <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded border border-emerald-200 dark:border-emerald-800">{question.textAnswer}</p>
-                                  </div>
+                                {/* For READING assignments, show text question prominently without answer */}
+                                {assignment.evaluationSettings?.type === 'READING' ? (
+                                  <>
+                                    {question.textQuestion && (
+                                      <p className="text-lg leading-relaxed">{question.textQuestion}</p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    {/* For other assignment types, show question and answer separately */}
+                                    {question.textQuestion && (
+                                      <div>
+                                        <label className="text-sm font-medium text-muted-foreground">Question</label>
+                                        <p className="text-sm">{question.textQuestion}</p>
+                                      </div>
+                                    )}
+                                    {question.textAnswer && (
+                                      <div>
+                                        <label className="text-sm font-medium text-muted-foreground">Expected Answer</label>
+                                        <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded border border-emerald-200 dark:border-emerald-800">{question.textAnswer}</p>
+                                      </div>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>

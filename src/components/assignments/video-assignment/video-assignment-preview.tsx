@@ -11,16 +11,22 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertCircle, Mic, Play, Volume2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, Mic, Play, Volume2, Loader2, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import { Progress } from "@/components/ui/progress";
 import { AnswerFeedback } from "@/components/ui/answer-feedback";
+import IncorrectLottie from "@/components/ui/incorrect-lottie";
 
 interface VideoAssignmentPreviewProps {
   topic: string;
   videoUrl: string;
   questions: { text: string; answer: string }[];
   transcriptContent?: string | null;
+  levels?: Array<{
+    levelType: string;
+    cefrLevel?: string;
+    gradeLevel?: string;
+  }>;
 }
 
 function getYouTubeVideoId(url: string) {
@@ -47,6 +53,7 @@ export function VideoAssignmentPreview({
   videoUrl,
   questions,
   transcriptContent,
+  levels = [],
 }: VideoAssignmentPreviewProps) {
   const videoId = getYouTubeVideoId(videoUrl);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -65,6 +72,7 @@ export function VideoAssignmentPreview({
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState("");
+  const [showIncorrectAnimation, setShowIncorrectAnimation] = useState(false);
 
   // Submit transcript for evaluation (simulated for preview)
   const submitTranscript = async (transcript: string) => {
@@ -98,6 +106,7 @@ export function VideoAssignmentPreview({
             name: "English",
           },
           topic: topic,
+          levels: levels,
         }),
       });
 
@@ -120,6 +129,11 @@ export function VideoAssignmentPreview({
       }));
 
       setShowFeedback(true);
+      
+      // Show incorrect animation if answer is wrong
+      if (!isCorrect) {
+        setShowIncorrectAnimation(true);
+      }
     } catch (error) {
       console.error("Error evaluating answer:", error);
       setAnswers((prev) => ({
@@ -133,6 +147,7 @@ export function VideoAssignmentPreview({
         },
       }));
       setShowFeedback(true);
+      setShowIncorrectAnimation(true);
     } finally {
       setIsEvaluating(false);
       clearProcessing();
@@ -187,6 +202,7 @@ export function VideoAssignmentPreview({
   const clearFeedbackState = () => {
     setShowFeedback(false);
     setCurrentTranscript("");
+    setShowIncorrectAnimation(false);
   };
 
   const handleNext = () => {
@@ -219,37 +235,40 @@ export function VideoAssignmentPreview({
   const isProcessing = recorderIsProcessing || isEvaluating;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Progress Bar */}
-      <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span>Overall Progress</span>
-          <span>{Math.round(overallProgress)}%</span>
-        </div>
-        <Progress value={overallProgress} className="w-full" />
-      </div>
+      {/* <Card className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-200 dark:border-emerald-800">
+        <CardContent className="pt-6">
+          <div className="space-y-3">
+            <div className="flex justify-between text-base font-semibold">
+              <span className="text-emerald-900 dark:text-emerald-100">Overall Progress</span>
+              <span className="text-emerald-700 dark:text-emerald-300">{Math.round(overallProgress)}%</span>
+            </div>
+            <Progress value={overallProgress} className="w-full h-3" />
+          </div>
+        </CardContent>
+      </Card> */}
 
       {/* Video Player */}
       <Card>
         <CardHeader>
-          <CardTitle>{topic}</CardTitle>
-          <CardDescription>
-            Watch the video below and answer the questions by speaking your
-            responses.
-          </CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Play className="h-5 w-5" />
+            Assignment Video
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {videoId ? (
-            <AspectRatio ratio={16 / 9}>
+            <div className="relative pb-[56.25%] h-0 overflow-hidden rounded-lg">
               <iframe
-                className="rounded-lg w-full h-full"
+                className="absolute top-0 left-0 w-full h-full"
                 src={`https://www.youtube.com/embed/${videoId}`}
                 title="YouTube video player"
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               ></iframe>
-            </AspectRatio>
+            </div>
           ) : (
             <p className="text-red-500">Invalid YouTube URL provided.</p>
           )}
@@ -260,150 +279,92 @@ export function VideoAssignmentPreview({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>
-              Question {currentIndex + 1} of {totalQuestions}
-            </span>
-            <div className="flex items-center gap-2">
-              {isCurrentQuestionComplete && (
-                <Badge
-                  variant={isCurrentQuestionCorrect ? "default" : "destructive"}
-                  className="text-xs"
-                >
-                  {isCurrentQuestionCorrect ? "Correct" : "Needs Improvement"}
-                </Badge>
-              )}
+            <span>Question {currentIndex + 1}</span>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handlePrevious}
+                disabled={currentIndex === 0}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleNext}
+                disabled={currentIndex >= totalQuestions - 1}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </CardTitle>
-          <CardDescription>
-            Speak your answer clearly. The system will record and evaluate your
-            response.
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="p-4 rounded-lg">
-            <p className="font-medium text-lg">{currentQuestion?.text}</p>
+        <CardContent className="space-y-4">
+          <div className="p-4 bg-blue-50 rounded-lg">
+            <p className="text-lg">{currentQuestion?.text}</p>
           </div>
 
-          {/* Voice Recording Interface */}
-          <div className="flex flex-col items-center space-y-4">
-            <div className="relative">
-              <Button
+          {/* Voice Recording Interface or Incorrect Animation */}
+          <div className="flex items-center flex-col justify-center py-6">
+            {showIncorrectAnimation ? (
+              // Show incorrect Lottie animation instead of microphone
+              <IncorrectLottie onComplete={() => setShowIncorrectAnimation(false)} />
+            ) : (
+              // Show microphone button
+              <button
                 onClick={toggleRecording}
-                disabled={isProcessing}
-                size="lg"
-                className={`w-20 h-20 rounded-full transition-all duration-200 ${
-                  isRecording
-                    ? "bg-red-500 hover:bg-red-600 animate-pulse"
-                    : "bg-primary hover:bg-primary/90"
-                } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                disabled={isProcessing || isCurrentQuestionCorrect}
+                className={`w-20 h-20 rounded-full transition-all shadow-lg flex items-center justify-center border-none ${
+                  isCurrentQuestionCorrect 
+                    ? 'bg-yellow-400 hover:bg-yellow-500'
+                    : isRecording 
+                      ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                      : 'bg-blue-600 hover:bg-blue-700'
+                } ${isProcessing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                style={{
+                  WebkitTouchCallout: 'none',
+                  WebkitUserSelect: 'none',
+                  KhtmlUserSelect: 'none',
+                  MozUserSelect: 'none',
+                  msUserSelect: 'none',
+                  userSelect: 'none',
+                }}
               >
-                <Mic className="h-8 w-8" />
-              </Button>
-
-              {/* Audio Level Indicator */}
-              {isRecording && (
-                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
-                  <div className="flex space-x-1">
-                    {[...Array(5)].map((_, i) => (
-                      <div
-                        key={i}
-                        className={`w-1 bg-white rounded-full transition-all duration-100 ${
-                          audioLevel > i * 20 ? "h-3" : "h-1"
-                        }`}
-                      />
-                    ))}
-                  </div>
+                <div className="flex items-center justify-center w-full h-full">
+                  {isCurrentQuestionCorrect ? (
+                    <Star className="w-10 h-10 text-white" fill="white" />
+                  ) : isProcessing ? (
+                    <Loader2 className="w-10 h-10 text-white animate-spin" />
+                  ) : (
+                    <Mic className="w-10 h-10 text-white" />
+                  )}
                 </div>
-              )}
-            </div>
-
-            <div className="text-center space-y-2">
-              {isRecording && (
-                <div className="flex items-center gap-2 text-red-600">
-                  <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
-                  <span className="text-sm font-medium">Recording...</span>
-                  {isSpeaking && <Volume2 className="h-4 w-4" />}
+              </button>
+            )}
+            
+            {/* Audio level indicator when recording */}
+            {/* {isRecording && (
+              <div className="mt-4 flex flex-col items-center">
+                <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden border">
+                  <div 
+                    className="h-full bg-green-500 transition-all duration-100"
+                    style={{ width: `${Math.min(audioLevel || 0, 100)}%` }}
+                  />
                 </div>
-              )}
-
-              {isProcessing && (
-                <div className="flex items-center gap-2 text-blue-600">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
-                  <span className="text-sm font-medium">
-                    {recorderIsProcessing
-                      ? "Processing speech..."
-                      : "Evaluating answer..."}
-                  </span>
-                </div>
-              )}
-
-              {!isRecording && !isProcessing && (
-                <p className="text-sm text-muted-foreground">
-                  {isCurrentQuestionComplete
-                    ? "Click the microphone to record a new answer"
-                    : "Click the microphone to record your answer"}
-                </p>
-              )}
-            </div>
+              </div>
+            )} */}
           </div>
 
           {/* Current Transcript */}
-          {currentTranscript && (
+          {/* {currentTranscript && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
                 <strong>Your response:</strong> {currentTranscript}
               </p>
             </div>
-          )}
+          )} */}
 
-          {/* Answer Feedback */}
-          {showFeedback && currentAnswer && (
-            <div className="space-y-3">
-              <AnswerFeedback
-                isCorrect={currentAnswer.isCorrect}
-                feedback={currentAnswer.feedback}
-                show={showFeedback}
-                isProcessing={false}
-                details={currentAnswer.details}
-                encouragement={currentAnswer.encouragement}
-                ruleEvaluation={{}}
-                evaluationSettings={{
-                  detailedFeedback: true,
-                  encouragementEnabled: true,
-                }}
-                userAnswer={currentAnswer.transcript}
-              />
-              <Button
-                variant="outline"
-                onClick={retryCurrentQuestion}
-                className="w-full"
-              >
-                Try Again
-              </Button>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <div className="flex justify-between items-center pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={handlePrevious}
-              disabled={currentIndex === 0}
-            >
-              Previous
-            </Button>
-
-            <div className="text-sm text-muted-foreground">
-              Question {currentIndex + 1} of {totalQuestions}
-            </div>
-
-            <Button
-              onClick={handleNext}
-              disabled={currentIndex >= totalQuestions - 1}
-            >
-              Next
-            </Button>
-          </div>
         </CardContent>
       </Card>
 

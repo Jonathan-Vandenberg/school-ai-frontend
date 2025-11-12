@@ -51,20 +51,20 @@ export function AnswerFeedback({
             </div>
 
             {/* User Answer */}
-            {userAnswer && (
+            {/* {userAnswer && (
               <div className="border-t pt-3">
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Your Answer:</h4>
                 <p className="text-sm bg-white rounded p-2 border">{userAnswer}</p>
               </div>
-            )}
+            )} */}
 
             {/* Detailed Feedback */}
-            {details && evaluationSettings?.detailedFeedback && (
+            {/* {details && evaluationSettings?.detailedFeedback && (
               <div className="border-t pt-3">
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Detailed Feedback:</h4>
                 <p className="text-sm text-gray-700">{details}</p>
               </div>
-            )}
+            )} */}
 
             {/* Rule Evaluation */}
             {ruleEvaluation && Object.keys(ruleEvaluation).length > 0 && (

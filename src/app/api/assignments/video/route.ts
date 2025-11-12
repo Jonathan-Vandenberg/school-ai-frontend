@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService } from '../../../../../lib/services/auth.service'
 import { AssignmentsService } from '../../../../../lib/services/assignments.service'
+import { TemplatesService } from '../../../../../lib/services/templates.service'
 import { handleServiceError } from '../../../../../lib/services/auth.service'
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
+import { LevelType, CEFRLevel, GradeLevel } from '@prisma/client'
 
 /**
  * POST /api/assignments/video
@@ -36,6 +38,7 @@ export async function POST(request: NextRequest) {
     // Validate required fields for video assignment
     const videoSchema = z.object({
       topic: z.string().min(1, 'Topic is required'),
+      description: z.string().optional(),
       videoUrl: z.string().url('Valid video URL is required'),
       languageId: z.string().optional().nullable(), // Made optional
       questions: z.array(z.object({
@@ -57,6 +60,11 @@ export async function POST(request: NextRequest) {
       hasTranscript: z.boolean().optional(),
       totalStudentsInScope: z.number().optional(),
       analysisResult: z.any().optional(),
+      levels: z.array(z.object({
+        levelType: z.nativeEnum(LevelType),
+        cefrLevel: z.nativeEnum(CEFRLevel).optional(),
+        gradeLevel: z.nativeEnum(GradeLevel).optional(),
+      })).optional().default([]),
     });
 
     const validatedData = videoSchema.parse({ ...body, languageId });
@@ -83,6 +91,34 @@ export async function POST(request: NextRequest) {
       totalStudentsInScope: validatedData.totalStudentsInScope,
       analysisResult: validatedData.analysisResult,
     });
+
+    // Automatically create a template from this assignment
+    try {
+      await TemplatesService.createTemplate(currentUser, {
+        topic: validatedData.topic,
+        description: validatedData.description ?? undefined,
+        color: validatedData.color ?? undefined,
+        videoUrl: validatedData.videoUrl ?? undefined,
+        videoTranscript: validatedData.videoTranscript ?? undefined,
+        languageId: validatedData.languageId ?? undefined,
+        evaluationSettings: {
+          type: 'VIDEO' as any,
+          customPrompt: undefined,
+          rules: validatedData.rules || [],
+          acceptableResponses: [],
+          feedbackSettings: validatedData.feedbackSettings || {}
+        },
+        questions: validatedData.questions.map((q, index) => ({
+          textQuestion: q.text,
+          textAnswer: q.answer,
+          order: index
+        })),
+        levels: validatedData.levels || []
+      });
+    } catch (templateError) {
+      // Log but don't fail assignment creation if template creation fails
+      console.error('Failed to create template:', templateError);
+    }
 
     return NextResponse.json({
       success: true,

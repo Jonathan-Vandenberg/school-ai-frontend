@@ -32,6 +32,7 @@ import {
 import { PlusCircle, Trash2, Eye, Clock } from "lucide-react";
 import { Class, User } from "@prisma/client";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import {
   Popover,
@@ -57,9 +58,12 @@ import { VideoAssignmentPreview } from "./video-assignment-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { LevelSelector } from "@/components/templates/level-selector";
+import { LevelType, CEFRLevel, GradeLevel } from "@prisma/client";
 
 const formSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
+  description: z.string().optional(),
   videoUrl: z.string().url("Please enter a valid YouTube URL"),
   questions: z
     .array(
@@ -76,6 +80,11 @@ const formSchema = z.object({
   dueDate: z.date().optional().nullable(),
   hasTranscript: z.boolean().optional(),
   languageId: z.string().optional(),
+  levels: z.array(z.object({
+    levelType: z.nativeEnum(LevelType),
+    cefrLevel: z.nativeEnum(CEFRLevel).optional(),
+    gradeLevel: z.nativeEnum(GradeLevel).optional(),
+  })).default([]),
 });
 
 type VideoFormValues = z.infer<typeof formSchema>;
@@ -116,11 +125,13 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
   const [improvedQuestions, setImprovedQuestions] = useState<
     { text: string; answer: string }[]
   >([]);
+  const [selectedQuestionIndices, setSelectedQuestionIndices] = useState<Set<number>>(new Set());
 
   const form = useForm<VideoFormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       topic: "",
+      description: "",
       videoUrl: "",
       questions: [{ text: "", answer: "" }],
       classIds: [],
@@ -130,6 +141,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
       dueDate: null,
       hasTranscript: false,
       languageId: "", // Will default to English on backend
+      levels: [],
     },
   });
 
@@ -256,6 +268,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
         body: JSON.stringify({
           transcript: transcriptContent,
           topic: formData.topic,
+          levels: formData.levels || [],
         }),
       });
 
@@ -347,10 +360,54 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
 
     // Clear all improved questions since they've all been applied
     setImprovedQuestions([]);
+    setSelectedQuestionIndices(new Set());
 
     setFormMessage({
       type: "success",
       message: "All suggested questions have been applied.",
+    });
+  };
+
+  const toggleQuestionSelection = (index: number) => {
+    const newSelection = new Set(selectedQuestionIndices);
+    if (newSelection.has(index)) {
+      newSelection.delete(index);
+    } else {
+      newSelection.add(index);
+    }
+    setSelectedQuestionIndices(newSelection);
+  };
+
+  const applySelectedQuestions = () => {
+    if (selectedQuestionIndices.size === 0) {
+      setFormMessage({ type: "error", message: "Please select at least one question." });
+      return;
+    }
+
+    const selectedQuestions = Array.from(selectedQuestionIndices)
+      .sort((a, b) => a - b)
+      .map(i => improvedQuestions[i]);
+
+    // Check if the first question is empty and replace it, otherwise append
+    const firstQuestion = form.getValues("questions")[0];
+    if (
+      form.getValues("questions").length === 1 &&
+      !firstQuestion.text &&
+      !firstQuestion.answer
+    ) {
+      replace(selectedQuestions);
+    } else {
+      selectedQuestions.forEach(q => append(q));
+    }
+
+    // Remove applied questions from improved list
+    const remainingQuestions = improvedQuestions.filter((_, i) => !selectedQuestionIndices.has(i));
+    setImprovedQuestions(remainingQuestions);
+    setSelectedQuestionIndices(new Set());
+
+    setFormMessage({
+      type: "success",
+      message: `${selectedQuestionIndices.size} question(s) added.`,
     });
   };
 
@@ -372,7 +429,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     return hasValidQuestions;
   };
 
-  async function onSubmit(values: VideoFormValues) {
+  const onSubmit = async (values: VideoFormValues) => {
     setIsSubmitting(true);
     setFormMessage(null);
     try {
@@ -415,13 +472,13 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  };
 
   const currentFormData = form.watch();
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-8">
         <Card>
           <CardHeader>
             <CardTitle>Video Assignment Details</CardTitle>
@@ -443,6 +500,28 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                 </FormItem>
               )}
             />
+            
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Brief description of this assignment..."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    This helps other teachers understand what this assignment is about.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Video URL */}
             <FormField
               control={form.control}
               name="videoUrl"
@@ -456,9 +535,34 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
                     />
                   </FormControl>
                   <FormMessage />
+                  <FormDescription>
+                    Enter the URL of the YouTube video you want to use for this assignment.
+                  </FormDescription>
                 </FormItem>
               )}
             />
+
+            {/* Educational Levels */}
+            <FormField
+              control={form.control}
+              name="levels"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Educational Levels</FormLabel>
+                  <FormControl>
+                    <LevelSelector
+                      value={field.value || []}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Select the CEFR or Grade levels this assignment is appropriate for.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
 
             {isCheckingTranscript && (
               <Alert>
@@ -520,46 +624,58 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
               <CardTitle>Suggested Questions</CardTitle>
               <CardDescription>
                 These questions have been generated by AI based on the video
-                transcript. You can add them individually or all at once.
+                transcript. Select the questions you want to add.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 max-h-96 overflow-y-auto pr-4">
                 {improvedQuestions.map((q, i) => (
-                  <div key={i} className="p-4 border rounded-md">
-                    <p className="font-semibold">
-                      {i + 1}. {q.text}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      <span className="font-semibold">Answer:</span> {q.answer}
-                    </p>
-                    <div className="flex justify-end mt-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyOneImprovedQuestion(q)}
-                      >
-                        Use This Question
-                      </Button>
+                  <div 
+                    key={i} 
+                    className={`p-4 border rounded-md transition-colors ${
+                      selectedQuestionIndices.has(i) ? 'border-primary bg-primary/5' : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={selectedQuestionIndices.has(i)}
+                        onCheckedChange={() => toggleQuestionSelection(i)}
+                      />
+                      <div className="flex-1">
+                        <p className="font-semibold">
+                          {i + 1}. {q.text}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          <span className="font-semibold">Answer:</span> {q.answer}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="flex items-center gap-4 mt-4 justify-end">
-                <Button type="button" onClick={applyAllImprovedQuestions}>
-                  Use All Suggested Questions
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={suggestQuestionsFromTranscript}
-                  disabled={isAnalyzing}
-                >
-                  {isAnalyzing
-                    ? "Generating more..."
-                    : "Generate More Questions"}
-                </Button>
+              <div className="flex items-center gap-4 mt-4 justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {selectedQuestionIndices.size} of {improvedQuestions.length} selected
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={suggestQuestionsFromTranscript}
+                    disabled={isAnalyzing}
+                  >
+                    {isAnalyzing
+                      ? "Generating more..."
+                      : "Generate More Questions"}
+                  </Button>
+                  <Button 
+                    type="button" 
+                    onClick={applySelectedQuestions}
+                    disabled={selectedQuestionIndices.size === 0}
+                  >
+                    Add Selected ({selectedQuestionIndices.size})
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -634,23 +750,20 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Classes</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange([value])}
-                    defaultValue={field.value?.[0]}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a class" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {classes.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <MultiSelect
+                      options={classes.map((c) => ({
+                        label: c.name,
+                        value: c.id,
+                      }))}
+                      selected={field.value || []}
+                      onChange={field.onChange}
+                      placeholder="Select classes"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Select one or more classes to assign this to
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

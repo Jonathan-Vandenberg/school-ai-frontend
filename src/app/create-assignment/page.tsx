@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { assignmentTypes } from "../../lib/assignment-types";
+import { assignmentTypes } from "@/src/lib/assignment-types";
 import { useTenant } from "@/components/providers/tenant-provider";
 import { Loader2 } from "lucide-react";
 

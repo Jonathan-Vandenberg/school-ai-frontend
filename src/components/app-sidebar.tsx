@@ -45,7 +45,9 @@ import {
   LogOut,
   ChevronUp,
   Plus,
-  Palette
+  Palette,
+  FolderOpen,
+  Library
 } from 'lucide-react'
 import Image from 'next/image'
 import { useTenant } from '@/components/providers/tenant-provider'
@@ -125,6 +127,18 @@ const navItems: NavItem[] = [
     title: 'Assignments',
     href: '/assignments',
     icon: BookOpen,
+    roles: ['ADMIN', 'TEACHER']
+  },
+  {
+    title: 'Templates',
+    href: '/templates/browse',
+    icon: FolderOpen,
+    roles: ['ADMIN', 'TEACHER']
+  },
+  {
+    title: 'My Templates',
+    href: '/templates/manage',
+    icon: Library,
     roles: ['ADMIN', 'TEACHER']
   },
   // {

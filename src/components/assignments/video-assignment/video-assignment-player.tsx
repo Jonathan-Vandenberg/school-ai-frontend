@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { AnswerFeedback } from '@/components/ui/answer-feedback'
 import { useAudioRecorder } from '@/hooks/use-audio-recorder'
+import IncorrectLottie from '@/components/ui/incorrect-lottie'
 import { 
   Mic, 
   ChevronLeft, 
@@ -80,6 +81,7 @@ export function VideoAssignmentPlayer({
   const [localProcessing, setLocalProcessing] = useState(false)
   const [hasStartedAnyQuestion, setHasStartedAnyQuestion] = useState(false)
   const [videoIsPaused, setVideoIsPaused] = useState(false)
+  const [showIncorrectAnimation, setShowIncorrectAnimation] = useState(false)
   const playerRef = useRef<any>(null)
 
   // Get YouTube video ID for embedded player
@@ -207,6 +209,11 @@ export function VideoAssignmentPlayer({
       setShowFeedback(true)
       setHasStartedAnyQuestion(true)
 
+      // Show incorrect animation if answer is wrong
+      if (!newIsCorrect) {
+        setShowIncorrectAnimation(true)
+      }
+
       // Update progress
       await onProgressUpdate(currentQuestion.id, newIsCorrect, {
         transcript,
@@ -278,6 +285,7 @@ export function VideoAssignmentPlayer({
     // setRuleEvaluation({})
     setCurrentTranscript('')
     setLocalProcessing(false) // Reset processing state
+    setShowIncorrectAnimation(false) // Reset incorrect animation
   }
 
   const clearFeedbackAndResetRecorder = () => {
@@ -470,41 +478,47 @@ export function VideoAssignmentPlayer({
                 </p>
               </div>
 
-              {/* Microphone Control - Hidden in viewing mode */}
+              {/* Microphone Control or Incorrect Animation - Hidden in viewing mode */}
               {!isViewingOnly && (
                 <div className="flex items-center flex-col justify-center py-6">
-                  <button
-                    onClick={toggleRecording}
-                    disabled={isProcessing || isCurrentQuestionCorrect}
-                    className={`w-20 h-20 rounded-full transition-all shadow-lg flex items-center justify-center border-none ${
-                      isCurrentQuestionCorrect 
-                        ? 'bg-yellow-400 hover:bg-yellow-500'
-                        : isRecording 
-                          ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                          : 'bg-blue-600 hover:bg-blue-700'
-                    } ${isProcessing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-                    style={{
-                      WebkitTouchCallout: 'none',
-                      WebkitUserSelect: 'none',
-                      KhtmlUserSelect: 'none',
-                      MozUserSelect: 'none',
-                      msUserSelect: 'none',
-                      userSelect: 'none',
-                    }}
-                  >
-                    <div className="flex items-center justify-center w-full h-full">
-                      {isCurrentQuestionCorrect ? (
-                        <Star className="w-10 h-10 text-white" fill="white" />
-                      ) : isProcessing ? (
-                        <Loader2 className="w-10 h-10 text-white animate-spin" />
-                      ) : (
-                        <Mic className="w-10 h-10 text-white" />
-                      )}
-                    </div>
-                  </button>
+                  {showIncorrectAnimation ? (
+                    // Show incorrect Lottie animation instead of microphone
+                    <IncorrectLottie onComplete={() => setShowIncorrectAnimation(false)} />
+                  ) : (
+                    // Show microphone button
+                    <button
+                      onClick={toggleRecording}
+                      disabled={isProcessing || isCurrentQuestionCorrect}
+                      className={`w-20 h-20 rounded-full transition-all shadow-lg flex items-center justify-center border-none ${
+                        isCurrentQuestionCorrect 
+                          ? 'bg-yellow-400 hover:bg-yellow-500'
+                          : isRecording 
+                            ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                            : 'bg-blue-600 hover:bg-blue-700'
+                      } ${isProcessing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                      style={{
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        KhtmlUserSelect: 'none',
+                        MozUserSelect: 'none',
+                        msUserSelect: 'none',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <div className="flex items-center justify-center w-full h-full">
+                        {isCurrentQuestionCorrect ? (
+                          <Star className="w-10 h-10 text-white" fill="white" />
+                        ) : isProcessing ? (
+                          <Loader2 className="w-10 h-10 text-white animate-spin" />
+                        ) : (
+                          <Mic className="w-10 h-10 text-white" />
+                        )}
+                      </div>
+                    </button>
+                  )}
                   
                   {/* Audio level indicator when recording */}
-                  {isRecording && (
+                  {/* {isRecording && (
                     <div className="mt-4 flex flex-col items-center">
                       <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden border">
                         <div 
@@ -513,12 +527,12 @@ export function VideoAssignmentPlayer({
                         />
                       </div>
                     </div>
-                  )}
+                  )} */}
                 </div>
               )}
 
               {/* Feedback */}
-              {(showFeedback || isProcessing) && (
+              {/* {(showFeedback || isProcessing) && (
                               <AnswerFeedback
                 isCorrect={isCorrect}
                 feedback={feedback}
@@ -530,7 +544,7 @@ export function VideoAssignmentPlayer({
                 evaluationSettings={assignment.evaluationSettings?.feedbackSettings}
                 userAnswer={currentTranscript}
               />
-              )}
+              )} */}
             </CardContent>
           </Card>
         </div>
