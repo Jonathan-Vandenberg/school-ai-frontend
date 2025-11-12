@@ -58,12 +58,14 @@ interface VideoAssignmentPlayerProps {
   assignment: Assignment
   studentProgress: StudentProgress[]
   onProgressUpdate: (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING') => Promise<void>
+  isViewingOnly?: boolean
 }
 
 export function VideoAssignmentPlayer({ 
   assignment, 
   studentProgress,
-  onProgressUpdate 
+  onProgressUpdate,
+  isViewingOnly = false
 }: VideoAssignmentPlayerProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -468,50 +470,52 @@ export function VideoAssignmentPlayer({
                 </p>
               </div>
 
-              {/* Microphone Control */}
-              <div className="flex items-center flex-col justify-center py-6">
-                <button
-                  onClick={toggleRecording}
-                  disabled={isProcessing || isCurrentQuestionCorrect}
-                  className={`w-20 h-20 rounded-full transition-all shadow-lg flex items-center justify-center border-none ${
-                    isCurrentQuestionCorrect 
-                      ? 'bg-yellow-400 hover:bg-yellow-500'
-                      : isRecording 
-                        ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                        : 'bg-blue-600 hover:bg-blue-700'
-                  } ${isProcessing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-                  style={{
-                    WebkitTouchCallout: 'none',
-                    WebkitUserSelect: 'none',
-                    KhtmlUserSelect: 'none',
-                    MozUserSelect: 'none',
-                    msUserSelect: 'none',
-                    userSelect: 'none',
-                  }}
-                >
-                  <div className="flex items-center justify-center w-full h-full">
-                    {isCurrentQuestionCorrect ? (
-                      <Star className="w-10 h-10 text-white" fill="white" />
-                    ) : isProcessing ? (
-                      <Loader2 className="w-10 h-10 text-white animate-spin" />
-                    ) : (
-                      <Mic className="w-10 h-10 text-white" />
-                    )}
-                  </div>
-                </button>
-                
-                {/* Audio level indicator when recording */}
-                {isRecording && (
-                  <div className="mt-4 flex flex-col items-center">
-                    <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden border">
-                      <div 
-                        className="h-full bg-green-500 transition-all duration-100"
-                        style={{ width: `${Math.min(audioLevel || 0, 100)}%` }}
-                      />
+              {/* Microphone Control - Hidden in viewing mode */}
+              {!isViewingOnly && (
+                <div className="flex items-center flex-col justify-center py-6">
+                  <button
+                    onClick={toggleRecording}
+                    disabled={isProcessing || isCurrentQuestionCorrect}
+                    className={`w-20 h-20 rounded-full transition-all shadow-lg flex items-center justify-center border-none ${
+                      isCurrentQuestionCorrect 
+                        ? 'bg-yellow-400 hover:bg-yellow-500'
+                        : isRecording 
+                          ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                          : 'bg-blue-600 hover:bg-blue-700'
+                    } ${isProcessing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                    style={{
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      KhtmlUserSelect: 'none',
+                      MozUserSelect: 'none',
+                      msUserSelect: 'none',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <div className="flex items-center justify-center w-full h-full">
+                      {isCurrentQuestionCorrect ? (
+                        <Star className="w-10 h-10 text-white" fill="white" />
+                      ) : isProcessing ? (
+                        <Loader2 className="w-10 h-10 text-white animate-spin" />
+                      ) : (
+                        <Mic className="w-10 h-10 text-white" />
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
+                  </button>
+                  
+                  {/* Audio level indicator when recording */}
+                  {isRecording && (
+                    <div className="mt-4 flex flex-col items-center">
+                      <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden border">
+                        <div 
+                          className="h-full bg-green-500 transition-all duration-100"
+                          style={{ width: `${Math.min(audioLevel || 0, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Feedback */}
               {(showFeedback || isProcessing) && (

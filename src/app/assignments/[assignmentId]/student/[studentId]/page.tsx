@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import { ReadingAssignment } from '@/components/assignments/reading-assignment/reading-assignment-component'
 import { PronunciationAssignment } from '@/components/assignments/pronunciation-assignment/pronunciation-assignment-component'
+import { VideoAssignmentPlayer } from '@/components/assignments/video-assignment/video-assignment-player'
+import { IELTSAssignment } from '@/components/assignments/ielts-assignment/ielts-assignment-component'
 
 interface Assignment {
   id: string
@@ -142,7 +144,7 @@ export default function StudentAssignmentViewPage() {
 
   const handleProgressUpdate = async (questionId: string, isCorrect: boolean, result: any, type: 'READING' | 'VIDEO' | 'PRONUNCIATION' | 'Q_AND_A' | 'IELTS') => {
     // This is a read-only view, so we don't actually update progress
-    // But we keep the interface consistent with the ReadingAssignment component
+    // But we keep the interface consistent with the assignment components
     console.log('Progress update in read-only view:', { questionId, isCorrect, result, type })
   }
 
@@ -245,6 +247,23 @@ export default function StudentAssignmentViewPage() {
       </Card>
 
       {/* Assignment Component - Read-only view */}
+      {assignment.evaluationSettings?.type === 'VIDEO' && (
+        <VideoAssignmentPlayer
+          assignment={{
+            id: assignment.id,
+            topic: assignment.topic,
+            videoUrl: assignment.videoUrl,
+            videoTranscript: assignment.videoTranscript,
+            language: assignment.language,
+            evaluationSettings: assignment.evaluationSettings,
+            questions: assignment.questions
+          }}
+          studentProgress={studentProgress}
+          onProgressUpdate={handleProgressUpdate}
+          isViewingOnly={true}
+        />
+      )}
+
       {assignment.evaluationSettings?.type === 'READING' && (
         <ReadingAssignment
           assignment={assignment}
@@ -263,8 +282,25 @@ export default function StudentAssignmentViewPage() {
         />
       )}
 
+      {assignment.evaluationSettings?.type === 'Q_AND_A' && (
+        <IELTSAssignment
+          assignment={{
+            id: assignment.id,
+            topic: assignment.topic,
+            evaluationSettings: assignment.evaluationSettings,
+            questions: assignment.questions
+          }}
+          studentProgress={studentProgress}
+          onProgressUpdate={handleProgressUpdate}
+          isViewingOnly={true}
+        />
+      )}
+
       {/* For other assignment types, show a placeholder */}
-      {assignment.evaluationSettings?.type !== 'READING' && assignment.evaluationSettings?.type !== 'PRONUNCIATION' && (
+      {assignment.evaluationSettings?.type !== 'VIDEO' && 
+       assignment.evaluationSettings?.type !== 'READING' && 
+       assignment.evaluationSettings?.type !== 'PRONUNCIATION' && 
+       assignment.evaluationSettings?.type !== 'Q_AND_A' && (
         <Card>
           <CardHeader>
             <CardTitle>Assignment View</CardTitle>

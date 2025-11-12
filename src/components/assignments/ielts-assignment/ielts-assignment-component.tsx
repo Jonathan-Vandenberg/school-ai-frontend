@@ -270,12 +270,14 @@ interface IELTSAssignmentProps {
   assignment: Assignment
   studentProgress: StudentProgress[]
   onProgressUpdate: (questionId: string, isCorrect: boolean, result: any, type: 'VIDEO' | 'READING' | 'PRONUNCIATION' | 'IELTS' | 'Q_AND_A') => Promise<void>
+  isViewingOnly?: boolean
 }
 
 export function IELTSAssignment({ 
   assignment, 
   studentProgress,
-  onProgressUpdate 
+  onProgressUpdate,
+  isViewingOnly = false
 }: IELTSAssignmentProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -865,55 +867,57 @@ export function IELTSAssignment({
                 />
               </div>
 
-              {/* Microphone Control */}
-              <div className="text-center py-6">
-                <div
-                  onClick={isProcessing || isCurrentQuestionCorrect ? undefined : toggleRecording}
-                  className={`w-20 h-20 rounded-full transition-all shadow-lg flex items-center justify-center mx-auto ${
-                    isCurrentQuestionCorrect 
-                      ? 'bg-yellow-300'
-                      : isRecording 
-                        ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                        : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
-                  } ${isProcessing ? 'cursor-not-allowed opacity-50' : ''}`}
-                  style={{
-                    WebkitTouchCallout: 'none',
-                    WebkitUserSelect: 'none',
-                    KhtmlUserSelect: 'none',
-                    MozUserSelect: 'none',
-                    msUserSelect: 'none',
-                    userSelect: 'none',
-                  }}
-                >
-                  {isCurrentQuestionCorrect ? (
-                    <Star className="w-8 h-8 text-white" fill="white" />
-                  ) : isProcessing ? (
-                    <Loader2 className="w-8 h-8 text-white animate-spin" />
-                  ) : (
-                    <Mic className="w-8 h-8 text-white" />
-                  )}
-                </div>
-                
-                {/* Audio level indicator when recording */}
-                {isRecording && (
-                  <div className="mt-3 flex justify-center items-center">
-                    <div className="relative w-32 h-4 bg-gray-200 rounded-full border border-gray-300">
-                      <div 
-                        className="absolute top-0 left-0 h-full bg-green-500 rounded-full"
-                        style={{ 
-                          width: `${Math.max(0, Math.min(audioLevel || 0, 100))}%`,
-                          transition: 'width 0.1s ease-out'
-                        }}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-[10px] font-mono text-gray-700">
-                          {(audioLevel || 0).toFixed(0)}%
-                        </span>
+              {/* Microphone Control - Hidden in viewing mode */}
+              {!isViewingOnly && (
+                <div className="text-center py-6">
+                  <div
+                    onClick={isProcessing || isCurrentQuestionCorrect ? undefined : toggleRecording}
+                    className={`w-20 h-20 rounded-full transition-all shadow-lg flex items-center justify-center mx-auto ${
+                      isCurrentQuestionCorrect 
+                        ? 'bg-yellow-300'
+                        : isRecording 
+                          ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                          : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                    } ${isProcessing ? 'cursor-not-allowed opacity-50' : ''}`}
+                    style={{
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      KhtmlUserSelect: 'none',
+                      MozUserSelect: 'none',
+                      msUserSelect: 'none',
+                      userSelect: 'none',
+                    }}
+                  >
+                    {isCurrentQuestionCorrect ? (
+                      <Star className="w-8 h-8 text-white" fill="white" />
+                    ) : isProcessing ? (
+                      <Loader2 className="w-8 h-8 text-white animate-spin" />
+                    ) : (
+                      <Mic className="w-8 h-8 text-white" />
+                    )}
+                  </div>
+                  
+                  {/* Audio level indicator when recording */}
+                  {isRecording && (
+                    <div className="mt-3 flex justify-center items-center">
+                      <div className="relative w-32 h-4 bg-gray-200 rounded-full border border-gray-300">
+                        <div 
+                          className="absolute top-0 left-0 h-full bg-green-500 rounded-full"
+                          style={{ 
+                            width: `${Math.max(0, Math.min(audioLevel || 0, 100))}%`,
+                            transition: 'width 0.1s ease-out'
+                          }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-[10px] font-mono text-gray-700">
+                            {(audioLevel || 0).toFixed(0)}%
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               {/* Feedback */}
               {/* {(showFeedback || isProcessing) && (!pronunciationResult && !pronunciationResult?.words) && (
