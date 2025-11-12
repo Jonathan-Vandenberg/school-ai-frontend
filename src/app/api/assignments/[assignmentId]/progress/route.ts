@@ -83,16 +83,9 @@ export async function GET(
       )
     }
 
-    // Check access permissions
-    if (currentUser.customRole === 'TEACHER' && assignment.teacher?.id !== currentUser.id) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'You can only view progress for your own assignments' 
-        },
-        { status: 403 }
-      )
-    }
+    // Check access permissions:
+    // - Students: restricted to assignments they are part of (checked below)
+    // - Teachers/Admins: allowed to view progress for any assignment
 
     // For students, verify they have access to this assignment
     if (isStudent) {
