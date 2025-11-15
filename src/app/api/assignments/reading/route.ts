@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         topic: validatedData.topic,
         description: validatedData.description ?? undefined,
         color: validatedData.color ?? undefined,
-        languageId: validatedData.languageId ?? undefined,
+        languageId: validatedData.languageId && validatedData.languageId.trim() !== '' ? validatedData.languageId : undefined,
         evaluationSettings: {
           type: 'READING' as any,
           customPrompt: undefined,

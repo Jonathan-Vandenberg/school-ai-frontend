@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
         color: validatedData.color ?? undefined,
         videoUrl: validatedData.videoUrl ?? undefined,
         videoTranscript: validatedData.videoTranscript ?? undefined,
-        languageId: validatedData.languageId ?? undefined,
+        languageId: validatedData.languageId && validatedData.languageId.trim() !== '' ? validatedData.languageId : undefined,
         evaluationSettings: {
           type: 'VIDEO' as any,
           customPrompt: undefined,

@@ -90,14 +90,18 @@ export class TemplatesService {
       throw new ForbiddenError('Only teachers and admins can create templates')
     }
 
-    // Validate language exists (only if languageId is provided)
-    if (templateData.languageId) {
+    // Validate language exists (only if languageId is provided and not empty)
+    let validatedLanguageId: string | null = null
+    if (templateData.languageId && templateData.languageId.trim() !== '') {
       const language = await prisma.language.findUnique({
         where: { id: templateData.languageId }
       })
 
       if (!language) {
-        throw new ValidationError('Language not found')
+        // If language doesn't exist, set to null instead of throwing error
+        validatedLanguageId = null
+      } else {
+        validatedLanguageId = templateData.languageId
       }
     }
 
@@ -107,12 +111,13 @@ export class TemplatesService {
     }
 
     return withTransaction(async (tx) => {
-      const { levels, questions, evaluationSettings, ...templateFields } = templateData
+      const { levels, questions, evaluationSettings, languageId, ...templateFields } = templateData
 
       // Create the template
       const template = await tx.assignmentTemplate.create({
         data: {
           ...templateFields,
+          languageId: validatedLanguageId, // Use validated languageId (null if invalid/not provided)
           creatorId: currentUser.id,
           evaluationSettings: evaluationSettings ? {
             create: {
