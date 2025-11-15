@@ -421,7 +421,7 @@ export function VideoAssignmentPlayer({
                   )}
                 </div>
                 
-                {assignment.videoTranscript && (
+                {/* {assignment.videoTranscript && (
                   <div className="mt-4">
                     <Button 
                       variant="outline" 
@@ -441,7 +441,7 @@ export function VideoAssignmentPlayer({
                       </div>
                     )}
                   </div>
-                )}
+                )} */}
               </CardContent>
             </Card>
           )}

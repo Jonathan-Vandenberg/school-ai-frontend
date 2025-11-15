@@ -520,11 +520,13 @@ export default function AssignmentDetailPage() {
                                 <span className="text-sm font-medium">{index + 1}</span>
                               </div>
                               <div className="flex-1 space-y-2">
-                                {/* For READING assignments, show text answer (the reading passage) prominently without title */}
+                                {/* For READING assignments, show title and passage text */}
                                 {assignment.evaluationSettings?.type === 'READING' ? (
                                   <>
                                     {question.textAnswer && (
-                                      <p className="text-lg leading-relaxed">{question.textAnswer}</p>
+                                      <div>
+                                        <p className="text-lg leading-relaxed">{question.textAnswer}</p>
+                                      </div>
                                     )}
                                   </>
                                 ) : (
@@ -685,7 +687,7 @@ export default function AssignmentDetailPage() {
                     </CardHeader>
                     <CardContent>
                       <div className={`text-2xl font-bold ${getProgressColor(progressData.overallStats.completionRate)}`}>
-                        {progressData.overallStats.completionRate.toFixed(1)}%
+                        {Math.round(progressData.overallStats.completionRate)}%
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {progressData.overallStats.studentsCompleted} of {progressData.overallStats.totalStudents} completed
@@ -922,7 +924,7 @@ export default function AssignmentDetailPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Target className="h-5 w-5" />
-                    Questions ({assignment.questions.length})
+                    {`${assignment.evaluationSettings?.type === 'READING' ? 'Passages' : 'Questions'} (${assignment.questions.length})`}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -934,11 +936,31 @@ export default function AssignmentDetailPage() {
                             <span className="text-sm font-medium">{index + 1}</span>
                           </div>
                           <div className="flex-1 space-y-2">
-                            {question.textQuestion && (
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Question</label>
-                                <p className="text-sm">{question.textQuestion}</p>
-                              </div>
+                            {/* For READING assignments, show title and passage */}
+                            {assignment.evaluationSettings?.type === 'READING' ? (
+                              <>
+                                {question.textQuestion && (
+                                  <div>
+                                    {/* <label className="text-sm font-medium text-muted-foreground">Title</label> */}
+                                    <p className="text-base font-semibold mb-2">{question.textQuestion}</p>
+                                  </div>
+                                )}
+                                {/* {question.textAnswer && (
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Passage</label>
+                                    <p className="text-lg leading-relaxed">{question.textAnswer}</p>
+                                  </div>
+                                )} */}
+                              </>
+                            ) : (
+                              <>
+                                {question.textQuestion && (
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Question</label>
+                                    <p className="text-sm">{question.textQuestion}</p>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>

@@ -725,7 +725,7 @@ export function ReadingAssignment({
           <div>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Question {currentIndex + 1}: {assignment.questions[currentIndex]?.textQuestion || 'No title available'}</span>
+                <span>Passage {currentIndex + 1}</span>
                 <div className="flex gap-2">
                   <Button
                     variant="ghost"
@@ -749,7 +749,7 @@ export function ReadingAssignment({
             <CardContent className="space-y-4">
               <div className="p-4 bg-blue-50 rounded-lg relative">
                 <p className="text-lg">
-                  {assignment.questions[currentIndex]?.textAnswer || 'No question text available'}
+                  {assignment.questions[currentIndex]?.textAnswer || 'No passage text available'}
                 </p>
                 
                 {/* Speaker icon for full text - only show if answer is correct */}
@@ -868,7 +868,7 @@ export function ReadingAssignment({
                     </div>
                     
                     {/* Legend */}
-                    <div className="mt-4 pt-3 border-t border-gray-200">
+                    {/* <div className="mt-4 pt-3 border-t border-gray-200">
                       <p className="text-xs text-gray-600 mb-2">Score Range:</p>
                       <div className="flex flex-wrap gap-2 text-xs">
                         <span className="inline-block px-2 py-1 rounded bg-green-50 border border-green-200 text-green-700">
@@ -881,7 +881,7 @@ export function ReadingAssignment({
                           &lt;60% Needs Practice
                         </span>
                       </div>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               )}

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService } from '../../../../../lib/services/auth.service'
 import { AssignmentsService } from '../../../../../lib/services/assignments.service'
+import { TemplatesService } from '../../../../../lib/services/templates.service'
 import { handleServiceError } from '../../../../../lib/services/auth.service'
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
+import { LevelType, CEFRLevel, GradeLevel } from '@prisma/client'
 
 /**
  * POST /api/assignments/pronunciation
@@ -46,6 +48,11 @@ export async function POST(request: NextRequest) {
         text: z.string().min(1, 'Question text is required'),
         title: z.string().optional().nullable(),
       })).min(1, 'At least one question is required'),
+      levels: z.array(z.object({
+        levelType: z.nativeEnum(LevelType),
+        cefrLevel: z.nativeEnum(CEFRLevel).optional(),
+        gradeLevel: z.nativeEnum(GradeLevel).optional(),
+      })).min(1, 'At least one level must be specified'),
     });
 
     const validatedData = pronunciationSchema.parse({ ...body, languageId });
@@ -65,6 +72,32 @@ export async function POST(request: NextRequest) {
       })),
       assignToEntireClass: validatedData.studentIds ? false : true,
     });
+
+    // Automatically create a template from this assignment
+    try {
+      await TemplatesService.createTemplate(currentUser, {
+        topic: validatedData.topic,
+        description: undefined,
+        color: validatedData.color ?? undefined,
+        languageId: validatedData.languageId ?? undefined,
+        evaluationSettings: {
+          type: 'PRONUNCIATION' as any,
+          customPrompt: undefined,
+          rules: [],
+          acceptableResponses: [],
+          feedbackSettings: {}
+        },
+        questions: validatedData.questions.map((q, index) => ({
+          textQuestion: q.text,
+          textAnswer: q.title || '',
+          order: index
+        })),
+        levels: validatedData.levels
+      });
+    } catch (templateError) {
+      // Log but don't fail assignment creation if template creation fails
+      console.error('Failed to create template:', templateError);
+    }
 
     return NextResponse.json({
       success: true,

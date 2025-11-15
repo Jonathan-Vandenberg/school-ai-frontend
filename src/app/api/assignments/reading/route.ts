@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         levelType: z.nativeEnum(LevelType),
         cefrLevel: z.nativeEnum(CEFRLevel).optional(),
         gradeLevel: z.nativeEnum(GradeLevel).optional(),
-      })).optional().default([]),
+      })).min(1, 'At least one level must be specified'),
     });
 
     const validatedData = readingSchema.parse({ ...body, languageId });
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
           textAnswer: q.title || '',
           order: index
         })),
-        levels: validatedData.levels || []
+        levels: validatedData.levels
       });
     } catch (templateError) {
       // Log but don't fail assignment creation if template creation fails

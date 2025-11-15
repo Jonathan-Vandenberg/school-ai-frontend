@@ -87,7 +87,7 @@ export interface UpdateAssignmentData {
   type?: 'CLASS' | 'INDIVIDUAL'
   classIds?: string[]
   studentIds?: string[]
-  questions?: Array<{ id?: string; textQuestion: string; textAnswer: string }>
+  questions?: Array<{ id?: string; textQuestion: string | null; textAnswer: string }>
 }
 
 export interface AssignmentWithDetails {
@@ -392,7 +392,7 @@ export class AssignmentsService {
     currentUser: AuthenticatedUser,
     assignmentId: string,
     updateData: UpdateAssignmentData,
-    questions: Array<{ id?: string; textQuestion: string; textAnswer: string }>
+    questions: Array<{ id?: string; textQuestion: string | null; textAnswer: string }>
   ): Promise<AssignmentWithDetails> {
     const canManage = await AuthService.canManageAssignment(currentUser, assignmentId)
     if (!canManage) {
@@ -1960,6 +1960,13 @@ export interface CreateIELTSAssignmentDto {
   
   // IELTS specific
   accent?: 'us' | 'uk';
+  
+  // Educational levels
+  levels: Array<{
+    levelType: 'CEFR' | 'GRADE';
+    cefrLevel?: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+    gradeLevel?: 'PRE_K' | 'KINDERGARTEN' | 'GRADE_1' | 'GRADE_2' | 'GRADE_3' | 'GRADE_4' | 'GRADE_5' | 'GRADE_6' | 'GRADE_7' | 'GRADE_8' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11' | 'GRADE_12';
+  }>;
 }
 
 export class IELTSAssignmentsService {

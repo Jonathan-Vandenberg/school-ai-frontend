@@ -105,7 +105,7 @@ export default function CreateFromTemplatePage() {
 
       if (response.ok) {
         const data = await response.json()
-        router.push(`/assignments/${data.data.id}`)
+        router.push('/assignments')
       } else {
         const errorData = await response.json()
         setError(errorData.error || 'Failed to create assignment')
@@ -226,6 +226,66 @@ export default function CreateFromTemplatePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+          <div className="space-y-2">
+              <Label>Publish Date & Time</Label>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[240px] pl-3 text-left font-normal",
+                        !scheduledPublishAt && "text-muted-foreground"
+                      )}
+                    >
+                      {scheduledPublishAt ? format(scheduledPublishAt, "PPP") : "Pick a date"}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={scheduledPublishAt}
+                      onSelect={(date) => {
+                        if (date) {
+                          const currentTime = scheduledPublishAt || new Date();
+                          const newDateTime = new Date(date);
+                          newDateTime.setHours(currentTime.getHours());
+                          newDateTime.setMinutes(currentTime.getMinutes());
+                          setScheduledPublishAt(newDateTime);
+                        } else {
+                          setScheduledPublishAt(undefined);
+                        }
+                      }}
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    value={scheduledPublishAt ? format(scheduledPublishAt, "HH:mm") : "09:00"}
+                    onChange={(e) => {
+                      const timeValue = e.target.value;
+                      if (timeValue) {
+                        const [hours, minutes] = timeValue.split(":").map(Number);
+                        const currentDate = scheduledPublishAt || new Date();
+                        const newDateTime = new Date(currentDate);
+                        newDateTime.setHours(hours);
+                        newDateTime.setMinutes(minutes);
+                        setScheduledPublishAt(newDateTime);
+                      }
+                    }}
+                    className="w-[120px]"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Leave empty to publish immediately
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label>Due Date & Time</Label>
               <div className="flex gap-2">
@@ -283,67 +343,6 @@ export default function CreateFromTemplatePage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Students will see this due date and be encouraged to complete by this time.
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Publish Date & Time</Label>
-              <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-[240px] pl-3 text-left font-normal",
-                        !scheduledPublishAt && "text-muted-foreground"
-                      )}
-                    >
-                      {scheduledPublishAt ? format(scheduledPublishAt, "PPP") : "Pick a date"}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={scheduledPublishAt}
-                      onSelect={(date) => {
-                        if (date) {
-                          const currentTime = scheduledPublishAt || new Date();
-                          const newDateTime = new Date(date);
-                          newDateTime.setHours(currentTime.getHours());
-                          newDateTime.setMinutes(currentTime.getMinutes());
-                          setScheduledPublishAt(newDateTime);
-                        } else {
-                          setScheduledPublishAt(undefined);
-                        }
-                      }}
-                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 opacity-50" />
-                  <Input
-                    type="time"
-                    value={scheduledPublishAt ? format(scheduledPublishAt, "HH:mm") : "09:00"}
-                    onChange={(e) => {
-                      const timeValue = e.target.value;
-                      if (timeValue) {
-                        const [hours, minutes] = timeValue.split(":").map(Number);
-                        const currentDate = scheduledPublishAt || new Date();
-                        const newDateTime = new Date(currentDate);
-                        newDateTime.setHours(hours);
-                        newDateTime.setMinutes(minutes);
-                        setScheduledPublishAt(newDateTime);
-                      }
-                    }}
-                    className="w-[120px]"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Leave empty to publish immediately
               </p>
             </div>
           </CardContent>

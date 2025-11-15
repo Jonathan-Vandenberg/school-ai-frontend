@@ -67,7 +67,6 @@ const formSchema = z.object({
     .array(
       z.object({
         text: z.string().min(1, "Question text cannot be empty."),
-        title: z.string().optional(),
       })
     )
     .min(1, "At least one question is required."),
@@ -84,7 +83,7 @@ const formSchema = z.object({
     levelType: z.nativeEnum(LevelType),
     cefrLevel: z.nativeEnum(CEFRLevel).optional(),
     gradeLevel: z.nativeEnum(GradeLevel).optional(),
-  })).optional().default([]),
+  })).min(1, 'At least one level must be selected'),
 });
 
 type ReadingFormValues = z.infer<typeof formSchema>;
@@ -93,9 +92,11 @@ interface ReadingAssignmentFormProps {
   data: {
     classes: Class[];
   };
+  assignmentId?: string;
+  initialAssignment?: any;
 }
 
-export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
+export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }: ReadingAssignmentFormProps) {
   const router = useRouter();
   const { classes } = data;
   const [students, setStudents] = useState<User[]>([]);
@@ -111,7 +112,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
   // State for AI generation
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedPassages, setGeneratedPassages] = useState<
-    { title: string; text: string }[]
+    { text: string }[]
   >([]);
   const [selectedPassageIndices, setSelectedPassageIndices] = useState<Set<number>>(new Set());
   const [aiContext, setAiContext] = useState("");
@@ -120,23 +121,51 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const form = useForm<ReadingFormValues>({
-    resolver: zodResolver(formSchema) as any,
-    defaultValues: {
+  // Initialize form with assignment data if editing
+  const getDefaultValues = (): ReadingFormValues => {
+    if (initialAssignment) {
+      return {
+        topic: initialAssignment.topic || "",
+        description: initialAssignment.context || "",
+        questions: initialAssignment.questions?.map((q: any) => ({
+          text: q.textAnswer || q.textQuestion || "",
+        })) || [{ text: "" }],
+        classIds: initialAssignment.classes?.map((c: any) => c.class.id) || [],
+        studentIds: initialAssignment.students?.map((s: any) => s.user.id) || [],
+        assignToEntireClass: (initialAssignment.classes?.length || 0) > 0,
+        scheduledPublishAt: initialAssignment.scheduledPublishAt ? new Date(initialAssignment.scheduledPublishAt) : null,
+        dueDate: initialAssignment.dueDate ? new Date(initialAssignment.dueDate) : null,
+        hasTranscript: false,
+        languageId: initialAssignment.language?.id || "",
+        vocabularyLevel: "5",
+        sentencesPerPage: 3,
+        levels: initialAssignment.levels?.map((l: any) => ({
+          levelType: l.levelType,
+          cefrLevel: l.cefrLevel || undefined,
+          gradeLevel: l.gradeLevel || undefined,
+        })) || [],
+      };
+    }
+    return {
       topic: "",
       description: "",
-      questions: [{ text: "", title: "" }],
+      questions: [{ text: "" }],
       classIds: [],
       studentIds: [],
       assignToEntireClass: true,
       scheduledPublishAt: null,
       dueDate: null,
       hasTranscript: false,
-      languageId: "", // Will default to English on backend
-      vocabularyLevel: "5", // Default to middle school level
+      languageId: "",
+      vocabularyLevel: "5",
       sentencesPerPage: 3,
       levels: [],
-    },
+    };
+  };
+
+  const form = useForm<ReadingFormValues>({
+    resolver: zodResolver(formSchema) as any,
+    defaultValues: getDefaultValues(),
   });
 
   const { fields, append, remove, replace } = useFieldArray({
@@ -202,12 +231,31 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
     setIsSubmitting(true);
     setFormMessage(null);
     try {
-      const response = await fetch("/api/assignments/reading", {
-        method: "POST",
+      const url = assignmentId 
+        ? `/api/assignments/${assignmentId}`
+        : "/api/assignments/reading";
+      const method = assignmentId ? "PUT" : "POST";
+      
+      const response = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: JSON.stringify(assignmentId ? {
+          topic: values.topic,
+          context: values.description,
+          scheduledPublishAt: values.scheduledPublishAt?.toISOString(),
+          dueDate: values.dueDate?.toISOString(),
+          classIds: values.classIds,
+          studentIds: values.studentIds,
+          questions: values.questions.map((q, index) => ({
+            id: initialAssignment?.questions?.[index]?.id,
+            textQuestion: null,
+            textAnswer: q.text,
+            order: index,
+          })),
+          levels: values.levels,
+        } : {
           creationType: "READING",
           ...values,
         }), 
@@ -221,12 +269,12 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
 
       setFormMessage({
         type: "success",
-        message: "Assignment created! Redirecting...",
+        message: assignmentId ? "Assignment updated! Redirecting..." : "Assignment created! Redirecting...",
       });
 
       // Redirect after a short delay to allow user to see the message
       setTimeout(() => {
-        router.push("/assignments");
+        router.push(assignmentId ? `/assignments/${assignmentId}` : "/assignments");
         router.refresh();
       }, 1500);
     } catch (error) {
@@ -243,7 +291,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
   }
 
   // Function to generate reading passages with AI
-  const generatePassagesWithAI = async (existingPassages: { title: string; text: string }[] = []) => {
+  const generatePassagesWithAI = async (existingPassages: { text: string }[] = []) => {
     if (!aiContext.trim() && !uploadedImage) {
       setFormMessage({
         type: "error",
@@ -284,7 +332,10 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
       const result = await response.json();
 
       if (result.success && result.generatedPassages?.passages) {
-        const newPassages = result.generatedPassages.passages;
+        // Extract only text from passages, ignoring title if present
+        const newPassages = result.generatedPassages.passages.map((p: any) => ({
+          text: p.text || p.title || ""
+        })).filter((p: any) => p.text.trim());
         
         if (existingPassages.length > 0) {
           // Append new passages to existing ones
@@ -318,27 +369,23 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
     }
   };
 
-  const applyOneGeneratedPassage = (passage: { title: string; text: string }) => {
+  const applyOneGeneratedPassage = (passage: { text: string }) => {
     // Check if the first question is empty and replace it, otherwise append.
     const firstQuestion = form.getValues("questions")[0];
     if (
       form.getValues("questions").length === 1 &&
-      !firstQuestion.text &&
-      !firstQuestion.title
+      !firstQuestion.text
     ) {
-      replace([{ title: passage.title || "", text: passage.text }]);
+      replace([{ text: passage.text }]);
     } else {
-      append({ title: passage.title || "", text: passage.text });
+      append({ text: passage.text });
     }
 
     // Remove the used passage from the generated passages list
     setGeneratedPassages((prev) =>
       prev.filter(
         (p) =>
-          !(
-            p.text.trim() === passage.text.trim() &&
-            p.title.trim() === passage.title.trim()
-          )
+          !(p.text.trim() === passage.text.trim())
       )
     );
 
@@ -347,7 +394,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
 
   const applyAllGeneratedPassages = () => {
     if (generatedPassages.length === 0) return;
-    replace(generatedPassages.map(p => ({ title: p.title || "", text: p.text })));
+    replace(generatedPassages.map(p => ({ text: p.text })));
 
     // Clear all generated passages since they've all been applied
     setGeneratedPassages([]);
@@ -386,14 +433,13 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
     // If only one empty question exists, replace it with selected passages
     if (
       currentQuestions.length === 1 &&
-      !firstQuestion.text &&
-      !firstQuestion.title
+      !firstQuestion.text
     ) {
-      replace(selectedPassages.map(p => ({ title: p.title || "", text: p.text })));
+      replace(selectedPassages.map(p => ({ text: p.text })));
     } else {
       // Otherwise, append selected passages
       selectedPassages.forEach(p => {
-        append({ title: p.title || "", text: p.text });
+        append({ text: p.text });
       });
     }
 
@@ -454,7 +500,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
       <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-8">
         <Card>
           <CardHeader>
-            <CardTitle>Reading Assignment Details</CardTitle>
+            <CardTitle>{assignmentId ? 'Edit Reading Assignment' : 'Reading Assignment Details'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
@@ -616,23 +662,6 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Educational Levels</Label>
-                      <FormField
-                        control={form.control}
-                        name="levels"
-                        render={({ field }) => (
-                          <LevelSelector
-                            value={field.value || []}
-                            onChange={field.onChange}
-                          />
-                        )}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Select the appropriate CEFR or Grade levels for the AI to generate passages at the right difficulty.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="sentences-per-page">Sentences per Passage</Label>
                     <FormField
                       control={form.control}
@@ -659,6 +688,24 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                       )}
                     />
                   </div>
+                    <div className="space-y-2">
+                      <Label>Educational Levels</Label>
+                      <FormField
+                        control={form.control}
+                        name="levels"
+                        render={({ field }) => (
+                          <LevelSelector
+                            value={field.value || []}
+                            onChange={field.onChange}
+                          />
+                        )}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Select the appropriate CEFR or Grade levels for the AI to generate passages at the right difficulty.
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="flex justify-end gap-2">
                     <Button
                       type="button"
@@ -700,9 +747,6 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                         onCheckedChange={() => togglePassageSelection(i)}
                       />
                       <div className="flex-1">
-                        {passage.title && (
-                          <p className="text-xs text-muted-foreground mb-1">{passage.title}</p>
-                        )}
                         <p className="text-base">
                           {passage.text}
                         </p>
@@ -754,19 +798,6 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                 className="flex items-start justify-between w-full gap-4 p-4 border rounded-md"
               >
                 <div className="flex-grow gap-4 flex flex-col">
-                <FormField
-                    control={form.control}
-                    name={`questions.${index}.title`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Passage Title (Optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Past Tense Verbs" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   <FormField
                     control={form.control}
                     name={`questions.${index}.text`}
@@ -780,7 +811,7 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
                           <Textarea
                             placeholder="Yesterday morning, I woke up and stretched my arms. I brushed my teeth and washed my face. Then I ate breakfast and drank some juice. After that, I packed my bag and walked to school. In class, I listened to the teacher and wrote in my notebook. At the end of the day, I played with my friends and laughed a lot."
                             {...field}
-                            rows={2}
+                            rows={4}
                           />
                         </FormControl>
                         <FormMessage />
@@ -1188,7 +1219,9 @@ export function ReadingAssignmentForm({ data }: ReadingAssignmentFormProps) {
               </Dialog>
 
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Assignment"}
+                {isSubmitting 
+                  ? (assignmentId ? "Updating..." : "Creating...") 
+                  : (assignmentId ? "Update Assignment" : "Create Assignment")}
               </Button>
             </div>
           </div>

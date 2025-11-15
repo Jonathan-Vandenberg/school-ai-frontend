@@ -73,6 +73,10 @@ export function LevelSelector({ value, selectedLevels, onChange, className }: Le
 
   const toggleCEFRLevel = (level: CEFRLevel) => {
     if (isCEFRSelected(level)) {
+      // Prevent removing if it's the last level
+      if (levels.length <= 1) {
+        return
+      }
       // Remove
       onChange(
         levels.filter(
@@ -90,6 +94,10 @@ export function LevelSelector({ value, selectedLevels, onChange, className }: Le
 
   const toggleGradeLevel = (level: GradeLevel) => {
     if (isGradeSelected(level)) {
+      // Prevent removing if it's the last level
+      if (levels.length <= 1) {
+        return
+      }
       // Remove
       onChange(
         levels.filter(
@@ -106,6 +114,10 @@ export function LevelSelector({ value, selectedLevels, onChange, className }: Le
   }
 
   const removeLevel = (level: TemplateLevel) => {
+    // Prevent removing if it's the last level
+    if (levels.length <= 1) {
+      return
+    }
     onChange(
       levels.filter(l => {
         if (l.levelType !== level.levelType) return true
@@ -141,13 +153,16 @@ export function LevelSelector({ value, selectedLevels, onChange, className }: Le
                     {level.levelType === 'CEFR' 
                       ? level.cefrLevel 
                       : GRADE_LEVEL_LABELS[level.gradeLevel as GradeLevel]}
-                    <button
-                      type="button"
-                      onClick={() => removeLevel(level)}
-                      className="ml-1 hover:bg-white/20 rounded-full p-0.5"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                    {levels.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeLevel(level)}
+                        className="ml-1 hover:bg-white/20 rounded-full p-0.5"
+                        title="Remove level"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </Badge>
                 ))}
               </div>
@@ -166,6 +181,8 @@ export function LevelSelector({ value, selectedLevels, onChange, className }: Le
                   size="sm"
                   onClick={() => toggleCEFRLevel(level)}
                   className="min-w-[60px]"
+                  disabled={isCEFRSelected(level) && levels.length <= 1}
+                  title={isCEFRSelected(level) && levels.length <= 1 ? 'At least one level is required' : ''}
                 >
                   {level}
                 </Button>
@@ -184,6 +201,8 @@ export function LevelSelector({ value, selectedLevels, onChange, className }: Le
                   variant={isGradeSelected(level) ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => toggleGradeLevel(level)}
+                  disabled={isGradeSelected(level) && levels.length <= 1}
+                  title={isGradeSelected(level) && levels.length <= 1 ? 'At least one level is required' : ''}
                 >
                   {GRADE_LEVEL_LABELS[level]}
                 </Button>

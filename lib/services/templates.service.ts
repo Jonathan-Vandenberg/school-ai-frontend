@@ -55,14 +55,16 @@ export interface UpdateTemplateData {
   languageId?: string
   isActive?: boolean
   levels?: TemplateLevel[]
+  questions?: TemplateQuestion[]
 }
 
 export interface TemplateListParams {
   page?: number
   limit?: number
   search?: string
-  cefrLevel?: CEFRLevel
-  gradeLevel?: GradeLevel
+  levels?: string[] // Array of level values (CEFR or Grade)
+  cefrLevel?: CEFRLevel // Legacy support
+  gradeLevel?: GradeLevel // Legacy support
   evaluationType?: EvaluationType
   languageId?: string
   isIELTS?: boolean
@@ -188,6 +190,7 @@ export class TemplatesService {
       page = 1,
       limit = 20,
       search,
+      levels,
       cefrLevel,
       gradeLevel,
       evaluationType,
@@ -230,7 +233,22 @@ export class TemplatesService {
     }
 
     // Handle level filters
-    if (cefrLevel || gradeLevel) {
+    if (levels && levels.length > 0) {
+      // Support multiple levels - templates that have ANY of the selected levels
+      where.levels = {
+        some: {
+          OR: levels.map(level => {
+            // Check if it's a CEFR level
+            if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(level)) {
+              return { cefrLevel: level as CEFRLevel }
+            }
+            // Otherwise it's a grade level
+            return { gradeLevel: level as GradeLevel }
+          })
+        }
+      }
+    } else if (cefrLevel || gradeLevel) {
+      // Legacy support for single level filters
       where.levels = {
         some: {
           ...(cefrLevel && { cefrLevel }),
@@ -338,7 +356,7 @@ export class TemplatesService {
     }
 
     return withTransaction(async (tx) => {
-      const { levels, ...templateFields } = updateData
+      const { levels, questions, ...templateFields } = updateData
 
       // Update template
       const updatedTemplate = await tx.assignmentTemplate.update({
@@ -360,7 +378,7 @@ export class TemplatesService {
       })
 
       // Update levels if provided
-      if (levels) {
+      if (levels !== undefined) {
         // Delete existing levels
         await tx.assignmentTemplateLevel.deleteMany({
           where: { templateId }
@@ -379,7 +397,60 @@ export class TemplatesService {
         }
       }
 
-      // Fetch complete template with updated levels
+      // Update questions if provided
+      if (questions !== undefined) {
+        // Get current questions
+        const currentQuestions = await tx.templateQuestion.findMany({
+          where: { templateId },
+          select: { id: true }
+        })
+
+        const currentQuestionIds = currentQuestions.map(q => q.id)
+        const updatedQuestionIds = questions.filter(q => q.id).map(q => q.id!)
+
+        // Delete questions that are no longer in the list
+        const questionsToDelete = currentQuestionIds.filter(id => !updatedQuestionIds.includes(id))
+        if (questionsToDelete.length > 0) {
+          await tx.templateQuestion.deleteMany({
+            where: {
+              id: { in: questionsToDelete },
+              templateId
+            }
+          })
+        }
+
+        // Update or create questions
+        for (let index = 0; index < questions.length; index++) {
+          const question = questions[index]
+          if (question.id) {
+            // Update existing question
+            await tx.templateQuestion.update({
+              where: { id: question.id },
+              data: {
+                textQuestion: question.textQuestion,
+                textAnswer: question.textAnswer,
+                image: question.image,
+                videoUrl: question.videoUrl,
+                order: question.order ?? index,
+              }
+            })
+          } else {
+            // Create new question
+            await tx.templateQuestion.create({
+              data: {
+                templateId,
+                textQuestion: question.textQuestion,
+                textAnswer: question.textAnswer,
+                image: question.image,
+                videoUrl: question.videoUrl,
+                order: question.order ?? index,
+              }
+            })
+          }
+        }
+      }
+
+      // Fetch complete template with updated levels and questions
       return await tx.assignmentTemplate.findUnique({
         where: { id: templateId },
         include: {

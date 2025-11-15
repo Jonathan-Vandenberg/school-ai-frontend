@@ -1,26 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService, IELTSAssignmentsService, handleServiceError } from '@/lib/services'
+import { z } from 'zod'
+import { LevelType, CEFRLevel, GradeLevel } from '@prisma/client'
 
 export async function POST(request: NextRequest) {
   try {
     const currentUser = await AuthService.getAuthenticatedUser()
     const data = await request.json()
 
+    // Validate request data
+    const schema = z.object({
+      topic: z.string().min(1, 'Topic is required'),
+      classIds: z.array(z.string()).min(1, 'At least one class is required'),
+      studentIds: z.array(z.string()).optional(),
+      assignToEntireClass: z.boolean(),
+      scheduledPublishAt: z.string().optional().nullable(),
+      dueDate: z.string().optional().nullable(),
+      languageId: z.string().optional().nullable(),
+      totalStudentsInScope: z.number().optional(),
+      questions: z.array(z.object({
+        text: z.string().min(1),
+        topic: z.string().optional(),
+        expectedLevel: z.enum(['beginner', 'intermediate', 'advanced']),
+      })).optional(),
+      context: z.string().optional(),
+      accent: z.enum(['us', 'uk']).optional(),
+      levels: z.array(z.object({
+        levelType: z.nativeEnum(LevelType),
+        cefrLevel: z.nativeEnum(CEFRLevel).optional(),
+        gradeLevel: z.nativeEnum(GradeLevel).optional(),
+      })).min(1, 'At least one level must be specified'),
+    })
+
+    const validatedData = schema.parse(data)
+
     // Transform form data to IELTS assignment DTO
     const assignmentData = {
-      topic: data.topic,
+      topic: validatedData.topic,
       subtype: 'question-answer' as const,
-      classIds: data.classIds,
-      studentIds: data.assignToEntireClass ? [] : (data.studentIds || []),
-      assignToEntireClass: data.assignToEntireClass,
-      scheduledPublishAt: data.scheduledPublishAt ? new Date(data.scheduledPublishAt) : null,
-      dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      languageId: data.languageId || null,
+      classIds: validatedData.classIds,
+      studentIds: validatedData.assignToEntireClass ? [] : (validatedData.studentIds || []),
+      assignToEntireClass: validatedData.assignToEntireClass,
+      scheduledPublishAt: validatedData.scheduledPublishAt ? new Date(validatedData.scheduledPublishAt) : null,
+      dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
+      languageId: validatedData.languageId || null,
       color: '#3B82F6', // Blue for question-answer
-      totalStudentsInScope: data.totalStudentsInScope || 0,
-      questions: data.questions,
-      context: data.context,
-      accent: data.accent || 'us',
+      totalStudentsInScope: validatedData.totalStudentsInScope || 0,
+      questions: validatedData.questions,
+      context: validatedData.context,
+      accent: validatedData.accent || 'us',
+      levels: validatedData.levels,
     }
 
     const assignment = await IELTSAssignmentsService.createIELTSAssignment(currentUser, assignmentData)
@@ -30,6 +59,13 @@ export async function POST(request: NextRequest) {
       assignment,
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Validation failed',
+        details: error.errors 
+      }, { status: 400 });
+    }
     return handleServiceError(error)
   }
 }

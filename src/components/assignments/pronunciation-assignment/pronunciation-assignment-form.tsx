@@ -53,6 +53,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { LevelSelector } from "@/components/templates/level-selector";
+import { LevelType, CEFRLevel, GradeLevel } from "@prisma/client";
 
 const formSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
@@ -71,6 +73,11 @@ const formSchema = z.object({
   dueDate: z.date().optional().nullable(),
   hasTranscript: z.boolean().optional(),
   languageId: z.string().optional(),
+  levels: z.array(z.object({
+    levelType: z.nativeEnum(LevelType),
+    cefrLevel: z.nativeEnum(CEFRLevel).optional(),
+    gradeLevel: z.nativeEnum(GradeLevel).optional(),
+  })).min(1, 'At least one level must be selected'),
 });
 
 type PronunciationFormValues = z.infer<typeof formSchema>;
@@ -106,6 +113,7 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
       dueDate: null,
       hasTranscript: false,
       languageId: "", // Will default to English on backend
+      levels: [],
     },
   });
 
@@ -406,6 +414,36 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
                 )}
               />
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Educational Levels</CardTitle>
+            <CardDescription>
+              Select the CEFR or Grade levels this assignment is appropriate for.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FormField
+              control={form.control}
+              name="levels"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Levels</FormLabel>
+                  <FormControl>
+                    <LevelSelector
+                      value={field.value || []}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Select at least one educational level for this assignment.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </CardContent>
         </Card>
 

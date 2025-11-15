@@ -243,6 +243,8 @@ export function ReadingAssignmentPreview({
 }: ReadingAssignmentPreviewProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [correctQuestions, setCorrectQuestions] = useState<Set<number>>(new Set());
+  const [incorrectQuestions, setIncorrectQuestions] = useState<Set<number>>(new Set());
   const [feedback, setFeedback] = useState('');
   const [showFeedback, setShowFeedback] = useState(false);
   const [details, setDetails] = useState('');
@@ -251,6 +253,7 @@ export function ReadingAssignmentPreview({
   const [localProcessing, setLocalProcessing] = useState(false);
   const [hasStartedAnyQuestion, setHasStartedAnyQuestion] = useState(false);
   const [pronunciationResult, setPronunciationResult] = useState<any>(null);
+  const [pronunciationResultsByQuestion, setPronunciationResultsByQuestion] = useState<Map<number, any>>(new Map());
   
   // Full text audio states
   const [fullTextAudioSrc, setFullTextAudioSrc] = useState<{[key: string]: string}>({});
@@ -364,9 +367,29 @@ export function ReadingAssignmentPreview({
       
       // Set all the feedback states
       setIsCorrect(isCorrectBasedOnScore)
+      // Track which questions are correct or incorrect
+      if (isCorrectBasedOnScore) {
+        setCorrectQuestions(prev => new Set(prev).add(currentIndex))
+        // Remove from incorrect if it was there
+        setIncorrectQuestions(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(currentIndex)
+          return newSet
+        })
+      } else {
+        setIncorrectQuestions(prev => new Set(prev).add(currentIndex))
+        // Remove from correct if it was there
+        setCorrectQuestions(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(currentIndex)
+          return newSet
+        })
+      }
       setFeedback(analysis.feedback)
       setEncouragement(analysis.encouragement || '')
       setPronunciationResult(analysis.pronunciationResult)
+      // Store pronunciation result for this question so it persists when switching
+      setPronunciationResultsByQuestion(prev => new Map(prev).set(currentIndex, analysis.pronunciationResult))
       setShowFeedback(true)
       setHasStartedAnyQuestion(true)
       
@@ -524,11 +547,11 @@ export function ReadingAssignmentPreview({
   const clearFeedbackState = () => {
     setFeedback('')
     setShowFeedback(false)
-    setIsCorrect(false)
+    // Don't reset isCorrect here - it should reflect the current question's status
     setDetails('')
     setEncouragement('')
     setCurrentTranscript('')
-    setPronunciationResult(null)
+    // Don't reset pronunciationResult here - restore it from stored results if available
     setLocalProcessing(false) // Reset processing state
   }
 
@@ -540,7 +563,17 @@ export function ReadingAssignmentPreview({
   // Reset only feedback states when question changes (not recorder)
   useEffect(() => {
     clearFeedbackState()
-  }, [currentIndex])
+    // Update isCorrect to reflect the current question's status
+    setIsCorrect(correctQuestions.has(currentIndex))
+    // Restore pronunciation result for this question if it exists
+    const storedResult = pronunciationResultsByQuestion.get(currentIndex)
+    if (storedResult) {
+      setPronunciationResult(storedResult)
+      setShowFeedback(true)
+    } else {
+      setPronunciationResult(null)
+    }
+  }, [currentIndex, correctQuestions, pronunciationResultsByQuestion])
 
   // Debug: Log audio level changes
   useEffect(() => {
@@ -593,7 +626,7 @@ export function ReadingAssignmentPreview({
   };
 
   return (
-    <div className="w-full p-6">
+    <div className="w-full p-4">
       {/* Header */}
       <div className="mb-6">
         {/* Overall Progress */}
@@ -608,6 +641,8 @@ export function ReadingAssignmentPreview({
         {/* Question Navigation */}
         <div className="flex flex-wrap gap-2 justify-center mb-4">
           {questions.map((question, index) => {
+            const isQuestionCorrect = correctQuestions.has(index)
+            const isQuestionIncorrect = incorrectQuestions.has(index)
             return (
               <button
                 key={index}
@@ -616,29 +651,31 @@ export function ReadingAssignmentPreview({
                   clearFeedbackAndResetRecorder()
                 }}
                 className={`w-10 h-10 rounded-full flex items-center justify-center font-medium transition-all ${
-                  isCorrect
+                  isQuestionCorrect
                     ? 'bg-green-500 text-white'
-                    : hasStartedAnyQuestion
-                      ? 'bg-gray-200 text-gray-600'
-                      : 'bg-blue-100 text-blue-800'
+                    : isQuestionIncorrect
+                      ? 'bg-red-200 text-red-700'
+                      : hasStartedAnyQuestion
+                        ? 'bg-gray-200 text-gray-600'
+                        : 'bg-blue-100 text-blue-800'
                 } ${
                   currentIndex === index ? 'ring-4 ring-blue-300' : ''
                 }`}
               >
-                {isCorrect ? <Star className="h-4 w-4" fill="currentColor" /> : index + 1}
+                {isQuestionCorrect ? <Star className="h-4 w-4" fill="currentColor" /> : index + 1}
               </button>
             )
           })}
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-4">
-        <div className="lg:col-span-3 space-y-6">
+      <div className="grid gap-6 lg:grid-cols-5">
+        <div className="lg:col-span-4 space-y-6">
           {/* Question Card */}
           <div>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Passage {currentIndex + 1}: {questions[currentIndex]?.title || 'Reading Passage'}</span>
+                <span>Passage {currentIndex + 1}</span>
                 <div className="flex gap-2">
                   <Button
                     variant="ghost"

@@ -17,17 +17,21 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     const search = searchParams.get('search') || undefined
-    const cefrLevel = searchParams.get('cefrLevel') as CEFRLevel | undefined
-    const gradeLevel = searchParams.get('gradeLevel') as GradeLevel | undefined
+    const levels = searchParams.getAll('levels')
     const evaluationType = searchParams.get('evaluationType') as EvaluationType | undefined
     const languageId = searchParams.get('languageId') || undefined
     const isIELTS = searchParams.get('isIELTS') === 'true' ? true : searchParams.get('isIELTS') === 'false' ? false : undefined
     const creatorId = searchParams.get('creatorId') || undefined
 
+    // Support legacy single level params for backwards compatibility
+    const cefrLevel = searchParams.get('cefrLevel') as CEFRLevel | undefined
+    const gradeLevel = searchParams.get('gradeLevel') as GradeLevel | undefined
+
     const result = await TemplatesService.listTemplates(currentUser, {
       page,
       limit,
       search,
+      levels: levels.length > 0 ? levels : undefined,
       cefrLevel,
       gradeLevel,
       evaluationType,

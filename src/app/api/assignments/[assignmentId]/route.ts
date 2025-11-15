@@ -63,12 +63,19 @@ export async function PUT(
       studentIds: z.array(z.string()).optional(),
       questions: z.array(z.object({
         id: z.string().optional(),
-        textQuestion: z.string().min(1, 'Question text is required'),
+        textQuestion: z.string().nullable().optional(),
         textAnswer: z.string().min(1, 'Answer text is required')
       })).min(1, 'At least one question is required')
     })
 
     const validatedData = updateSchema.parse(body)
+
+    // Transform questions to ensure textQuestion is always string | null (not undefined)
+    const questions = validatedData.questions.map(q => ({
+      id: q.id,
+      textQuestion: q.textQuestion ?? null,
+      textAnswer: q.textAnswer
+    }))
 
     // Update assignment with questions
     const updatedAssignment = await AssignmentsService.updateAssignment(
@@ -85,7 +92,7 @@ export async function PUT(
         classIds: validatedData.classIds,
         studentIds: validatedData.studentIds,
       },
-      validatedData.questions
+      questions
     )
 
     return NextResponse.json({

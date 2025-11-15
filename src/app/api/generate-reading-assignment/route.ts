@@ -110,28 +110,25 @@ ${imageFile ? '- If an image is provided, use it as visual context to create rel
 ${existingPassages.length > 0 ? '- DO NOT create passages that are similar to the existing ones provided below. Create NEW and DIFFERENT content.' : ''}
 
 For each passage, provide:
-1. A title for the passage (optional but helpful)
-2. A reading passage that meets the vocabulary and sentence count requirements
-3. The passage should be engaging and educational for the target level
-${imageFile ? '4. If an image is provided, base the content on what you observe in the image' : ''}
-${existingPassages.length > 0 ? '5. Ensure the new passages are completely different from the existing ones' : ''}
+1. A reading passage that meets the vocabulary and sentence count requirements
+2. The passage should be engaging and educational for the target level
+${imageFile ? '3. If an image is provided, base the content on what you observe in the image' : ''}
+${existingPassages.length > 0 ? '4. Ensure the new passages are completely different from the existing ones' : ''}
 
 ${existingPassages.length > 0 ? `EXISTING PASSAGES TO AVOID DUPLICATING:
-${existingPassages.map((passage: any, index: number) => `${index + 1}. Title: "${passage.title || 'No title'}"\n   Content: "${passage.text}"`).join('\n\n')}
+${existingPassages.map((passage: any, index: number) => `${index + 1}. Content: "${passage.text}"`).join('\n\n')}
 
 Please create NEW passages that are different from the above.` : ''}
 
-Return the output as a JSON object with a single key "passages", which is an array of objects. Each object in the array should have two properties: "title" (optional passage title) and "text" (the reading passage content).
+Return the output as a JSON object with a single key "passages", which is an array of objects. Each object in the array should have a single property: "text" (the reading passage content).
 
 Example format:
 {
   "passages": [
     {
-      "title": "The History of Ancient Rome",
       "text": "Ancient Rome was one of the greatest civilizations in history. Founded in 753 BC, it grew from a small settlement to a vast empire that spanned three continents. The Romans were known for their advanced engineering, including the construction of roads, aqueducts, and magnificent buildings like the Colosseum."
     },
     {
-      "title": "The Solar System",
       "text": "Our solar system consists of eight planets orbiting around a central star called the Sun. The four inner planets - Mercury, Venus, Earth, and Mars - are rocky and relatively small. The four outer planets - Jupiter, Saturn, Uranus, and Neptune - are gas giants."
     }
   ]

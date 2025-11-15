@@ -2,8 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Video, BookOpen, FileText, Calendar, Clock, Users, User, School, Star, CheckCircle } from "lucide-react";
+import { Video, BookOpen, Calendar, Clock, Users, User, School, Star, CheckCircle, Play, ArrowRight, Eye, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -172,17 +171,64 @@ const getAssignmentStatus = (assignment: AssignmentWithDetails, isStudent: boole
   }
 };
 
-const getButtonTextForStudent = (assignment: AssignmentWithDetails) => {
-  const progress = getStudentProgress(assignment);
-  if(progress.isPerfectScore) {
-    return 'Review';
-  } else if (progress.isFullyCompleted) {
-    return 'View';
-  } else if (progress.hasStarted) {
-    return 'Continue';
-  } else {
-    return 'Start Assignment';
+const getButtonConfig = (assignment: AssignmentWithDetails, statusInfo: ReturnType<typeof getAssignmentStatus>, progress: ReturnType<typeof getStudentProgress> | null) => {
+  if (statusInfo.status === 'scheduled') {
+    return {
+      text: 'Scheduled',
+      icon: Lock,
+      variant: 'outline' as const,
+      className: 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed',
+      disabled: true
+    };
   }
+
+  if (statusInfo.status === 'inactive') {
+    return {
+      text: 'Inactive',
+      icon: Lock,
+      variant: 'outline' as const,
+      className: 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed',
+      disabled: true
+    };
+  }
+
+  if (progress?.isPerfectScore) {
+    return {
+      text: 'Review Assignment',
+      icon: Eye,
+      variant: 'default' as const,
+      className: 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600',
+      disabled: false
+    };
+  }
+
+  if (progress?.isFullyCompleted) {
+    return {
+      text: 'View Results',
+      icon: CheckCircle,
+      variant: 'default' as const,
+      className: 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600',
+      disabled: false
+    };
+  }
+
+  if (progress?.hasStarted) {
+    return {
+      text: 'Continue',
+      icon: Play,
+      variant: 'default' as const,
+      className: 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600',
+      disabled: false
+    };
+  }
+
+  return {
+    text: 'Start Assignment',
+    icon: ArrowRight,
+    variant: 'default' as const,
+    className: 'bg-gray-900 hover:bg-gray-800 text-white border-gray-900',
+    disabled: false
+  };
 };
 
 function VideoThumbnail({ src, alt }: { src: string; alt: string }) {
@@ -190,20 +236,20 @@ function VideoThumbnail({ src, alt }: { src: string; alt: string }) {
 
   if (imageError) {
     return (
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center rounded-l-lg">
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center rounded-t-lg sm:rounded-t-none sm:rounded-l-lg">
         <Video className="h-6 w-6 text-white" />
       </div>
     );
   }
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-black rounded-t-lg sm:rounded-t-none sm:rounded-l-lg">
+    <div className="absolute inset-0 overflow-hidden rounded-t-lg sm:rounded-t-none sm:rounded-l-lg">
       <Image
         src={src}
         alt={alt}
         fill
         className="object-cover"
-        sizes="128px"
+        sizes="(max-width: 640px) 100vw, (max-width: 768px) 224px, (max-width: 1024px) 256px, 288px"
         onError={() => setImageError(true)}
         priority={false}
       />
@@ -250,8 +296,8 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
   const isTeacherOrAdmin = session?.user?.role === 'TEACHER' || session?.user?.role === 'ADMIN';
 
   return (
-    <div className="space-y-6 mx-auto">
-      {assignments.map((assignment) => {
+    <div className="space-y-4 mx-auto">
+      {assignments.map((assignment: AssignmentWithDetails) => {
         const cardStyle = getAssignmentCardStyle(assignment.evaluationSettings?.type);
         const isStudent = session?.user?.role === 'STUDENT';
         const statusInfo = getAssignmentStatus(assignment, isStudent);
@@ -260,14 +306,14 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
         const thumbnailUrl = isVideoAssignment ? getYouTubeThumbnail(assignment.videoUrl!) : null;
         
         return (
-          <Card 
+          <div 
             key={assignment.id} 
-            className={`overflow-hidden p-0 ${isTeacherOrAdmin ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+            className={`overflow-hidden rounded-lg border border-gray-200 hover:border-gray-300 transition-all ${isTeacherOrAdmin ? 'cursor-pointer hover:shadow-lg' : ''}`}
             onClick={isTeacherOrAdmin ? () => handleAssignmentClick(assignment.id) : undefined}
           >
             <div className="flex flex-col sm:flex-row">
-              {/* Thumbnail/Icon Section - Completely out of flow */}
-              <div className="relative aspect-video sm:w-32 md:w-40 flex-shrink-0">
+              {/* Thumbnail/Icon Section */}
+              <div className="relative w-full aspect-video sm:w-64 md:w-80 lg:w-96 flex-shrink-0 sm:self-start">
                 {isVideoAssignment && thumbnailUrl ? (
                   <VideoThumbnail 
                     src={thumbnailUrl} 
@@ -275,12 +321,12 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
                   />
                 ) : (
                   <div className={`${cardStyle?.color?.bg} absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-t-lg sm:rounded-t-none sm:rounded-l-lg`}>
-                    <div className={`${cardStyle?.color?.iconBg} w-10 h-10 sm:w-10 sm:h-10 rounded-full flex items-center justify-center`}>
+                    <div className={`${cardStyle?.color?.iconBg} w-10 h-10 rounded-full flex items-center justify-center shadow-sm`}>
                       {cardStyle?.icon && (
-                        <cardStyle.icon className={`h-6 w-6 sm:h-6 sm:w-6 ${cardStyle?.color?.iconColor}`} />
+                        <cardStyle.icon className={`h-5 w-5 ${cardStyle?.color?.iconColor}`} />
                       )}
                     </div>
-                    <p className={`${cardStyle?.color?.iconColor} text-sm font-medium`}>
+                    <p className={`${cardStyle?.color?.iconColor} text-xs font-semibold uppercase tracking-wide`}>
                       {assignment.evaluationSettings?.type}
                     </p>
                   </div>
@@ -288,30 +334,67 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
               </div>
 
               {/* Content Section */}
-              <div className="flex-1 flex flex-col justify-between p-4">
-                {/* Header with title, star, and status */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <h3 className="text-base font-semibold truncate">
-                      {assignment.topic}
-                    </h3>
-                    {progress?.isPerfectScore && (
-                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
-                    )}
+              <div className="flex-1 flex flex-col p-4">
+                {/* Header */}
+                <div className="mb-2">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-semibold text-gray-900 mb-0.5 line-clamp-2">
+                        {assignment.topic}
+                      </h3>
+                      {progress?.isPerfectScore && (
+                        <div className="flex items-center gap-1 text-yellow-600 mt-0.5">
+                          <Star className="h-3 w-3 fill-yellow-600" />
+                          <span className="text-xs font-medium">Perfect Score</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <Badge variant={statusInfo.variant} className="ml-2 flex-shrink-0 text-xs px-2 py-0.5">
-                    {statusInfo.label}
-                  </Badge>
+
+                  {/* Progress Bar - Show for students with progress */}
+                  {isStudent && progress && progress.total > 0 && (
+                    <div className="mb-2">
+                      <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                        <span className="font-medium">Progress</span>
+                        <span className="font-semibold">{progress.completed}/{progress.total} questions</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className={`h-full transition-all duration-300 ${
+                            progress.isPerfectScore 
+                              ? 'bg-emerald-600' 
+                              : progress.isFullyCompleted 
+                                ? 'bg-indigo-600' 
+                                : progress.hasStarted 
+                                  ? 'bg-blue-600' 
+                                  : 'bg-gray-300'
+                          }`}
+                          style={{ width: `${(progress.completed / progress.total) * 100}%` }}
+                        />
+                      </div>
+                      {progress.completed > 0 && (
+                        <div className="flex items-center gap-3 mt-1.5 text-xs">
+                          <span className="text-gray-600">
+                            <span className="font-semibold text-gray-900">{progress.accuracy}%</span> accuracy
+                          </span>
+                          {progress.correct > 0 && (
+                            <span className="text-gray-600">
+                              <span className="font-semibold text-gray-900">{progress.correct}</span> correct
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* Assignment Metadata */}
-                <div className="space-y-2 mb-3">
-                  {/* Basic Info Row */}
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                {/* Metadata */}
+                <div className="space-y-1.5 mb-2 text-sm text-gray-600">
+                  <div className="flex flex-wrap items-center gap-3">
                     {assignment.classes && assignment.classes.length > 0 && (
-                      <div className="flex items-center gap-1">
-                        <School className="h-3 w-3" />
-                        <span className="font-medium">
+                      <div className="flex items-center gap-1.5">
+                        <School className="h-3 w-3 text-gray-400" />
+                        <span className="text-xs">
                           {assignment.classes.length === 1 
                             ? assignment.classes[0].class.name
                             : `${assignment.classes.length} classes`
@@ -320,112 +403,72 @@ export function StudentAssignmentsList({ assignments }: StudentAssignmentsListPr
                       </div>
                     )}
                     
-                    <div className="flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      <span className="font-medium">{assignment.teacher?.username}</span>
+                    <div className="flex items-center gap-1.5">
+                      <User className="h-3 w-3 text-gray-400" />
+                      <span className="text-xs">{assignment.teacher?.username}</span>
                     </div>
                     
-                    <div className="flex items-center gap-1">
-                      {assignment.type === 'CLASS' ? (
-                        <>
-                          <Users className="h-3 w-3" />
-                          <span>Class Assignment</span>
-                        </>
-                      ) : (
-                        <>
-                          <User className="h-3 w-3" />
-                          <span>Individual</span>
-                        </>
-                      )}
-                    </div>
+                    {assignment.type === 'CLASS' && (
+                      <div className="flex items-center gap-1.5">
+                        <Users className="h-3 w-3 text-gray-400" />
+                        <span className="text-xs">Class Assignment</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Dates Row */}
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-3 text-xs">
                     {assignment.publishedAt && (
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-3 w-3 text-gray-400" />
                         <span>Published {format(new Date(assignment.publishedAt), "MMM d, yyyy")}</span>
                       </div>
                     )}
                     
-                    {assignment.scheduledPublishAt && assignment.scheduledPublishAt > new Date() && (
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        <span>Available {format(new Date(assignment.scheduledPublishAt), "MMM d, yyyy 'at' h:mm a")}</span>
-                      </div>
-                    )}
-                    
                     {assignment.dueDate && (
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        <span className={`${new Date(assignment.dueDate) < new Date() && !progress?.isFullyCompleted ? 'text-red-600 font-medium' : ''}`}>
-                          Due {format(new Date(assignment.dueDate), "MMM d, yyyy 'at' h:mm a")}
+                      <div className="flex items-center gap-1.5">
+                        <Clock className={`h-3 w-3 ${new Date(assignment.dueDate) < new Date() && !progress?.isFullyCompleted ? 'text-red-500' : 'text-gray-400'}`} />
+                        <span className={new Date(assignment.dueDate) < new Date() && !progress?.isFullyCompleted ? 'text-red-600 font-medium' : ''}>
+                          Due {format(new Date(assignment.dueDate), "MMM d, yyyy")}
                         </span>
                       </div>
                     )}
                   </div>
-
-                  {/* Student Progress - Show for students only */}
-                  {isStudent && progress && (
-                    <div className="flex flex-wrap items-center gap-3 text-xs">
-                      <div className="flex items-center gap-1 text-blue-600">
-                        <CheckCircle className="h-3 w-3" />
-                        <span className="font-medium">
-                          Progress: {progress.completed}/{progress.total} questions
-                        </span>
-                      </div>
-                      
-                      {progress.completed > 0 && (
-                        <div className="flex items-center gap-1 text-green-600">
-                          <Star className="h-3 w-3" />
-                          <span className="font-medium">
-                            Accuracy: {progress.accuracy}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {/* Action Button */}
-                <div className="flex justify-center md:justify-end py-3 md:py-0 w-full md:w-auto">
+                <div className="mt-auto pt-2">
                   {session?.user?.role === 'STUDENT' ? (
-                    <>
-                      {statusInfo.status === 'scheduled' ? (
+                    (() => {
+                      const buttonConfig = getButtonConfig(assignment, statusInfo, progress);
+                      const IconComponent = buttonConfig.icon;
+                      return (
                         <Button 
                           size="sm"
-                          variant="outline" 
-                          disabled
-                          className="text-sm px-4 py-2"
+                          variant={buttonConfig.variant}
+                          onClick={(e) => !buttonConfig.disabled && handleStartAssignment(e, assignment.id)}
+                          disabled={buttonConfig.disabled}
+                          className={`w-full sm:w-auto ${buttonConfig.className} font-medium`}
                         >
-                          Not Yet Available
+                          <IconComponent className="h-3.5 w-3.5 mr-1.5" />
+                          {buttonConfig.text}
                         </Button>
-                      ) : (
-                        <Button 
-                          size="sm"
-                          onClick={(e) => handleStartAssignment(e, assignment.id)}
-                          className="text-sm px-4 py-2 w-full md:w-auto"
-                          variant={progress?.isFullyCompleted ? "outline" : "default"}
-                        >
-                          {getButtonTextForStudent(assignment)}
-                        </Button>
-                      )}
-                    </>
+                      );
+                    })()
                   ) : (
                     <Button 
                       size="sm"
                       variant="outline"
                       onClick={(e) => handleStartAssignment(e, assignment.id)}
-                      className="text-sm px-4 py-2"
+                      className="w-full sm:w-auto border-gray-300 hover:bg-gray-50 font-medium"
                     >
+                      <Eye className="h-3.5 w-3.5 mr-1.5" />
                       View Progress
                     </Button>
                   )}
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
         );
       })}
     </div>

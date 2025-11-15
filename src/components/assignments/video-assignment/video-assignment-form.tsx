@@ -84,7 +84,7 @@ const formSchema = z.object({
     levelType: z.nativeEnum(LevelType),
     cefrLevel: z.nativeEnum(CEFRLevel).optional(),
     gradeLevel: z.nativeEnum(GradeLevel).optional(),
-  })).default([]),
+  })).min(1, 'At least one level must be selected'),
 });
 
 type VideoFormValues = z.infer<typeof formSchema>;
@@ -93,9 +93,11 @@ interface VideoAssignmentFormProps {
   data: {
     classes: Class[];
   };
+  assignmentId?: string;
+  initialAssignment?: any;
 }
 
-export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
+export function VideoAssignmentForm({ data, assignmentId, initialAssignment }: VideoAssignmentFormProps) {
   const router = useRouter();
   const { classes } = data;
   const [students, setStudents] = useState<User[]>([]);
@@ -127,9 +129,32 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
   >([]);
   const [selectedQuestionIndices, setSelectedQuestionIndices] = useState<Set<number>>(new Set());
 
-  const form = useForm<VideoFormValues>({
-    resolver: zodResolver(formSchema) as any,
-    defaultValues: {
+  // Initialize form with assignment data if editing
+  const getDefaultValues = (): VideoFormValues => {
+    if (initialAssignment) {
+      return {
+        topic: initialAssignment.topic || "",
+        description: initialAssignment.context || "",
+        videoUrl: initialAssignment.videoUrl || "",
+        questions: initialAssignment.questions?.map((q: any) => ({
+          text: q.textQuestion || "",
+          answer: q.textAnswer || "",
+        })) || [{ text: "", answer: "" }],
+        classIds: initialAssignment.classes?.map((c: any) => c.class.id) || [],
+        studentIds: initialAssignment.students?.map((s: any) => s.user.id) || [],
+        assignToEntireClass: (initialAssignment.classes?.length || 0) > 0,
+        scheduledPublishAt: initialAssignment.scheduledPublishAt ? new Date(initialAssignment.scheduledPublishAt) : null,
+        dueDate: initialAssignment.dueDate ? new Date(initialAssignment.dueDate) : null,
+        hasTranscript: !!initialAssignment.videoTranscript,
+        languageId: initialAssignment.language?.id || "",
+        levels: initialAssignment.levels?.map((l: any) => ({
+          levelType: l.levelType,
+          cefrLevel: l.cefrLevel || undefined,
+          gradeLevel: l.gradeLevel || undefined,
+        })) || [],
+      };
+    }
+    return {
       topic: "",
       description: "",
       videoUrl: "",
@@ -140,15 +165,28 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
       scheduledPublishAt: null,
       dueDate: null,
       hasTranscript: false,
-      languageId: "", // Will default to English on backend
+      languageId: "",
       levels: [],
-    },
+    };
+  };
+
+  const form = useForm<VideoFormValues>({
+    resolver: zodResolver(formSchema) as any,
+    defaultValues: getDefaultValues(),
   });
 
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "questions",
   });
+
+  // Initialize transcript content if editing
+  useEffect(() => {
+    if (initialAssignment?.videoTranscript) {
+      setTranscriptContent(initialAssignment.videoTranscript);
+      setVideoHasTranscript(true);
+    }
+  }, [initialAssignment]);
 
   const selectedClasses = form.watch("classIds");
   const assignToEntireClass = form.watch("assignToEntireClass");
@@ -433,12 +471,33 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
     setIsSubmitting(true);
     setFormMessage(null);
     try {
-      const response = await fetch("/api/assignments/video", {
-        method: "POST",
+      const url = assignmentId 
+        ? `/api/assignments/${assignmentId}`
+        : "/api/assignments/video";
+      const method = assignmentId ? "PUT" : "POST";
+      
+      const response = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: JSON.stringify(assignmentId ? {
+          topic: values.topic,
+          context: values.description,
+          videoUrl: values.videoUrl,
+          videoTranscript: transcriptContent || initialAssignment?.videoTranscript || "",
+          scheduledPublishAt: values.scheduledPublishAt?.toISOString(),
+          dueDate: values.dueDate?.toISOString(),
+          classIds: values.classIds,
+          studentIds: values.studentIds,
+          questions: values.questions.map((q, index) => ({
+            id: initialAssignment?.questions?.[index]?.id,
+            textQuestion: q.text,
+            textAnswer: q.answer,
+            order: index,
+          })),
+          levels: values.levels,
+        } : {
           creationType: "video",
           ...values,
           videoTranscript: transcriptContent || "",
@@ -453,12 +512,12 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
 
       setFormMessage({
         type: "success",
-        message: "Assignment created! Redirecting...",
+        message: assignmentId ? "Assignment updated! Redirecting..." : "Assignment created! Redirecting...",
       });
 
       // Redirect after a short delay to allow user to see the message
       setTimeout(() => {
-        router.push("/assignments");
+        router.push(assignmentId ? `/assignments/${assignmentId}` : "/assignments");
         router.refresh();
       }, 1500);
     } catch (error) {
@@ -481,7 +540,7 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
       <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-8">
         <Card>
           <CardHeader>
-            <CardTitle>Video Assignment Details</CardTitle>
+            <CardTitle>{assignmentId ? 'Edit Video Assignment' : 'Video Assignment Details'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
@@ -1107,7 +1166,9 @@ export function VideoAssignmentForm({ data }: VideoAssignmentFormProps) {
               </Dialog>
 
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Assignment"}
+                {isSubmitting 
+                  ? (assignmentId ? "Updating..." : "Creating...") 
+                  : (assignmentId ? "Update Assignment" : "Create Assignment")}
               </Button>
             </div>
           </div>

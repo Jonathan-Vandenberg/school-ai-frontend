@@ -7,9 +7,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
 import { TemplateCard } from '@/components/templates/template-card'
-import { Search, Filter, Loader2 } from 'lucide-react'
+import { Search, Filter, Loader2, ChevronDown } from 'lucide-react'
 import { CEFRLevel, GradeLevel, EvaluationType } from '@prisma/client'
+import { cn } from '@/lib/utils'
 
 const CEFR_LEVELS: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 const GRADE_LEVELS: GradeLevel[] = [
@@ -54,17 +57,17 @@ export default function TemplatesBrowsePage() {
   const [templates, setTemplates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [cefrLevel, setCefrLevel] = useState<string>('')
-  const [gradeLevel, setGradeLevel] = useState<string>('')
+  const [selectedLevels, setSelectedLevels] = useState<Set<string>>(new Set())
   const [evaluationType, setEvaluationType] = useState<string>('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [levelPopoverOpen, setLevelPopoverOpen] = useState(false)
 
   useEffect(() => {
     if (session?.user) {
       loadTemplates()
     }
-  }, [session, searchTerm, cefrLevel, gradeLevel, evaluationType, page])
+  }, [session, searchTerm, selectedLevels, evaluationType, page])
 
   const loadTemplates = async () => {
     try {
@@ -74,8 +77,11 @@ export default function TemplatesBrowsePage() {
       params.set('page', page.toString())
       params.set('limit', '12')
       if (searchTerm) params.set('search', searchTerm)
-      if (cefrLevel) params.set('cefrLevel', cefrLevel)
-      if (gradeLevel) params.set('gradeLevel', gradeLevel)
+      if (selectedLevels.size > 0) {
+        Array.from(selectedLevels).forEach(level => {
+          params.append('levels', level)
+        })
+      }
       if (evaluationType) params.set('evaluationType', evaluationType)
 
       const response = await fetch(`/api/templates?${params.toString()}`)
@@ -101,10 +107,35 @@ export default function TemplatesBrowsePage() {
 
   const clearFilters = () => {
     setSearchTerm('')
-    setCefrLevel('')
-    setGradeLevel('')
+    setSelectedLevels(new Set())
     setEvaluationType('')
     setPage(1)
+  }
+
+  const toggleLevel = (level: string) => {
+    const newLevels = new Set(selectedLevels)
+    if (newLevels.has(level)) {
+      newLevels.delete(level)
+    } else {
+      newLevels.add(level)
+    }
+    setSelectedLevels(newLevels)
+    setPage(1)
+  }
+
+  const getLevelLabel = (level: string): string => {
+    if (CEFR_LEVELS.includes(level as CEFRLevel)) {
+      return level
+    }
+    return GRADE_LEVEL_LABELS[level as GradeLevel] || level
+  }
+
+  const getLevelDisplayText = (): string => {
+    if (selectedLevels.size === 0) return 'Level'
+    if (selectedLevels.size === 1) {
+      return getLevelLabel(Array.from(selectedLevels)[0])
+    }
+    return `${selectedLevels.size} levels selected`
   }
 
   if (!session?.user) {
@@ -128,7 +159,7 @@ export default function TemplatesBrowsePage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {/* Search */}
             <div className="lg:col-span-2">
               <div className="relative">
@@ -145,39 +176,64 @@ export default function TemplatesBrowsePage() {
               </div>
             </div>
 
-            {/* CEFR Level */}
-            <Select value={cefrLevel} onValueChange={(value) => {
-              setCefrLevel(value)
-              setPage(1)
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder="CEFR Level" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All CEFR Levels</SelectItem>
-                {CEFR_LEVELS.map(level => (
-                  <SelectItem key={level} value={level}>{level}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Grade Level */}
-            <Select value={gradeLevel} onValueChange={(value) => {
-              setGradeLevel(value)
-              setPage(1)
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder="Grade Level" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Grade Levels</SelectItem>
-                {GRADE_LEVELS.map(level => (
-                  <SelectItem key={level} value={level}>
-                    {GRADE_LEVEL_LABELS[level]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Level Multi-Select */}
+            <Popover open={levelPopoverOpen} onOpenChange={setLevelPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className={cn(
+                    "w-full justify-between",
+                    selectedLevels.size === 0 && "text-muted-foreground"
+                  )}
+                >
+                  {getLevelDisplayText()}
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0" align="start">
+                <div className="max-h-[400px] overflow-y-auto p-2">
+                  <div className="space-y-1">
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground border-b">
+                      CEFR Levels
+                    </div>
+                    {CEFR_LEVELS.map(level => (
+                      <div
+                        key={level}
+                        className="flex items-center space-x-2 px-2 py-1.5 hover:bg-accent rounded-sm cursor-pointer"
+                        onClick={() => toggleLevel(level)}
+                      >
+                        <Checkbox
+                          checked={selectedLevels.has(level)}
+                          onCheckedChange={() => toggleLevel(level)}
+                        />
+                        <label className="text-sm font-normal cursor-pointer flex-1">
+                          {level}
+                        </label>
+                      </div>
+                    ))}
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground border-b mt-2">
+                      Grade Levels
+                    </div>
+                    {GRADE_LEVELS.map(level => (
+                      <div
+                        key={level}
+                        className="flex items-center space-x-2 px-2 py-1.5 hover:bg-accent rounded-sm cursor-pointer"
+                        onClick={() => toggleLevel(level)}
+                      >
+                        <Checkbox
+                          checked={selectedLevels.has(level)}
+                          onCheckedChange={() => toggleLevel(level)}
+                        />
+                        <label className="text-sm font-normal cursor-pointer flex-1">
+                          {GRADE_LEVEL_LABELS[level]}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
 
             {/* Type */}
             <Select value={evaluationType} onValueChange={(value) => {
@@ -199,7 +255,7 @@ export default function TemplatesBrowsePage() {
           </div>
 
           {/* Clear Filters */}
-          {(searchTerm || cefrLevel || gradeLevel || evaluationType) && (
+          {(searchTerm || selectedLevels.size > 0 || evaluationType) && (
             <div className="mt-4">
               <Button variant="outline" size="sm" onClick={clearFilters}>
                 <Filter className="h-4 w-4 mr-2" />

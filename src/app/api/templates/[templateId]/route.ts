@@ -55,12 +55,20 @@ export async function PUT(
       isActive: z.boolean().optional(),
       levels: z.array(z.object({
         levelType: z.enum(['CEFR', 'GRADE']),
-        cefrLevel: z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']).optional(),
+        cefrLevel: z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']).nullable().optional(),
         gradeLevel: z.enum([
           'PRE_K', 'KINDERGARTEN', 
           'GRADE_1', 'GRADE_2', 'GRADE_3', 'GRADE_4', 'GRADE_5', 'GRADE_6',
           'GRADE_7', 'GRADE_8', 'GRADE_9', 'GRADE_10', 'GRADE_11', 'GRADE_12'
-        ]).optional(),
+        ]).nullable().optional(),
+      })).min(1, 'At least one level is required').optional(),
+      questions: z.array(z.object({
+        id: z.string().optional(),
+        image: z.string().optional(),
+        textQuestion: z.string().optional(),
+        videoUrl: z.string().optional(),
+        textAnswer: z.string().optional(),
+        order: z.number().optional(),
       })).optional(),
     })
 

@@ -32,6 +32,8 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { IELTSAssignmentPreview } from "./ielts-assignment-preview";
+import { LevelSelector } from "@/components/templates/level-selector";
+import { LevelType, CEFRLevel, GradeLevel } from "@prisma/client";
 
 // Unified form schema for all IELTS assignment types
 const formSchema = z.object({
@@ -54,6 +56,11 @@ const formSchema = z.object({
     expectedLevel: z.enum(["beginner", "intermediate", "advanced"]),
   })).optional(),
   context: z.string().optional(),
+  levels: z.array(z.object({
+    levelType: z.nativeEnum(LevelType),
+    cefrLevel: z.nativeEnum(CEFRLevel).optional(),
+    gradeLevel: z.nativeEnum(GradeLevel).optional(),
+  })).min(1, 'At least one level must be selected'),
 }).refine((data) => {
   // Custom validation logic will be handled in the component
   return true;
@@ -85,6 +92,7 @@ export function IELTSAssignmentForm({ data, subtype }: IELTSAssignmentFormProps)
       studentIds: [],
       assignToEntireClass: true,
       accent: "us" as const,
+      levels: [],
     };
 
     if (subtype === "reading" || subtype === "pronunciation") {
@@ -621,6 +629,37 @@ export function IELTSAssignmentForm({ data, subtype }: IELTSAssignmentFormProps)
                   )}
                 />
               )}
+            </CardContent>
+          </Card>
+
+          {/* Educational Levels */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Educational Levels</CardTitle>
+              <CardDescription>
+                Select the CEFR or Grade levels this assignment is appropriate for.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FormField
+                control={form.control}
+                name="levels"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Levels</FormLabel>
+                    <FormControl>
+                      <LevelSelector
+                        value={field.value || []}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Select at least one educational level for this assignment.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
