@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
       feedbackSettings: validatedData.feedbackSettings,
       totalStudentsInScope: validatedData.totalStudentsInScope,
       analysisResult: validatedData.analysisResult,
+      levels: validatedData.levels,
     });
 
     // Automatically create a template from this assignment

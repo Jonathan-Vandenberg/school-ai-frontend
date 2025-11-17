@@ -588,9 +588,10 @@ export class StatisticsService {
             some: { classId }
           }
         },
-        select: { id: true }
+        select: { id: true, isActive: true }
       })
       const assignmentIds = classAssignments.map((a: any) => a.id)
+      const activeAssignments = classAssignments.filter((a: any) => a.isActive === true).length
 
       // Get individual student stats to calculate proper averages
       const studentStatsRecords = await tx.studentStats.findMany({
@@ -609,65 +610,16 @@ export class StatisticsService {
         }
       })
 
-      // Calculate class average score from individual completed assignments only
-      // Get all completed assignments for students in this class
-      const completedAssignmentProgresses = await tx.studentAssignmentProgress.findMany({
-        where: {
-          studentId: { in: studentIds },
-          isComplete: true,
-          assignment: {
-            classes: {
-              some: { classId }
-            }
-          }
-        },
-        include: {
-          assignment: {
-            include: {
-              questions: { select: { id: true } }
-            }
-          }
-        }
-      })
-
-      // Group by student and assignment to calculate scores per completed assignment
-      const assignmentCompletions = new Map<string, { correct: number, total: number, actualScores: number[] }>()
-      completedAssignmentProgresses.forEach((progress: any) => {
-        const key = `${progress.studentId}-${progress.assignmentId}`
-        if (!assignmentCompletions.has(key)) {
-          assignmentCompletions.set(key, { correct: 0, total: 0, actualScores: [] })
-        }
-        const completion = assignmentCompletions.get(key)!
-        completion.total++
-        if (progress.isCorrect) completion.correct++
-        if (progress.actualScore !== null && progress.actualScore !== undefined) {
-          completion.actualScores.push(progress.actualScore)
-        }
-      })
-
-      // Calculate scores for each completed assignment and average them
-      const assignmentScores: number[] = []
-      for (const [key, completion] of assignmentCompletions) {
-        const [studentId, assignmentId] = key.split('-')
-        // Find the assignment to get total questions
-        const assignment = completedAssignmentProgresses.find((p: any) => p.assignmentId === assignmentId)?.assignment
-        if (assignment && completion.total >= assignment.questions.length) {
-          // Only include if student completed all questions in the assignment
-          let score: number
-          if (completion.actualScores.length > 0) {
-            // Use actual scores if available
-            score = completion.actualScores.reduce((sum, s) => sum + s, 0) / completion.actualScores.length
-          } else {
-            // Fallback to boolean calculation
-            score = assignment.questions.length > 0 ? (completion.correct / assignment.questions.length) * 100 : 0
-          }
-          assignmentScores.push(score)
-        }
-      }
-
-      const classAverageScore = assignmentScores.length > 0
-        ? assignmentScores.reduce((sum, score) => sum + score, 0) / assignmentScores.length
+      // Calculate class average score from students' average scores
+      // This is the average of each student's overall average score
+      const studentAverageScores = studentStatsRecords
+        .filter((student: any) => student.averageScore > 0) // Only include students with scores
+        .map((student: any) => student.averageScore)
+      
+      const classAverageScore = studentAverageScores.length > 0
+        ? studentAverageScores.reduce((sum: number, score: number) => sum + score, 0) / studentAverageScores.length
         : 0
+
 
       // Calculate total questions available in class assignments (not accumulated across students)
       const classAssignmentsWithQuestions = await tx.assignment.findMany({
@@ -762,8 +714,9 @@ export class StatisticsService {
         update: {
           totalStudents: studentIds.length,
           totalAssignments: assignmentIds.length,
+          activeAssignments: activeAssignments,
           averageCompletion: parseFloat(averageCompletionRate.toFixed(2)),
-          averageScore: parseFloat(classAverageScore.toFixed(2)), // Average from individual completed assignments only
+          averageScore: parseFloat(classAverageScore.toFixed(2)), // Average of students' average scores
           totalQuestions,
           totalAnswers,
           totalCorrectAnswers,
@@ -777,8 +730,9 @@ export class StatisticsService {
           classId,
           totalStudents: studentIds.length,
           totalAssignments: assignmentIds.length,
+          activeAssignments: activeAssignments,
           averageCompletion: parseFloat(averageCompletionRate.toFixed(2)),
-          averageScore: parseFloat(classAverageScore.toFixed(2)), // Average from individual completed assignments only
+          averageScore: parseFloat(classAverageScore.toFixed(2)), // Average of students' average scores
           totalQuestions,
           totalAnswers,
           totalCorrectAnswers,
@@ -1732,7 +1686,8 @@ export class StatisticsService {
         ]
       },
       include: {
-        questions: { select: { id: true } }
+        questions: { select: { id: true } },
+        evaluationSettings: { select: { type: true } }
       }
     })
 
@@ -1745,7 +1700,8 @@ export class StatisticsService {
       select: {
         assignmentId: true,
         isCorrect: true,
-        questionId: true
+        questionId: true,
+        actualScore: true
       }
     })
 
@@ -1804,12 +1760,44 @@ export class StatisticsService {
       studentAssignments.forEach((assignment: any) => {
         const questionsAnswered = assignmentProgress.get(assignment.id)?.size || 0
         if (questionsAnswered >= assignment.questions.length) {
-          const assignmentCorrect = allProgress.filter((p: any) => 
-            p.assignmentId === assignment.id && p.isCorrect
-          ).length
-          const score = assignment.questions.length > 0 
-            ? (assignmentCorrect / assignment.questions.length) * 100 
-            : 0
+          const assignmentProgressRecords = allProgress.filter((p: any) => 
+            p.assignmentId === assignment.id
+          )
+          
+          const assignmentType = assignment.evaluationSettings?.type
+          let score: number
+          
+          // For VIDEO assignments, always use isCorrect (boolean)
+          // For READING and PRONUNCIATION, use actualScore if available
+          if (assignmentType === 'VIDEO') {
+            // VIDEO: Use boolean isCorrect
+            const assignmentCorrect = assignmentProgressRecords.filter((p: any) => p.isCorrect).length
+            score = assignment.questions.length > 0 
+              ? (assignmentCorrect / assignment.questions.length) * 100 
+              : 0
+          } else if (assignmentType === 'READING' || assignmentType === 'PRONUNCIATION') {
+            // READING/PRONUNCIATION: Use actualScore
+            const scoresWithValues = assignmentProgressRecords.filter((p: any) => 
+              p.actualScore !== null && p.actualScore !== undefined
+            )
+            
+            if (scoresWithValues.length > 0) {
+              // Use actual scores (e.g., from pronunciation/reading analysis)
+              score = scoresWithValues.reduce((sum: number, p: any) => sum + p.actualScore, 0) / scoresWithValues.length
+            } else {
+              // Fallback to boolean calculation if no actualScore available
+              const assignmentCorrect = assignmentProgressRecords.filter((p: any) => p.isCorrect).length
+              score = assignment.questions.length > 0 
+                ? (assignmentCorrect / assignment.questions.length) * 100 
+                : 0
+            }
+          } else {
+            // Other types: Fallback to boolean calculation
+            const assignmentCorrect = assignmentProgressRecords.filter((p: any) => p.isCorrect).length
+            score = assignment.questions.length > 0 
+              ? (assignmentCorrect / assignment.questions.length) * 100 
+              : 0
+          }
           assignmentScores.push(score)
         }
       })
@@ -2003,7 +1991,8 @@ export class StatisticsService {
         ]
       },
       include: {
-        questions: { select: { id: true } }
+        questions: { select: { id: true } },
+        evaluationSettings: { select: { type: true } }
       }
     })
 
@@ -2016,7 +2005,8 @@ export class StatisticsService {
       select: {
         assignmentId: true,
         isCorrect: true,
-        questionId: true
+        questionId: true,
+        actualScore: true
       }
     })
 
@@ -2027,10 +2017,40 @@ export class StatisticsService {
       const uniqueQuestions = new Set(progress.map((p: any) => p.questionId))
       
       if (uniqueQuestions.size >= assignment.questions.length) {
-        const correctAnswers = progress.filter((p: any) => p.isCorrect).length
-        const score = assignment.questions.length > 0 
-          ? (correctAnswers / assignment.questions.length) * 100 
-          : 0
+        const assignmentType = assignment.evaluationSettings?.type
+        let score: number
+        
+        // For VIDEO assignments, always use isCorrect (boolean)
+        // For READING and PRONUNCIATION, use actualScore if available
+        if (assignmentType === 'VIDEO') {
+          // VIDEO: Use boolean isCorrect
+          const correctAnswers = progress.filter((p: any) => p.isCorrect).length
+          score = assignment.questions.length > 0 
+            ? (correctAnswers / assignment.questions.length) * 100 
+            : 0
+        } else if (assignmentType === 'READING' || assignmentType === 'PRONUNCIATION') {
+          // READING/PRONUNCIATION: Use actualScore
+          const scoresWithValues = progress.filter((p: any) => 
+            p.actualScore !== null && p.actualScore !== undefined
+          )
+          
+          if (scoresWithValues.length > 0) {
+            // Use actual scores (e.g., from pronunciation/reading analysis)
+            score = scoresWithValues.reduce((sum: number, p: any) => sum + p.actualScore, 0) / scoresWithValues.length
+          } else {
+            // Fallback to boolean calculation if no actualScore available
+            const correctAnswers = progress.filter((p: any) => p.isCorrect).length
+            score = assignment.questions.length > 0 
+              ? (correctAnswers / assignment.questions.length) * 100 
+              : 0
+          }
+        } else {
+          // Other types: Fallback to boolean calculation
+          const correctAnswers = progress.filter((p: any) => p.isCorrect).length
+          score = assignment.questions.length > 0 
+            ? (correctAnswers / assignment.questions.length) * 100 
+            : 0
+        }
         assignmentScores.push(score)
       }
     })

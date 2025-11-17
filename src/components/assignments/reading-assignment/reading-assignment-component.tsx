@@ -322,7 +322,19 @@ export function ReadingAssignment({
     
     try {
       const currentQuestion = assignment.questions[currentIndex]
-      const expectedText = currentQuestion.textAnswer || ''
+      if (!currentQuestion) {
+        throw new Error('No question found for current index')
+      }
+      
+      // For reading assignments, expectedText should be the passage text (textAnswer)
+      // that the student needs to read aloud
+      const expectedText = currentQuestion.textAnswer?.trim() || ''
+      
+      // Validate that expectedText is present
+      if (!expectedText) {
+        console.error('📖 [READING] Missing expectedText (textAnswer) for question:', currentQuestion.id)
+        throw new Error('This passage is missing the expected text. Please contact your teacher.')
+      }
       
       console.log('📖 [READING] Question details:', {
         questionId: currentQuestion.id,
@@ -376,6 +388,16 @@ export function ReadingAssignment({
       formData.append('analysisType', 'READING')
       formData.append('expectedText', expectedText)
       
+      // Debug: Log FormData contents (can't directly log FormData, so log the values)
+      console.log('📖 [READING] FormData contents:', {
+        audioFileSize: audioFile.size,
+        audioFileName: audioFile.name,
+        browserTranscriptLength: finalTranscript.length,
+        analysisType: 'READING',
+        expectedTextLength: expectedText.length,
+        expectedTextPreview: expectedText.substring(0, 50) + (expectedText.length > 50 ? '...' : '')
+      })
+      
       console.log('📖 [READING] Making API call to /api/analysis/scripted with final transcript')
       const response = await fetch('/api/analysis/scripted', {
         method: 'POST',
@@ -386,13 +408,33 @@ export function ReadingAssignment({
       console.log('📖 [READING] API response status:', response.status)
       
       if (!response.ok) {
-        const errorText = await response.text()
+        let errorMessage = 'Failed to analyze pronunciation'
+        try {
+          // Read response as text first (can only read once)
+          const errorText = await response.text()
+          if (errorText) {
+            try {
+              // Try to parse as JSON
+              const errorData = JSON.parse(errorText)
+              if (errorData.details) {
+                errorMessage = errorData.details
+              } else if (errorData.error) {
+                errorMessage = errorData.error
+              }
+            } catch {
+              // If not JSON, use the text as error message
+              errorMessage = errorText || errorMessage
+            }
+          }
+        } catch (e) {
+          console.error('📖 [READING] Error reading error response:', e)
+        }
         console.error('📖 [READING] API Error:', {
           status: response.status,
           statusText: response.statusText,
-          errorText: errorText
+          errorMessage
         })
-        throw new Error('Failed to analyze pronunciation')
+        throw new Error(errorMessage)
       }
 
       const responseData = await response.json()
@@ -917,13 +959,14 @@ export function ReadingAssignment({
                     const completedProgresses = studentProgress.filter(p => p.isComplete);
                     const scoresWithValues = completedProgresses.filter(p => p.actualScore !== null && p.actualScore !== undefined);
                     
+                    // For READING assignments, always use actualScore (never fall back to isCorrect)
                     if (scoresWithValues.length > 0) {
-                      // Use actual scores if available
+                      // Use actual scores from pronunciation analysis
                       const averageScore = scoresWithValues.reduce((sum, p) => sum + (p.actualScore || 0), 0) / scoresWithValues.length;
                       return Math.round(averageScore);
                     } else {
-                      // Fallback to boolean calculation
-                      return Math.round((studentProgress.filter(p => p.isCorrect).length / completedQuestions) * 100);
+                      // If no actualScore available, return 0 (shouldn't happen for READING assignments)
+                      return 0;
                     }
                   })()}%
                 </Badge>

@@ -33,26 +33,51 @@ export default function AssignmentsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {assignmentTypes.map((type) => {
           const IconComponent = type.icon;
-          return (
-            <Link key={type.id} href={type.href}>
-              <Card className={`h-full transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer group border-0 ${type.colors.bg} ${type.colors.border}`}>
-                <CardHeader className="text-center">
-                  <div className={`mx-auto mb-4 p-3 rounded-full w-fit transition-colors ${type.colors.iconBg}`}>
-                    {type.id === 'IELTS' ? (
-                      <IconComponent className={`h-8 w-8 ${type.colors.iconColor}`} logoUrl={tenant?.branding?.logo_url} {...({} as any)} />
-                    ) : (
-                      <IconComponent className={`h-8 w-8 ${type.colors.iconColor}`} />
-                    )}
+          const isAvailable = type.available;
+          
+          const cardContent = (
+            <Card className={`h-full transition-all duration-200 border-0 ${type.colors.bg} ${
+              isAvailable 
+                ? `hover:shadow-lg hover:scale-105 cursor-pointer group ${type.colors.border}` 
+                : 'opacity-60 cursor-not-allowed'
+            }`}>
+              <CardHeader className="text-center">
+                <div className={`mx-auto mb-4 p-3 rounded-full w-fit transition-colors ${type.colors.iconBg}`}>
+                  {type.id === 'IELTS' ? (
+                    <IconComponent className={`h-8 w-8 ${type.colors.iconColor}`} logoUrl={tenant?.branding?.logo_url} {...({} as any)} />
+                  ) : (
+                    <IconComponent className={`h-8 w-8 ${type.colors.iconColor}`} />
+                  )}
+                </div>
+                <CardTitle className="text-xl text-gray-800">{type.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="text-center text-gray-600">
+                  {type.description}
+                </CardDescription>
+                {!isAvailable && (
+                  <div className="mt-4 text-center">
+                    <span className="inline-block px-3 py-1 text-sm font-semibold text-gray-500 bg-gray-200 rounded-full">
+                      Coming Soon
+                    </span>
                   </div>
-                  <CardTitle className="text-xl text-gray-800">{type.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-center text-gray-600">
-                    {type.description}
-                  </CardDescription>
-                </CardContent>
-              </Card>
-            </Link>
+                )}
+              </CardContent>
+            </Card>
+          );
+
+          if (isAvailable) {
+            return (
+              <Link key={type.id} href={type.href}>
+                {cardContent}
+              </Link>
+            );
+          }
+
+          return (
+            <div key={type.id} onClick={(e) => e.preventDefault()}>
+              {cardContent}
+            </div>
           );
         })}
       </div>

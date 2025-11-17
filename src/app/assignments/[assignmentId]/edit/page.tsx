@@ -5,9 +5,21 @@ import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Loader2, ChevronLeft } from 'lucide-react'
+import { Loader2, ChevronLeft, Trash2 } from 'lucide-react'
 import { ReadingAssignmentForm } from '@/components/assignments/reading-assignment/reading-assignment-form'
 import { VideoAssignmentForm } from '@/components/assignments/video-assignment/video-assignment-form'
+import { PronunciationAssignmentForm } from '@/components/assignments/pronunciation-assignment/pronunciation-assignment-form'
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 interface Assignment {
   id: string
@@ -83,6 +95,7 @@ export default function EditAssignmentPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [classes, setClasses] = useState<any[]>([])
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (session?.user && assignmentId) {
@@ -123,6 +136,28 @@ export default function EditAssignmentPage() {
 
   const handleGoBack = () => {
     router.push(`/assignments/${assignmentId}`)
+  }
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/assignments/${assignmentId}`, {
+        method: 'DELETE',
+      })
+      
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'Failed to delete assignment')
+      }
+      
+      // Redirect to assignments list after successful deletion
+      router.push('/assignments')
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete assignment')
+      console.error('Error deleting assignment:', err)
+      setIsDeleting(false)
+    }
   }
 
   if (!session?.user) {
@@ -204,8 +239,87 @@ export default function EditAssignmentPage() {
           data={{ classes }} 
           assignmentId={assignmentId}
           initialAssignment={assignment}
-                />
+        />
+        <div className="flex justify-end pt-4 border-t">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={isDeleting}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                {isDeleting ? 'Deleting...' : 'Delete Assignment'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the assignment.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
               </div>
+    )
+  }
+
+  if (assignmentType === 'PRONUNCIATION') {
+    return (
+      <div className="space-y-4">
+        <Button 
+          variant="ghost" 
+          onClick={handleGoBack}
+          className="mb-4"
+        >
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Back to Assignment
+        </Button>
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <PronunciationAssignmentForm 
+          data={{ classes }} 
+          assignmentId={assignmentId}
+          initialAssignment={assignment}
+        />
+        <div className="flex justify-end pt-4 border-t">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={isDeleting}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                {isDeleting ? 'Deleting...' : 'Delete Assignment'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the assignment.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
     )
   }
 
@@ -230,6 +344,33 @@ export default function EditAssignmentPage() {
           assignmentId={assignmentId}
           initialAssignment={assignment}
         />
+        <div className="flex justify-end pt-4 border-t">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={isDeleting}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                {isDeleting ? 'Deleting...' : 'Delete Assignment'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the assignment.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
     )
   }

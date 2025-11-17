@@ -81,6 +81,7 @@ export default function ClassAssignmentsPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [deletingAssignmentId, setDeletingAssignmentId] = useState<string | null>(null)
 
   useEffect(() => {
     if (session?.user && classId) {
@@ -154,7 +155,7 @@ export default function ClassAssignmentsPage() {
     router.push(`/create-assignment`)
   }
 
-  const handleAssignmentAction = (action: string, assignmentId: string) => {
+  const handleAssignmentAction = async (action: string, assignmentId: string) => {
     switch (action) {
       case 'view':
         router.push(`/assignments/${assignmentId}`)
@@ -163,8 +164,28 @@ export default function ClassAssignmentsPage() {
         router.push(`/assignments/${assignmentId}/edit`)
         break
       case 'delete':
-        // Handle delete - would need confirmation dialog
-        console.log('Delete assignment:', assignmentId)
+        if (confirm('Are you sure you want to delete this assignment? This action cannot be undone and will recalculate statistics for affected students and classes.')) {
+          setDeletingAssignmentId(assignmentId)
+          try {
+            const response = await fetch(`/api/assignments/${assignmentId}`, {
+              method: 'DELETE',
+            })
+            
+            if (!response.ok) {
+              const result = await response.json()
+              throw new Error(result.error || 'Failed to delete assignment')
+            }
+            
+            // Reload assignments after successful deletion
+            await loadAssignments()
+            setError(null)
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to delete assignment')
+            console.error('Error deleting assignment:', err)
+          } finally {
+            setDeletingAssignmentId(null)
+          }
+        }
         break
     }
   }
@@ -379,7 +400,11 @@ export default function ClassAssignmentsPage() {
                 </TableHeader>
                 <TableBody>
                   {assignments.map((assignment) => (
-                    <TableRow key={assignment.id}>
+                    <TableRow 
+                      key={assignment.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => router.push(`/assignments/${assignment.id}`)}
+                    >
                       <TableCell>
                         <div>
                           <div className="font-medium">{assignment.topic}</div>
@@ -423,7 +448,7 @@ export default function ClassAssignmentsPage() {
                           {new Date(assignment.createdAt).toLocaleDateString()}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
@@ -448,9 +473,10 @@ export default function ClassAssignmentsPage() {
                                 <DropdownMenuItem 
                                   onClick={() => handleAssignmentAction('delete', assignment.id)}
                                   className="text-red-600"
+                                  disabled={deletingAssignmentId === assignment.id}
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete Assignment
+                                  {deletingAssignmentId === assignment.id ? 'Deleting...' : 'Delete Assignment'}
                                 </DropdownMenuItem>
                               </>
                             )}

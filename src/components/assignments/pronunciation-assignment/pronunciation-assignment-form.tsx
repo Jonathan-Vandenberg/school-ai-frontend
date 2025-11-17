@@ -86,24 +86,50 @@ interface PronunciationAssignmentFormProps {
   data: {
     classes: Class[];
   };
+  assignmentId?: string;
+  initialAssignment?: any;
 }
 
-export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFormProps) {
+export function PronunciationAssignmentForm({ data, assignmentId, initialAssignment }: PronunciationAssignmentFormProps) {
   const router = useRouter();
   const { classes } = data;
   const [students, setStudents] = useState<User[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
-  const [enableSchedule, setEnableSchedule] = useState(false);
-  const [enableDueDate, setEnableDueDate] = useState(false);
+  // Initialize enableSchedule and enableDueDate based on initialAssignment
+  const [enableSchedule, setEnableSchedule] = useState(
+    !!initialAssignment?.scheduledPublishAt
+  );
+  const [enableDueDate, setEnableDueDate] = useState(
+    !!initialAssignment?.dueDate
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
-
-  const form = useForm<PronunciationFormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
+  const getDefaultValues = (): PronunciationFormValues => {
+    if (initialAssignment) {
+      return {
+        topic: initialAssignment.topic || "",
+        questions: initialAssignment.questions?.map((q: any) => ({
+          text: q.textAnswer || "",
+          title: q.textQuestion || "",
+        })) || [{ text: "", title: "" }],
+        classIds: initialAssignment.classes?.map((c: any) => c.class.id) || [],
+        studentIds: initialAssignment.students?.map((s: any) => s.user.id) || [],
+        assignToEntireClass: (initialAssignment.classes?.length || 0) > 0,
+        scheduledPublishAt: initialAssignment.scheduledPublishAt ? new Date(initialAssignment.scheduledPublishAt) : null,
+        dueDate: initialAssignment.dueDate ? new Date(initialAssignment.dueDate) : null,
+        hasTranscript: false,
+        languageId: initialAssignment.language?.id || "",
+        levels: initialAssignment.levels?.map((l: any) => ({
+          levelType: l.levelType,
+          cefrLevel: l.cefrLevel || undefined,
+          gradeLevel: l.gradeLevel || undefined,
+        })) || [],
+      };
+    }
+    return {
       topic: "",
       questions: [{ text: "", title: "" }],
       classIds: [],
@@ -114,7 +140,12 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
       hasTranscript: false,
       languageId: "", // Will default to English on backend
       levels: [],
-    },
+    };
+  };
+
+  const form = useForm<PronunciationFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: getDefaultValues(),
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -124,6 +155,18 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
 
   const selectedClasses = form.watch("classIds");
   const assignToEntireClass = form.watch("assignToEntireClass");
+  const scheduledPublishAt = form.watch("scheduledPublishAt");
+  const dueDate = form.watch("dueDate");
+
+  // Adjust due date if publish date changes and due date would be before it
+  useEffect(() => {
+    if (scheduledPublishAt && dueDate && dueDate < scheduledPublishAt) {
+      // If due date is before publish date, adjust it to 1 minute after publish date
+      const minDueDate = new Date(scheduledPublishAt.getTime() + 60000);
+      form.setValue("dueDate", minDueDate);
+      form.trigger("dueDate");
+    }
+  }, [scheduledPublishAt, dueDate, form]);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -180,12 +223,27 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
     setIsSubmitting(true);
     setFormMessage(null);
     try {
-      const response = await fetch("/api/assignments/pronunciation", {
-        method: "POST",
+      const url = assignmentId ? `/api/assignments/${assignmentId}` : "/api/assignments/pronunciation";
+      const method = assignmentId ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: JSON.stringify(assignmentId ? {
+          topic: values.topic,
+          scheduledPublishAt: values.scheduledPublishAt ? values.scheduledPublishAt.toISOString() : undefined,
+          dueDate: values.dueDate ? values.dueDate.toISOString() : undefined,
+          classIds: values.classIds,
+          studentIds: values.studentIds,
+          questions: values.questions.map((q, index) => ({
+            id: initialAssignment?.questions?.[index]?.id,
+            textQuestion: q.title || null,
+            textAnswer: q.text,
+          })),
+          levels: values.levels,
+        } : {
           creationType: "PRONUNCIATION",
           ...values,
         }), 
@@ -199,12 +257,12 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
 
       setFormMessage({
         type: "success",
-        message: "Assignment created! Redirecting...",
+        message: assignmentId ? "Assignment updated! Redirecting..." : "Assignment created! Redirecting...",
       });
 
       // Redirect after a short delay to allow user to see the message
       setTimeout(() => {
-        router.push("/assignments");
+        router.push(assignmentId ? `/assignments/${assignmentId}` : "/assignments");
         router.refresh();
       }, 1500);
     } catch (error) {
@@ -467,7 +525,16 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
               <FormControl>
                 <Switch
                   checked={enableSchedule}
-                  onCheckedChange={setEnableSchedule}
+                  onCheckedChange={(checked) => {
+                    setEnableSchedule(checked);
+                    if (!checked) {
+                      form.setValue("scheduledPublishAt", null);
+                    } else if (!scheduledPublishAt) {
+                      // If enabling, set to current date and time
+                      const now = new Date();
+                      form.setValue("scheduledPublishAt", now);
+                    }
+                  }}
                 />
               </FormControl>
             </FormItem>
@@ -577,7 +644,19 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
               <FormControl>
                 <Switch
                   checked={enableDueDate}
-                  onCheckedChange={setEnableDueDate}
+                  onCheckedChange={(checked) => {
+                    setEnableDueDate(checked);
+                    if (!checked) {
+                      form.setValue("dueDate", null);
+                    } else if (!dueDate) {
+                      // If enabling, set to current date and time
+                      const now = new Date();
+                      // Ensure due date is at least after the publish date
+                      const publishDate = scheduledPublishAt || new Date();
+                      const defaultDueDate = now >= publishDate ? now : new Date(publishDate.getTime() + 60000); // 1 minute after publish date
+                      form.setValue("dueDate", defaultDueDate);
+                    }
+                  }}
                 />
               </FormControl>
             </FormItem>
@@ -620,14 +699,32 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
                                 newDateTime.setMinutes(
                                   currentTime.getMinutes()
                                 );
-                                field.onChange(newDateTime);
+                                
+                                // Validate that due date is after publish date
+                                if (scheduledPublishAt && newDateTime < scheduledPublishAt) {
+                                  // If due date would be before publish date, set it to 1 minute after publish date
+                                  const minDueDate = new Date(scheduledPublishAt.getTime() + 60000);
+                                  field.onChange(minDueDate);
+                                  form.trigger("dueDate"); // Trigger validation
+                                } else {
+                                  field.onChange(newDateTime);
+                                }
                               } else {
                                 field.onChange(null);
                               }
                             }}
-                            disabled={(date) =>
-                              date < new Date(new Date().setHours(0, 0, 0, 0))
-                            }
+                            disabled={(date) => {
+                              const today = new Date(new Date().setHours(0, 0, 0, 0));
+                              // Disable dates before today
+                              if (date < today) return true;
+                              // Disable dates before the publish date if scheduled
+                              if (scheduledPublishAt) {
+                                const publishDate = new Date(scheduledPublishAt);
+                                publishDate.setHours(0, 0, 0, 0);
+                                return date < publishDate;
+                              }
+                              return false;
+                            }}
                             initialFocus
                           />
                         </PopoverContent>
@@ -636,7 +733,7 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
                         <Input
                           type="time"
                           value={
-                            field.value ? format(field.value, "HH:mm") : "23:59"
+                            field.value ? format(field.value, "HH:mm") : format(new Date(), "HH:mm")
                           }
                           onChange={(e) => {
                             const timeValue = e.target.value;
@@ -648,7 +745,16 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
                               const newDateTime = new Date(currentDate);
                               newDateTime.setHours(hours);
                               newDateTime.setMinutes(minutes);
-                              field.onChange(newDateTime);
+                              
+                              // Validate that due date is after publish date
+                              if (scheduledPublishAt && newDateTime < scheduledPublishAt) {
+                                // If due date would be before publish date, set it to 1 minute after publish date
+                                const minDueDate = new Date(scheduledPublishAt.getTime() + 60000);
+                                field.onChange(minDueDate);
+                                form.trigger("dueDate"); // Trigger validation
+                              } else {
+                                field.onChange(newDateTime);
+                              }
                             }
                           }}
                           className="w-[120px]"
@@ -657,7 +763,7 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
                     </div>
                     <FormDescription>
                       Students will see this due date and be encouraged to
-                      complete by this time.
+                      complete by this time. Due date must be after the publish date.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -733,7 +839,9 @@ export function PronunciationAssignmentForm({ data }: PronunciationAssignmentFor
               </Dialog>
 
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Assignment"}
+                {isSubmitting
+                  ? (assignmentId ? "Updating..." : "Creating...")
+                  : (assignmentId ? "Save" : "Create Assignment")}
               </Button>
             </div>
           </div>

@@ -1,43 +1,30 @@
 'use client'
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { StudentAssignmentsList } from "@/components/assignments/student-assignments-list";
 import { AssignmentWithDetails } from "../../../lib/services/assignments.service";
-import { 
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from '@/components/ui/pagination'
-
-interface PaginationData {
-  page: number
-  limit: number
-  total: number
-  totalPages: number
-}
+import { Loader2 } from "lucide-react";
 
 export default function AssignmentsPage() {
   const { data: session } = useSession();
   const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(12); // Show 12 assignments per page
-  const [pagination, setPagination] = useState<PaginationData>({
-    page: 1,
-    limit: 12,
-    total: 0,
-    totalPages: 0
-  });
+  const [hasMore, setHasMore] = useState(true);
+  const [total, setTotal] = useState(0);
+  const pageSize = 12; // Show 12 assignments per page
+  const observerTarget = useRef<HTMLDivElement>(null);
 
-  const fetchAssignments = async (page = currentPage) => {
+  const fetchAssignments = useCallback(async (page: number, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
       
       // Add pagination parameters to the API call
       const params = new URLSearchParams({
@@ -51,109 +38,100 @@ export default function AssignmentsPage() {
       }
       const result = await response.json();
       
+      let newAssignments: AssignmentWithDetails[] = [];
+      let paginationInfo = null;
+      
       // Handle the new response format with success and data properties
       if (result.success && result.data) {
-        setAssignments(result.data);
-        // Update pagination info if available
-        if (result.pagination) {
-          setPagination(result.pagination);
-        } else {
-          // If no pagination info, assume single page
-          setPagination({
-            page: page,
-            limit: pageSize,
-            total: result.data.length,
-            totalPages: 1
-          });
-        }
+        newAssignments = result.data;
+        paginationInfo = result.pagination;
       } else if (Array.isArray(result)) {
         // Handle legacy response format
-        setAssignments(result);
-        setPagination({
-          page: page,
-          limit: pageSize,
-          total: result.length,
-          totalPages: 1
+        newAssignments = result;
+      } else {
+        newAssignments = result.data || [];
+      }
+      
+      if (append) {
+        // Append new assignments to existing ones
+        setAssignments(prev => {
+          const updated = [...prev, ...newAssignments];
+          // Update total if no pagination info
+          if (!paginationInfo) {
+            setTotal(updated.length);
+          }
+          return updated;
         });
       } else {
-        setAssignments(result.data || []);
-        setPagination({
-          page: page,
-          limit: pageSize,
-          total: result.data?.length || 0,
-          totalPages: 1
-        });
+        // Replace assignments for initial load
+        setAssignments(newAssignments);
+        if (!paginationInfo) {
+          setTotal(newAssignments.length);
+        }
+      }
+      
+      // Update pagination info
+      if (paginationInfo) {
+        setTotal(paginationInfo.total);
+        setHasMore(page < paginationInfo.totalPages);
+        setCurrentPage(page);
+      } else {
+        // If no pagination info, check if we got a full page
+        setHasMore(newAssignments.length === pageSize);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load assignments');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  };
+  }, [pageSize]);
 
-  // Load assignments when page changes (including initial load)
+  // Initial load
   useEffect(() => {
-    fetchAssignments(currentPage);
-  }, [currentPage]);
+    if (session?.user) {
+      fetchAssignments(1, false);
+    }
+  }, [session, fetchAssignments]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          fetchAssignments(currentPage + 1, true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, loadingMore, loading, currentPage, fetchAssignments]);
 
   // Refresh assignments when the user returns to this page
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchAssignments(currentPage);
+      if (document.visibilityState === 'visible' && assignments.length > 0) {
+        // Reset and reload from page 1
+        setAssignments([]);
+        setCurrentPage(1);
+        setHasMore(true);
+        fetchAssignments(1, false);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [currentPage]);
-
-  // Pagination handlers
-  const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= pagination.totalPages && page !== currentPage) {
-      setCurrentPage(page);
-    }
-  };
-
-  // Generate pagination numbers with ellipsis
-  const generatePaginationItems = () => {
-    const items = []
-    const totalPages = pagination.totalPages
-    const current = currentPage
-
-    if (totalPages <= 7) {
-      // Show all pages if 7 or fewer
-      for (let i = 1; i <= totalPages; i++) {
-        items.push(i)
-      }
-    } else {
-      // Show first page
-      items.push(1)
-      
-      if (current > 4) {
-        items.push('ellipsis-start')
-      }
-      
-      // Show pages around current
-      const start = Math.max(2, current - 1)
-      const end = Math.min(totalPages - 1, current + 1)
-      
-      for (let i = start; i <= end; i++) {
-        items.push(i)
-      }
-      
-      if (current < totalPages - 3) {
-        items.push('ellipsis-end')
-      }
-      
-      // Show last page
-      if (totalPages > 1) {
-        items.push(totalPages)
-      }
-    }
-    
-    return items
-  };
+  }, [assignments.length, fetchAssignments]);
 
   if (!session) {
     return <div>Loading...</div>;
@@ -208,72 +186,28 @@ export default function AssignmentsPage() {
             View and complete your assigned tasks
           </p>
         )}
-        {pagination.total > 0 && (
+        {total > 0 && (
           <p className="text-muted-foreground text-sm mt-1">
-            Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} assignments
+            {assignments.length} of {total} assignments
           </p>
         )}
       </div>
       <StudentAssignmentsList assignments={assignments} />
       
-      {/* Pagination */}
-      {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center space-x-2 py-8">
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious 
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    if (currentPage > 1) {
-                      handlePageChange(currentPage - 1)
-                    }
-                  }}
-                  className={currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                  aria-disabled={currentPage === 1}
-                />
-              </PaginationItem>
-              
-              {generatePaginationItems().map((item, index) => (
-                <PaginationItem key={index}>
-                  {typeof item === 'number' ? (
-                    <PaginationLink 
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        if (item !== currentPage) {
-                          handlePageChange(item)
-                        }
-                      }}
-                      isActive={currentPage === item}
-                      className="cursor-pointer"
-                    >
-                      {item}
-                    </PaginationLink>
-                  ) : (
-                    <PaginationEllipsis />
-                  )}
-                </PaginationItem>
-              ))}
-              
-              <PaginationItem>
-                <PaginationNext 
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    if (currentPage < pagination.totalPages) {
-                      handlePageChange(currentPage + 1)
-                    }
-                  }}
-                  className={currentPage === pagination.totalPages ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                  aria-disabled={currentPage === pagination.totalPages}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
-      )}
+      {/* Infinite scroll trigger and loading indicator */}
+      <div ref={observerTarget} className="flex items-center justify-center py-8">
+        {loadingMore && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Loading more assignments...</span>
+          </div>
+        )}
+        {!hasMore && assignments.length > 0 && (
+          <p className="text-muted-foreground text-sm">
+            You've reached the end of the list
+          </p>
+        )}
+      </div>
     </div>
   );
 }

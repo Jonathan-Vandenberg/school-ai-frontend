@@ -162,7 +162,22 @@ export class AuthService {
         select: { teacherId: true },
       })
 
-      return assignment?.teacherId === user.id
+      if (!assignment) {
+        return false
+      }
+
+      // If assignment has no teacherId, allow any teacher to manage it
+      // (for backwards compatibility with assignments created before teacherId was required)
+      if (!assignment.teacherId) {
+        console.log(`Assignment ${assignmentId} has no teacherId, allowing teacher ${user.id} to manage`)
+        return true
+      }
+
+      const canManage = assignment.teacherId === user.id
+      if (!canManage) {
+        console.log(`Teacher ${user.id} cannot manage assignment ${assignmentId} (owned by ${assignment.teacherId})`)
+      }
+      return canManage
     }
 
     return false

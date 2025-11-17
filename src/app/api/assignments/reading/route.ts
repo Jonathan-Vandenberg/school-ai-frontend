@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
         title: q.title || ''
       })),
       assignToEntireClass: validatedData.studentIds ? false : true,
+      levels: validatedData.levels,
     });
 
     // Automatically create a template from this assignment
@@ -89,8 +90,8 @@ export async function POST(request: NextRequest) {
           feedbackSettings: {}
         },
         questions: validatedData.questions.map((q, index) => ({
-          textQuestion: q.text,
-          textAnswer: q.title || '',
+          textQuestion: q.title || undefined,
+          textAnswer: q.text,
           order: index
         })),
         levels: validatedData.levels

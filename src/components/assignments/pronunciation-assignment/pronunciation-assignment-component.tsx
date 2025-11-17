@@ -325,6 +325,9 @@ export function PronunciationAssignment({
       const formData = new FormData()
       formData.append('expected_text', expectedText)  // Changed parameter name to match /pronunciation route
       formData.append('file', audioFile)              // Changed parameter name to match /pronunciation route
+      if (currentQuestion.id) {
+        formData.append('question_id', currentQuestion.id)
+      }
       
       const response = await fetch('/api/analysis/pronunciation', {
         method: 'POST',
@@ -807,7 +810,7 @@ export function PronunciationAssignment({
                     </div>
                     
                     {/* Legend */}
-                    <div className="mt-4 pt-3 border-t border-gray-200">
+                    {/* <div className="mt-4 pt-3 border-t border-gray-200">
                       <p className="text-xs text-gray-600 mb-2">Score Range:</p>
                       <div className="flex flex-wrap gap-2 text-xs">
                         <span className="inline-block px-2 py-1 rounded bg-green-50 border border-green-200 text-green-700">
@@ -820,7 +823,7 @@ export function PronunciationAssignment({
                           &lt;60% Needs Practice
                         </span>
                       </div>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               )}

@@ -101,8 +101,13 @@ export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }:
   const { classes } = data;
   const [students, setStudents] = useState<User[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
-  const [enableSchedule, setEnableSchedule] = useState(false);
-  const [enableDueDate, setEnableDueDate] = useState(false);
+  // Initialize enableSchedule and enableDueDate based on initialAssignment
+  const [enableSchedule, setEnableSchedule] = useState(
+    !!initialAssignment?.scheduledPublishAt
+  );
+  const [enableDueDate, setEnableDueDate] = useState(
+    !!initialAssignment?.dueDate
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<{
     type: "success" | "error";
@@ -175,6 +180,18 @@ export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }:
 
   const selectedClasses = form.watch("classIds");
   const assignToEntireClass = form.watch("assignToEntireClass");
+  const scheduledPublishAt = form.watch("scheduledPublishAt");
+  const dueDate = form.watch("dueDate");
+
+  // Adjust due date if publish date changes and due date would be before it
+  useEffect(() => {
+    if (scheduledPublishAt && dueDate && dueDate < scheduledPublishAt) {
+      // If due date is before publish date, adjust it to 1 minute after publish date
+      const minDueDate = new Date(scheduledPublishAt.getTime() + 60000);
+      form.setValue("dueDate", minDueDate);
+      form.trigger("dueDate");
+    }
+  }, [scheduledPublishAt, dueDate, form]);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -244,8 +261,8 @@ export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }:
         body: JSON.stringify(assignmentId ? {
           topic: values.topic,
           context: values.description,
-          scheduledPublishAt: values.scheduledPublishAt?.toISOString(),
-          dueDate: values.dueDate?.toISOString(),
+          scheduledPublishAt: values.scheduledPublishAt ? values.scheduledPublishAt.toISOString() : undefined,
+          dueDate: values.dueDate ? values.dueDate.toISOString() : undefined,
           classIds: values.classIds,
           studentIds: values.studentIds,
           questions: values.questions.map((q, index) => ({
@@ -954,7 +971,16 @@ export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }:
               <FormControl>
                 <Switch
                   checked={enableSchedule}
-                  onCheckedChange={setEnableSchedule}
+                  onCheckedChange={(checked) => {
+                    setEnableSchedule(checked);
+                    if (!checked) {
+                      form.setValue("scheduledPublishAt", null);
+                    } else if (!scheduledPublishAt) {
+                      // If enabling, set to current date and time
+                      const now = new Date();
+                      form.setValue("scheduledPublishAt", now);
+                    }
+                  }}
                 />
               </FormControl>
             </FormItem>
@@ -1064,7 +1090,19 @@ export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }:
               <FormControl>
                 <Switch
                   checked={enableDueDate}
-                  onCheckedChange={setEnableDueDate}
+                  onCheckedChange={(checked) => {
+                    setEnableDueDate(checked);
+                    if (!checked) {
+                      form.setValue("dueDate", null);
+                    } else if (!dueDate) {
+                      // If enabling, set to current date and time
+                      const now = new Date();
+                      // Ensure due date is at least after the publish date
+                      const publishDate = scheduledPublishAt || new Date();
+                      const defaultDueDate = now >= publishDate ? now : new Date(publishDate.getTime() + 60000); // 1 minute after publish date
+                      form.setValue("dueDate", defaultDueDate);
+                    }
+                  }}
                 />
               </FormControl>
             </FormItem>
@@ -1123,7 +1161,7 @@ export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }:
                         <Input
                           type="time"
                           value={
-                            field.value ? format(field.value, "HH:mm") : "23:59"
+                            field.value ? format(field.value, "HH:mm") : format(new Date(), "HH:mm")
                           }
                           onChange={(e) => {
                             const timeValue = e.target.value;
@@ -1135,7 +1173,16 @@ export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }:
                               const newDateTime = new Date(currentDate);
                               newDateTime.setHours(hours);
                               newDateTime.setMinutes(minutes);
-                              field.onChange(newDateTime);
+                              
+                              // Validate that due date is after publish date
+                              if (scheduledPublishAt && newDateTime < scheduledPublishAt) {
+                                // If due date would be before publish date, set it to 1 minute after publish date
+                                const minDueDate = new Date(scheduledPublishAt.getTime() + 60000);
+                                field.onChange(minDueDate);
+                                form.trigger("dueDate"); // Trigger validation
+                              } else {
+                                field.onChange(newDateTime);
+                              }
                             }
                           }}
                           className="w-[120px]"
@@ -1144,7 +1191,7 @@ export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }:
                     </div>
                     <FormDescription>
                       Students will see this due date and be encouraged to
-                      complete by this time.
+                      complete by this time. Due date must be after the publish date.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1221,7 +1268,7 @@ export function ReadingAssignmentForm({ data, assignmentId, initialAssignment }:
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting 
                   ? (assignmentId ? "Updating..." : "Creating...") 
-                  : (assignmentId ? "Update Assignment" : "Create Assignment")}
+                  : (assignmentId ? "Save" : "Create Assignment")}
               </Button>
             </div>
           </div>

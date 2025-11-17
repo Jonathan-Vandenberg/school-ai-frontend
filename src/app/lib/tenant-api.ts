@@ -56,4 +56,56 @@ export async function postFormToAudioApi(path: string, form: FormData): Promise<
   })
 }
 
+export async function postJsonToAudioApi(path: string, payload: Record<string, any>): Promise<Response> {
+  const { baseUrl, apiKey, subdomain } = await getAudioApiAuth()
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'Audio analysis API key not configured' }), { status: 500 })
+  }
+
+  const body: Record<string, any> = { ...payload }
+  try {
+    const currentUser = await AuthService.getAuthenticatedUser()
+    body.user_id = body.user_id ?? currentUser.id
+    body.user_role = body.user_role ?? currentUser.customRole
+  } catch (error) {
+    console.warn('Failed to attach user context for audio API JSON call:', error)
+  }
+
+  if (subdomain) {
+    body.tenant_subdomain = body.tenant_subdomain ?? subdomain
+  }
+
+  const url = `${baseUrl.replace(/\/$/, '')}${path}`
+  return fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      ...(subdomain ? { 'x-tenant-subdomain': subdomain } : {}),
+    },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function ensurePronunciationReference(questionId: string, expectedText: string, options?: { forceRegenerate?: boolean }) {
+  if (!questionId || !expectedText?.trim()) {
+    return
+  }
+
+  const response = await postJsonToAudioApi('/references/pronunciation', {
+    question_id: questionId,
+    expected_text: expectedText,
+    force_regenerate: options?.forceRegenerate ?? false,
+    // force_regenerate: true,
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '')
+    throw new Error(
+      `Failed to sync pronunciation reference (${response.status}): ${errorText || response.statusText}`
+    )
+  }
+
+  return response.json().catch(() => undefined)
+}
 

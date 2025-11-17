@@ -49,8 +49,11 @@ import {
   FileText, 
   CheckCircle,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Copy,
+  Check
 } from 'lucide-react'
+import { useTenant } from '@/components/providers/tenant-provider'
 
 // Form validation schemas
 const singleUserSchema = z.object({
@@ -86,6 +89,7 @@ interface UserCreationDialogProps {
 }
 
 export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCreationDialogProps) {
+  const { tenant } = useTenant()
   const [activeTab, setActiveTab] = useState('single')
   const [loading, setLoading] = useState(false)
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false)
@@ -93,8 +97,22 @@ export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCr
     created: number
     failed: number
     errors: string[]
-    createdUsers?: any[]
+    createdUsers?: Array<{
+      id: string
+      name: string
+      username: string
+      email: string
+      role: string
+      password: string
+    }>
+    failedUsers?: Array<{
+      name: string
+      username: string
+      email: string
+      error: string
+    }>
   } | null>(null)
+  const [copiedIndex, setCopiedIndex] = useState<number | 'all' | null>(null)
 
   // Single user form
   const singleForm = useForm<SingleUserFormData>({
@@ -167,15 +185,16 @@ export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCr
         const username = cleanName
         const safeEmailPrefix = cleanName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '') || `student${index + 1}`
         const email = `${safeEmailPrefix}@school.com`
+        const password = data.passwordOption === 'custom' && data.customPassword 
+          ? data.customPassword 
+          : generatePassword()
         
         return {
           name: cleanName,
           username,
           email,
           customRole: 'STUDENT' as const,
-          password: data.passwordOption === 'custom' && data.customPassword 
-            ? data.customPassword 
-            : generatePassword(),
+          password,
           phone: '',
           address: cleanName,
         }
@@ -191,7 +210,30 @@ export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCr
 
       if (response.ok) {
         const result = await response.json()
-        setBulkResults(result.data)
+        // Match created users with their passwords
+        // We need to match by original username/email since the API may have modified usernames
+        const createdUsersWithPasswords = result.data.createdUsers?.map((createdUser: any) => {
+          // Try to find the original student by matching email (before @) or username
+          // The API might have changed the username, but the email pattern should be similar
+          const emailPrefix = createdUser.email.split('@')[0]
+          const originalStudent = students.find((student, idx) => {
+            // Match by original email prefix or username
+            const studentEmailPrefix = student.email.split('@')[0]
+            // Check if the created user's email prefix starts with the original prefix
+            // (accounting for numbers added for conflicts)
+            return emailPrefix.startsWith(studentEmailPrefix) || 
+                   createdUser.username.startsWith(student.username)
+          })
+          return {
+            ...createdUser,
+            password: originalStudent?.password || ''
+          }
+        }) || []
+        
+        setBulkResults({
+          ...result.data,
+          createdUsers: createdUsersWithPasswords
+        })
         onUserCreated()
         
         // Don't auto-reset form on success to allow reviewing results
@@ -232,7 +274,35 @@ export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCr
 
   const resetBulkForm = () => {
     setBulkResults(null)
+    setCopiedIndex(null)
     bulkForm.reset()
+  }
+
+  const getTenantSubdomain = () => {
+    return tenant?.subdomain || 'demo'
+  }
+
+  const formatUserCredentials = (user: { username: string; password: string }) => {
+    const subdomain = getTenantSubdomain()
+    return `Username: ${user.username}\nPassword: ${user.password}\nWebsite: https://www.${subdomain}.speechanalyser.com`
+  }
+
+  const formatAllCredentials = () => {
+    if (!bulkResults?.createdUsers) return ''
+    const subdomain = getTenantSubdomain()
+    return bulkResults.createdUsers.map(user => 
+      formatUserCredentials(user)
+    ).join('\n\n')
+  }
+
+  const handleCopy = async (text: string, index: number | 'all') => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedIndex(index)
+      setTimeout(() => setCopiedIndex(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
   }
 
   // Custom unsaved changes logic for dual forms
@@ -301,7 +371,7 @@ export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCr
             Create Users
           </DialogTitle>
           <DialogDescription>
-            Add individual users or bulk create students from CSV data
+            Add individual users or bulk create students
           </DialogDescription>
         </DialogHeader>
 
@@ -451,32 +521,6 @@ export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCr
 
           {/* Bulk Students Creation */}
           <TabsContent value="bulk" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Names Template
-                </CardTitle>
-                <CardDescription>
-                  Download the template to see the expected format
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div>
-                    <p className="font-medium">bulk_students_names.txt</p>
-                    <p className="text-sm text-muted-foreground">
-                      Format: One name per line (e.g., "John Doe")
-                    </p>
-                  </div>
-                  <Button variant="outline" onClick={downloadTemplate}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
             <Form {...bulkForm}>
               <form onSubmit={bulkForm.handleSubmit(handleBulkStudentsSubmit)} className="space-y-4">
                 <FormField
@@ -493,7 +537,7 @@ export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCr
                         />
                       </FormControl>
                       <FormDescription>
-                        Enter one student name per line. Usernames and emails will be auto-generated.
+                        Enter one student name per line. <br /> Emails will be auto-generated and can be updated later.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -589,27 +633,75 @@ export function UserCreationDialog({ open, onOpenChange, onUserCreated }: UserCr
                             </Badge>
                           )}
                         </div>
-                        {bulkResults.errors && bulkResults.errors.length > 0 && (
+                        {bulkResults.failedUsers && bulkResults.failedUsers.length > 0 && (
                           <div className="text-sm">
-                            <p className="font-medium">Errors:</p>
-                            <ul className="list-disc list-inside">
-                              {bulkResults.errors.slice(0, 5).map((error, index) => (
-                                <li key={index}>{error}</li>
+                            <p className="font-medium mb-2">Failed to create users ({bulkResults.failedUsers.length}):</p>
+                            <div className="max-h-[300px] overflow-y-auto border rounded-md p-3 bg-muted/50 space-y-2">
+                              {bulkResults.failedUsers.map((user, index) => (
+                                <div key={index} className="p-2 bg-background rounded border border-red-200">
+                                  <div className="font-medium text-red-700">{user.name || user.username}</div>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {user.username} • {user.email}
+                                  </div>
+                                  <div className="text-xs text-red-600 mt-1 font-medium">
+                                    Error: {user.error}
+                                  </div>
+                                </div>
                               ))}
-                            </ul>
+                            </div>
                           </div>
                         )}
                         {bulkResults.createdUsers && bulkResults.createdUsers.length > 0 && (
                           <div className="text-sm">
-                            <p className="font-medium">Created students:</p>
-                            <ul className="list-disc list-inside">
-                              {bulkResults.createdUsers.slice(0, 5).map((user, index) => (
-                                <li key={index}>{user.username} ({user.email})</li>
-                              ))}
-                              {bulkResults.createdUsers.length > 5 && (
-                                <li>... and {bulkResults.createdUsers.length - 5} more</li>
-                              )}
-                            </ul>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="font-medium">Successfully created users ({bulkResults.createdUsers.length}):</p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCopy(formatAllCredentials(), 'all')}
+                                className="h-7"
+                              >
+                                {copiedIndex === 'all' ? (
+                                  <>
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Copied
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-3 w-3 mr-1" />
+                                    Copy All
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                            <div className="max-h-[400px] overflow-y-auto border rounded-md p-3 bg-muted/50 space-y-3">
+                              {bulkResults.createdUsers.map((user, index) => {
+                                const credentials = formatUserCredentials(user)
+                                return (
+                                  <div key={user.id || index} className="p-3 bg-background rounded border space-y-2">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex-1 font-mono text-xs whitespace-pre-wrap break-words">
+                                        {credentials}
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleCopy(credentials, index)}
+                                        className="h-7 w-7 p-0 flex-shrink-0"
+                                      >
+                                        {copiedIndex === index ? (
+                                          <Check className="h-3 w-3 text-green-600" />
+                                        ) : (
+                                          <Copy className="h-3 w-3" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>

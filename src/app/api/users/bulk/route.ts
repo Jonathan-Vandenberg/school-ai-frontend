@@ -3,22 +3,15 @@ import { AuthService, UsersService, handleServiceError } from '@/lib/services'
 import { prisma } from '@/lib/db'
 
 /**
- * Generate 3 random numbers for username conflict resolution
- */
-function generateRandomNumbers(): string {
-  return Math.floor(100 + Math.random() * 900).toString()
-}
-
-/**
- * Check and resolve username/email conflicts
+ * Check and resolve username/email conflicts by appending sequential numbers
  */
 async function resolveUserConflicts(username: string, email: string): Promise<{ username: string, email: string }> {
   let finalUsername = username
   let finalEmail = email
-  let attempts = 0
-  const maxAttempts = 10
+  let number = 0
+  const maxAttempts = 100
 
-  while (attempts < maxAttempts) {
+  while (number < maxAttempts) {
     // Check if username exists
     const existingUser = await prisma.user.findFirst({
       where: {
@@ -34,19 +27,17 @@ async function resolveUserConflicts(username: string, email: string): Promise<{ 
       break
     }
 
-    // Conflict found, add random numbers only to email prefix, keep username as is with numbers
-    const randomNumbers = generateRandomNumbers()
-    finalUsername = `${username} ${randomNumbers}`
+    // Conflict found, try with sequential number
+    number++
+    finalUsername = `${username} ${number}`
     
-    // Generate safe email from the original username
+    // Generate safe email from the original username with number
     const safeEmailPrefix = username.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
-    finalEmail = `${safeEmailPrefix}${randomNumbers}@school.com`
-    
-    attempts++
+    finalEmail = `${safeEmailPrefix}${number}@school.com`
   }
 
-  if (attempts >= maxAttempts) {
-    throw new Error(`Could not resolve username conflict for: ${username}`)
+  if (number >= maxAttempts) {
+    throw new Error(`Could not resolve username conflict for: ${username} after ${maxAttempts} attempts`)
   }
 
   return { username: finalUsername, email: finalEmail }
@@ -92,7 +83,13 @@ export async function POST(request: NextRequest) {
       created: 0,
       failed: 0,
       errors: [] as string[],
-      createdUsers: [] as any[]
+      createdUsers: [] as any[],
+      failedUsers: [] as Array<{
+        name: string
+        username: string
+        email: string
+        error: string
+      }>
     }
 
     // Process each user
@@ -102,7 +99,7 @@ export async function POST(request: NextRequest) {
       try {
         // Validate required fields for each user
         if (!userData.username || !userData.email || !userData.password || !userData.customRole) {
-          throw new Error(`User ${i + 1}: Missing required fields (username, email, password, customRole)`)
+          throw new Error(`Missing required fields (username, email, password, customRole)`)
         }
 
         // Resolve any username/email conflicts
@@ -121,16 +118,23 @@ export async function POST(request: NextRequest) {
 
         results.created++
         results.createdUsers.push({
-          name: userData.name || userData.address,
+          name: userData.name || userData.address || newUser.username,
           username: newUser.username,
           email: newUser.email,
-          role: newUser.customRole
+          role: newUser.customRole,
+          id: newUser.id
         })
 
       } catch (error) {
         results.failed++
-        const errorMessage = error instanceof Error ? error.message : `User ${i + 1}: Unknown error`
+        const errorMessage = error instanceof Error ? error.message : `Unknown error`
         results.errors.push(errorMessage)
+        results.failedUsers.push({
+          name: userData.name || userData.address || userData.username || `User ${i + 1}`,
+          username: userData.username || `User ${i + 1}`,
+          email: userData.email || 'N/A',
+          error: errorMessage
+        })
         
         // Continue processing other users even if one fails
         console.error(`Bulk user creation error for user ${i + 1}:`, error)

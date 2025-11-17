@@ -393,8 +393,8 @@ export default function TemplateDetailPage() {
                       <ReadingAssignmentPreview
                         topic={template.topic}
                         questions={template.questions.map((q: any) => ({
-                          text: q.textQuestion || '',
-                          title: q.textAnswer || undefined,
+                          text: q.textAnswer || '',
+                          title: q.textQuestion || undefined,
                         }))}
                       />
                     </div>
@@ -461,8 +461,8 @@ export default function TemplateDetailPage() {
                           {/* For READING assignments, show text answer (the reading passage) prominently without title */}
                           {template.evaluationSettings?.type === 'READING' ? (
                             <>
-                              {question.textQuestion && (
-                                <p className="text-lg leading-relaxed">{question.textQuestion}</p>
+                              {question.textAnswer && (
+                                <p className="text-lg leading-relaxed">{question.textAnswer}</p>
                               )}
                             </>
                           ) : (

@@ -23,6 +23,7 @@ export type AssignmentTypeDef = {
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   href: string;
+  available: boolean; // Whether this assignment type is available or coming soon
   colors: {
     bg: string;
     iconBg: string;
@@ -38,6 +39,7 @@ export const assignmentTypes: AssignmentTypeDef[] = [
     description: 'Create video-based assignments for student presentations and analysis',
     icon: Video,
     href: '/assignments/create?type=video',
+    available: true,
     colors: {
       bg: 'bg-gradient-to-br from-purple-50 to-violet-100',
       iconBg: 'bg-purple-100 group-hover:bg-purple-200',
@@ -51,6 +53,7 @@ export const assignmentTypes: AssignmentTypeDef[] = [
     description: 'Design reading comprehension and analysis assignments',
     icon: BookOpen,
     href: '/assignments/create?type=reading',
+    available: true,
     colors: {
       bg: 'bg-gradient-to-br from-blue-50 to-indigo-100',
       iconBg: 'bg-blue-100 group-hover:bg-blue-200',
@@ -64,6 +67,7 @@ export const assignmentTypes: AssignmentTypeDef[] = [
     description: 'Build pronunciation practice and speaking exercises',
     icon: Mic,
     href: '/assignments/create?type=pronunciation',
+    available: false,
     colors: {
       bg: 'bg-gradient-to-br from-emerald-50 to-green-100',
       iconBg: 'bg-emerald-100 group-hover:bg-emerald-200',
@@ -77,6 +81,7 @@ export const assignmentTypes: AssignmentTypeDef[] = [
     description: 'Create visual analysis and interpretation assignments',
     icon: ImageIcon,
     href: '/assignments/create?type=image',
+    available: false,
     colors: {
       bg: 'bg-gradient-to-br from-amber-50 to-orange-100',
       iconBg: 'bg-amber-100 group-hover:bg-amber-200',
@@ -90,6 +95,7 @@ export const assignmentTypes: AssignmentTypeDef[] = [
     description: 'Prepare IELTS test practice and preparation materials',
     icon: JISLogo,
     href: '/assignments/create?type=ielts',
+    available: false,
     colors: {
       bg: 'bg-gradient-to-br from-rose-50 to-pink-100',
       iconBg: 'bg-rose-100 group-hover:bg-rose-200',
@@ -103,6 +109,7 @@ export const assignmentTypes: AssignmentTypeDef[] = [
     description: 'Create your own custom assignment type',
     icon: PlusCircle,
     href: '/assignments/create?type=custom',
+    available: false,
     colors: {
       bg: 'bg-gradient-to-br from-slate-50 to-gray-100',
       iconBg: 'bg-slate-100 group-hover:bg-slate-200',

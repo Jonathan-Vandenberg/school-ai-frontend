@@ -7,11 +7,6 @@ import { startAudioAnalysisTimer } from '@/app/lib/audioMetrics'
 const AUDIO_ANALYSIS_URL = process.env.AUDIO_ANALYSIS_URL || 'http://localhost:8000'
 const AUDIO_ANALYSIS_API_KEY = process.env.AUDIO_ANALYSIS_API_KEY
 
-interface PronunciationAnalysisRequest {
-  expected_text: string
-  file: File
-}
-
 export async function POST(request: NextRequest) {
   try {
     // Authenticate user
@@ -31,6 +26,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const expectedText = formData.get('expected_text') as string
     const audioFile = formData.get('file') as File
+    const questionId = formData.get('question_id') as string | null
 
     console.log('🔍 Backend received:', {
       expectedText: expectedText,
@@ -63,6 +59,9 @@ export async function POST(request: NextRequest) {
     const backendFormData = new FormData()
     backendFormData.append('expected_text', expectedText)
     backendFormData.append('file', audioFile)
+    if (questionId) {
+      backendFormData.append('question_id', questionId)
+    }
 
     console.log('📊 Forwarding to FastAPI backend:', {
       expectedText: expectedText,

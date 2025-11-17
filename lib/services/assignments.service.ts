@@ -47,6 +47,12 @@ type ClassWithAssignments = Prisma.AssignmentGetPayload<{
   }
 }>
 
+export type AssignmentLevelDescriptor = {
+  levelType: 'CEFR' | 'GRADE';
+  cefrLevel?: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+  gradeLevel?: 'PRE_K' | 'KINDERGARTEN' | 'GRADE_1' | 'GRADE_2' | 'GRADE_3' | 'GRADE_4' | 'GRADE_5' | 'GRADE_6' | 'GRADE_7' | 'GRADE_8' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11' | 'GRADE_12';
+};
+
 export interface CreateAssignmentData {
   topic: string
   type: 'CLASS' | 'INDIVIDUAL'
@@ -88,6 +94,7 @@ export interface UpdateAssignmentData {
   classIds?: string[]
   studentIds?: string[]
   questions?: Array<{ id?: string; textQuestion: string | null; textAnswer: string }>
+  levels?: AssignmentLevelDescriptor[]
 }
 
 export interface AssignmentWithDetails {
@@ -147,6 +154,7 @@ export interface AssignmentWithDetails {
       username: string
     }
   }>
+  levels?: AssignmentLevelDescriptor[]
   progresses?: Array<{
     id: string
     isComplete: boolean
@@ -381,7 +389,9 @@ export class AssignmentsService {
       throw new NotFoundError('Assignment not found')
     }
 
-    return assignment as AssignmentWithDetails
+    const vocab = (assignment as any).vocabularyItems
+    const levels = Array.isArray(vocab?.levels) ? vocab.levels : []
+    return { ...(assignment as AssignmentWithDetails), levels }
   }
 
   /**
@@ -411,13 +421,34 @@ export class AssignmentsService {
     }
 
     // Extract questions and assignment data from updateData since they're not part of assignment schema
-    const { questions: _, classIds, studentIds, ...assignmentUpdateData } = updateData
+    const { questions: _, classIds, studentIds, levels, ...assignmentUpdateData } = updateData
 
     return withTransaction(async (tx) => {
+      const currentAssignment = await tx.assignment.findUnique({
+        where: { id: assignmentId },
+        select: { vocabularyItems: true }
+      })
+
       // Update assignment basic data
+      const assignmentUpdatePayload: Prisma.AssignmentUpdateInput = {
+        ...assignmentUpdateData,
+      }
+
+      if (levels !== undefined) {
+        const existingVocab = (currentAssignment?.vocabularyItems ?? {}) as Record<string, any>
+        const nextVocab = { ...existingVocab }
+        if (levels.length > 0) {
+          nextVocab.levels = levels
+        } else {
+          delete nextVocab.levels
+        }
+        assignmentUpdatePayload.vocabularyItems =
+          Object.keys(nextVocab).length > 0 ? nextVocab : Prisma.JsonNull
+      }
+
       await tx.assignment.update({
         where: { id: assignmentId },
-        data: assignmentUpdateData,
+        data: assignmentUpdatePayload,
       })
 
       // Handle class/student reassignment if provided
@@ -922,6 +953,7 @@ export class AssignmentsService {
       evaluationSettings,
       totalStudentsInScope,
       analysisResult,
+      levels,
     } = data;
 
     // Validate language exists (only if languageId is provided)
@@ -939,8 +971,12 @@ export class AssignmentsService {
     return withTransaction(async (tx) => {
       // Calculate initial stats
       const initialTotalStudentsInScope = totalStudentsInScope || 0;
-      const publishDate = new Date();
-      const isActive = !scheduledPublishAt;
+      const now = new Date();
+      const isScheduled = !!scheduledPublishAt;
+      const effectiveScheduledAt = scheduledPublishAt ?? null;
+      const publishDate = isScheduled ? null : now;
+      const isActive = !isScheduled;
+      const levelPayload = levels && levels.length > 0 ? levels : [];
 
       // Create comprehensive evaluation settings
       const evaluationData = {
@@ -966,12 +1002,13 @@ export class AssignmentsService {
           color: color || '#3B82F6',
           isActive,
           publishedAt: publishDate,
-          scheduledPublishAt,
+          scheduledPublishAt: effectiveScheduledAt,
           dueDate,
           totalStudentsInScope: initialTotalStudentsInScope,
           completedStudentsCount: 0,
           completionRate: 0.0,
           averageScoreOfCompleted: 0.0,
+          vocabularyItems: levelPayload.length > 0 ? { levels: levelPayload } : undefined,
           evaluationSettings: {
             create: evaluationData
           }
@@ -1056,8 +1093,8 @@ export class AssignmentsService {
           languageCode: language?.code || 'none',
           classCount: classIds?.length || 0,
           studentCount: studentIds?.length || 0,
-          isScheduled: !!scheduledPublishAt,
-          scheduledDate: scheduledPublishAt?.toISOString(),
+          isScheduled: isScheduled,
+          scheduledDate: effectiveScheduledAt?.toISOString(),
           assignmentType: assignToEntireClass ? 'CLASS' : 'INDIVIDUAL',
           evaluationType: 'VIDEO',
           hasTranscript: hasTranscript || false,
@@ -1110,7 +1147,7 @@ export class AssignmentsService {
       // Initialize assignment statistics WITHIN the transaction (only for active assignments)
       await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
 
-      return completeAssignment as AssignmentWithDetails;
+      return { ...(completeAssignment as AssignmentWithDetails), levels: levelPayload } ;
     });
   }
 
@@ -1130,6 +1167,7 @@ export class AssignmentsService {
       languageId,
       color,
       totalStudentsInScope,
+      levels,
     } = data;
 
     // Validate language exists (only if languageId is provided)
@@ -1147,8 +1185,12 @@ export class AssignmentsService {
     return withTransaction(async (tx) => {
       // Calculate initial stats
       const initialTotalStudentsInScope = totalStudentsInScope || 0;
-      const publishDate = new Date();
-      const isActive = !scheduledPublishAt;
+      const now = new Date();
+      const isScheduled = !!scheduledPublishAt;
+      const effectiveScheduledAt = scheduledPublishAt ?? null;
+      const publishDate = isScheduled ? null : now;
+      const isActive = !isScheduled;
+      const levelPayload = levels && levels.length > 0 ? levels : [];
 
       // Create evaluation settings for reading assignment
       const evaluationData = {
@@ -1176,12 +1218,13 @@ export class AssignmentsService {
           color: color || '#10B981', // Green color for reading assignments
           isActive,
           publishedAt: publishDate,
-          scheduledPublishAt: scheduledPublishAt || publishDate,
+          scheduledPublishAt: effectiveScheduledAt,
           dueDate: dueDate || null,
           totalStudentsInScope: initialTotalStudentsInScope,
           completedStudentsCount: 0,
           completionRate: 0.0,
           averageScoreOfCompleted: 0.0,
+          vocabularyItems: levelPayload.length > 0 ? { levels: levelPayload } : undefined,
           evaluationSettings: {
             create: evaluationData
           }
@@ -1266,8 +1309,8 @@ export class AssignmentsService {
           languageCode: language?.code || 'none',
           classCount: classIds?.length || 0,
           studentCount: studentIds?.length || 0,
-          isScheduled: !!scheduledPublishAt,
-          scheduledDate: scheduledPublishAt?.toISOString(),
+          isScheduled: isScheduled,
+          scheduledDate: effectiveScheduledAt?.toISOString(),
           assignmentType: isClassAssignment ? 'CLASS' : 'INDIVIDUAL',
           evaluationType: 'READING',
           questionCount: questions?.length || 0
@@ -1322,7 +1365,7 @@ export class AssignmentsService {
       }
 
 
-      return completeAssignment as AssignmentWithDetails;
+      return { ...(completeAssignment as AssignmentWithDetails), levels: levelPayload };
     });
   }
 
@@ -1342,6 +1385,7 @@ export class AssignmentsService {
       languageId,
       color,
       totalStudentsInScope,
+      levels,
     } = data;
 
     // Validate language exists (only if languageId is provided)
@@ -1359,8 +1403,12 @@ export class AssignmentsService {
     return withTransaction(async (tx) => {
       // Calculate initial stats
       const initialTotalStudentsInScope = totalStudentsInScope || 0;
-      const publishDate = new Date();
-      const isActive = !scheduledPublishAt;
+      const now = new Date();
+      const isScheduled = !!scheduledPublishAt;
+      const effectiveScheduledAt = scheduledPublishAt ?? null;
+      const publishDate = isScheduled ? null : now;
+      const isActive = !isScheduled;
+      const levelPayload = levels && levels.length > 0 ? levels : [];
 
       // Create evaluation settings for reading assignment
       const evaluationData = {
@@ -1388,12 +1436,13 @@ export class AssignmentsService {
           color: color || '#10B981', // Green color for reading assignments
           isActive,
           publishedAt: publishDate,
-          scheduledPublishAt: scheduledPublishAt || publishDate,
+          scheduledPublishAt: effectiveScheduledAt,
           dueDate: dueDate || null,
           totalStudentsInScope: initialTotalStudentsInScope,
           completedStudentsCount: 0,
           completionRate: 0.0,
           averageScoreOfCompleted: 0.0,
+          vocabularyItems: levelPayload.length > 0 ? { levels: levelPayload } : undefined,
           evaluationSettings: {
             create: evaluationData
           }
@@ -1478,8 +1527,8 @@ export class AssignmentsService {
           languageCode: language?.code || 'none',
           classCount: classIds?.length || 0,
           studentCount: studentIds?.length || 0,
-          isScheduled: !!scheduledPublishAt,
-          scheduledDate: scheduledPublishAt?.toISOString(),
+          isScheduled: isScheduled,
+          scheduledDate: effectiveScheduledAt?.toISOString(),
           assignmentType: isClassAssignment ? 'CLASS' : 'INDIVIDUAL',
           evaluationType: 'PRONUNCIATION',
           questionCount: questions?.length || 0
@@ -1531,7 +1580,7 @@ export class AssignmentsService {
       // Initialize assignment statistics WITHIN the transaction (only for active assignments)
       await AssignmentsService.initializeAssignmentStatistics(newAssignment.id, tx)
 
-      return completeAssignment as AssignmentWithDetails;
+      return { ...(completeAssignment as AssignmentWithDetails), levels: levelPayload };
     });
   }
 
@@ -1909,6 +1958,7 @@ export interface CreateVideoAssignmentDto {
   };
   totalStudentsInScope?: number;
   analysisResult?: any;
+  levels?: AssignmentLevelDescriptor[];
 }
 
 export interface CreateReadingAssignmentDto {
@@ -1923,6 +1973,7 @@ export interface CreateReadingAssignmentDto {
   languageId?: string | null;
   color?: string;
   totalStudentsInScope?: number;
+  levels?: AssignmentLevelDescriptor[];
 } 
 
 export interface CreatePronunciationAssignmentDto {
@@ -1937,6 +1988,7 @@ export interface CreatePronunciationAssignmentDto {
   languageId?: string | null;
   color?: string;
   totalStudentsInScope?: number;
+  levels?: AssignmentLevelDescriptor[];
 }
 
 export interface CreateIELTSAssignmentDto {

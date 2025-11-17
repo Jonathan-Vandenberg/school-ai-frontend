@@ -6,6 +6,7 @@ import { handleServiceError } from '../../../../../lib/services/auth.service'
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
 import { LevelType, CEFRLevel, GradeLevel } from '@prisma/client'
+import { ensurePronunciationReference } from '@/app/lib/tenant-api'
 
 /**
  * POST /api/assignments/pronunciation
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
         title: q.title || ''
       })),
       assignToEntireClass: validatedData.studentIds ? false : true,
+      levels: validatedData.levels,
     });
 
     // Automatically create a template from this assignment
@@ -88,8 +90,8 @@ export async function POST(request: NextRequest) {
           feedbackSettings: {}
         },
         questions: validatedData.questions.map((q, index) => ({
-          textQuestion: q.text,
-          textAnswer: q.title || '',
+          textQuestion: q.title || undefined,
+          textAnswer: q.text,
           order: index
         })),
         levels: validatedData.levels
@@ -97,6 +99,19 @@ export async function POST(request: NextRequest) {
     } catch (templateError) {
       // Log but don't fail assignment creation if template creation fails
       console.error('Failed to create template:', templateError);
+    }
+
+    const syncTargets = newAssignment.questions?.filter((q) => q.id && q.textAnswer?.trim()) || []
+    if (syncTargets.length > 0) {
+      const syncResults = await Promise.allSettled(
+        syncTargets.map((question) =>
+          ensurePronunciationReference(question.id, question.textAnswer!, { forceRegenerate: true })
+        )
+      )
+      const failures = syncResults.filter((res) => res.status === 'rejected')
+      if (failures.length > 0) {
+        console.error('Pronunciation reference generation failed for some questions', failures)
+      }
     }
 
     return NextResponse.json({
