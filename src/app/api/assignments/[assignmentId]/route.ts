@@ -59,6 +59,7 @@ export async function PUT(
       topic: z.string().min(1, 'Topic is required'),
       videoUrl: z.string().url().optional().nullable(),
       context: z.string().optional().nullable(),
+      videoTranscript: z.string().optional().nullable(),
       isActive: z.boolean().optional(),
       scheduledPublishAt: z.string().optional().nullable(),
       dueDate: z.string().optional().nullable(),
@@ -68,7 +69,7 @@ export async function PUT(
       questions: z.array(z.object({
         id: z.string().optional(),
         textQuestion: z.string().nullable().optional(),
-        textAnswer: z.string().min(1, 'Answer text is required')
+        textAnswer: z.string().optional()
       })).min(1, 'At least one question is required'),
       levels: z.array(z.object({
         levelType: z.nativeEnum(LevelType),
@@ -83,7 +84,7 @@ export async function PUT(
     const questions = validatedData.questions.map(q => ({
       id: q.id,
       textQuestion: q.textQuestion ?? null,
-      textAnswer: q.textAnswer
+      textAnswer: q.textAnswer || ''
     }))
 
     // Update assignment with questions
@@ -94,6 +95,7 @@ export async function PUT(
         topic: validatedData.topic,
         videoUrl: validatedData.videoUrl || undefined,
         context: validatedData.context || undefined,
+        videoTranscript: validatedData.videoTranscript || undefined,
         isActive: validatedData.isActive,
         scheduledPublishAt: validatedData.scheduledPublishAt ? new Date(validatedData.scheduledPublishAt) : null,
         dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,

@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
         languageId: z.string().optional().nullable(), // Made optional
         questions: z.array(z.object({
           text: z.string().min(1, 'Question text is required'),
-          answer: z.string().min(1, 'Answer is required'),
+          answer: z.string().optional(),
         })).min(1, 'At least one question is required'),
         classIds: z.array(z.string()).optional(),
         studentIds: z.array(z.string()).optional(),
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         languageId: validatedData.languageId,
         questions: validatedData.questions.map(q => ({
           question: q.text,
-          answer: q.answer
+          answer: q.answer || ''
         })),
         classIds: validatedData.classIds || [],
         studentIds: validatedData.studentIds || [],

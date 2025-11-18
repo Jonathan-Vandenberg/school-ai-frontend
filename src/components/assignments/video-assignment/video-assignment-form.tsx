@@ -68,11 +68,23 @@ const formSchema = z.object({
   questions: z
     .array(
       z.object({
-        text: z.string().min(1, "Question text cannot be empty."),
-        answer: z.string().min(1, "Answer text cannot be empty."),
+        text: z.string(),
+        answer: z.string().optional(),
       })
     )
-    .min(1, "At least one question is required."),
+    .min(1, "At least one question field is required.")
+    .refine(
+      (questions) => {
+        // Allow empty questions in the array, but require at least one valid question (text only, answer is optional)
+        const validQuestions = questions.filter(
+          (q) => q.text.trim()
+        );
+        return validQuestions.length > 0;
+      },
+      {
+        message: "At least one question with question text is required.",
+      }
+    ),
   classIds: z.array(z.string()).min(1, "At least one class must be selected."),
   studentIds: z.array(z.string()).optional(),
   assignToEntireClass: z.boolean(),
@@ -163,7 +175,7 @@ export function VideoAssignmentForm({ data, assignmentId, initialAssignment }: V
       topic: "",
       description: "",
       videoUrl: "",
-      questions: [{ text: "", answer: "" }],
+      questions: [{ text: "", answer: undefined }],
       classIds: [],
       studentIds: [],
       assignToEntireClass: true,
@@ -475,11 +487,11 @@ export function VideoAssignmentForm({ data, assignmentId, initialAssignment }: V
       return false;
     }
 
-    // Must have at least one complete question
+    // Must have at least one complete question (text only, answer is optional)
     const hasValidQuestions =
       data.questions &&
       data.questions.length > 0 &&
-      data.questions.some((q) => q.text?.trim() && q.answer?.trim());
+      data.questions.some((q) => q.text?.trim());
 
     return hasValidQuestions;
   };
@@ -488,6 +500,21 @@ export function VideoAssignmentForm({ data, assignmentId, initialAssignment }: V
     setIsSubmitting(true);
     setFormMessage(null);
     try {
+      // Filter out empty questions before submitting (only require text, answer is optional)
+      const validQuestions = values.questions.filter(
+        (q) => q.text.trim()
+      );
+
+      // Validate that we have at least one valid question
+      if (validQuestions.length === 0) {
+        setFormMessage({
+          type: "error",
+          message: "Please add at least one question with question text.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       const url = assignmentId 
         ? `/api/assignments/${assignmentId}`
         : "/api/assignments/video";
@@ -507,16 +534,26 @@ export function VideoAssignmentForm({ data, assignmentId, initialAssignment }: V
           dueDate: values.dueDate ? values.dueDate.toISOString() : undefined,
           classIds: values.classIds,
           studentIds: values.studentIds,
-          questions: values.questions.map((q, index) => ({
-            id: initialAssignment?.questions?.[index]?.id,
-            textQuestion: q.text,
-            textAnswer: q.answer,
-            order: index,
-          })),
+          questions: validQuestions.map((q, index) => {
+            // Find the original index in the full questions array to preserve IDs
+            const originalIndex = values.questions.findIndex(
+              (oq) => oq.text === q.text && (oq.answer || '') === (q.answer || '')
+            );
+            return {
+              id: initialAssignment?.questions?.[originalIndex]?.id,
+              textQuestion: q.text,
+              textAnswer: q.answer || '',
+              order: index,
+            };
+          }),
           levels: values.levels,
         } : {
           creationType: "video",
           ...values,
+          questions: validQuestions.map(q => ({
+            text: q.text,
+            answer: q.answer || ""
+          })),
           videoTranscript: transcriptContent || "",
         }),
       });
@@ -804,7 +841,7 @@ export function VideoAssignmentForm({ data, assignmentId, initialAssignment }: V
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => append({ text: "", answer: "" })}
+              onClick={() => append({ text: "", answer: undefined })}
             >
               <PlusCircle className="h-4 w-4 mr-2" />
               Add Question
@@ -1222,7 +1259,10 @@ export function VideoAssignmentForm({ data, assignmentId, initialAssignment }: V
                       <VideoAssignmentPreview
                         topic={currentFormData.topic}
                         videoUrl={currentFormData.videoUrl}
-                        questions={currentFormData.questions}
+                        questions={currentFormData.questions.map(q => ({
+                          text: q.text,
+                          answer: q.answer || ""
+                        }))}
                         transcriptContent={transcriptContent}
                       />
                     </div>
